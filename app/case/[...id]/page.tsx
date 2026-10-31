@@ -2,7 +2,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { codeToHtml } from "shiki";
+import { ActControls } from "@/components/act";
 import { Band, Chip, Timeline } from "@/components/ui";
+import { permalink, provenanceOf } from "@/lib/remediation";
 import { readFile } from "@/lib/repo";
 import { store } from "@/lib/store";
 
@@ -13,6 +15,11 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   const f = await store.getFinding(a.finding_id);
   const items = f ? (await Promise.all(f.items.map((i) => store.getItem(i)))).filter((x) => !!x) : [];
   const repoOnly = a.repo.split("/").slice(0, 2).join("/");
+  const gh = (file: string, line?: number | null) => permalink(repoOnly, a.sha, file, line);
+  const advisoryText = items.map((i) => i.text).join("\n");
+  const briefPath = `/api/remediation/${a.id.split("/").map(encodeURIComponent).join("/")}`;
+  const PROV_ORDER = ["ADVISORY-STATED", "REPO-INFERRED", "SPECULATIVE"] as const;
+  const recs = a.recommendations.map((r) => ({ ...r, prov: provenanceOf(r.text, advisoryText, r.condition_ids, a) })).sort((x, y) => PROV_ORDER.indexOf(x.prov) - PROV_ORDER.indexOf(y.prov));
 
   // Source pane: the files cited by evidence, highlighted (server-side Shiki; read-only fetch at the assessed sha)
   const cited = [...new Set([...a.locations.map((l) => l.file), ...a.conditions.flatMap((c) => c.evidence.map((e) => e.file))])];
@@ -51,7 +58,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
         <Stage n="3" title="Code & environment">
           {a.locations.length === 0 && <p className="text-[13px] text-ink2">No relevant code located. This does not show the code is safe.</p>}
           <ul className="grid gap-1 text-[13px]">
-            {a.locations.map((l, i) => <li key={i}><a href={`#${l.file}:${l.line}`} className="mono">{l.file.split("/").slice(-2).join("/")}:{l.line}</a> <span className="text-ink2">{l.why}</span></li>)}
+            {a.locations.map((l, i) => <li key={i}><a href={`#${l.file}:${l.line}`} className="mono">{l.file.split("/").slice(-2).join("/")}:{l.line}</a> <a href={gh(l.file, l.line)} target="_blank" rel="noreferrer" className="mono text-[11px] ml-1" title="Open on GitHub at this commit">↗ GitHub</a> <span className="text-ink2">{l.why}</span></li>)}
           </ul>
         </Stage>
 
@@ -64,7 +71,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
                   <div className="text-[14px]">{c.text}</div>
                   <div className="text-[12px] text-ink2 mt-1">{c.role === "required" ? "required condition" : `missing protection · ${c.mitigation_kind}`}{c.computed ? " · computed in code" : ""}</div>
                   <div className="text-[12px] mt-1">{c.reasoning}</div>
-                  {c.evidence.length > 0 && <div className="mono text-[12px] mt-1">{c.evidence.map((e, i) => <a key={i} href={`#${e.file}:${e.line}`} className="mr-3">{e.file.split("/").slice(-2).join("/")}{e.line ? `:${e.line}` : ""}</a>)}</div>}
+                  {c.evidence.length > 0 && <div className="mono text-[12px] mt-1">{c.evidence.map((e, i) => <span key={i} className="mr-3"><a href={`#${e.file}:${e.line}`}>{e.file.split("/").slice(-2).join("/")}{e.line ? `:${e.line}` : ""}</a> <a href={gh(e.file, e.line)} target="_blank" rel="noreferrer" className="text-[11px]" title="Open on GitHub at this commit">↗</a></span>)}</div>}
                   {c.state === "Unknown" && <div className="text-[12px] text-ink2 mt-1">Missing evidence: nothing in the inspected files establishes this.</div>}
                 </div>
               </li>
@@ -81,19 +88,30 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
           </div>
         </Stage>
 
-        <Stage n="7" title="Recommended action">
-          <ul className="grid gap-2 text-[14px]">
-            {a.recommendations.map((r, i) => <li key={i}>{r.text}<span className="mono text-[11px] text-ink2 ml-2">→ {r.condition_ids.join(", ") || "general"}</span></li>)}
-            {a.recommendations.length === 0 && <li className="text-ink2">Monitor. No mitigation is recommended for an unconfirmed report.</li>}
-          </ul>
+        <Stage n="7" title="Act">
+          {a.verdict === "Not Affected" ? (
+            <p className="text-[14px] text-ink2">No change recommended under the stated conditions. This is not a guarantee of safety; the cited files remain linked above.</p>
+          ) : (
+            <div className="grid gap-5">
+              <div>
+                <div className="text-[12px] text-ink2 mb-2">Steps, by provenance. ADVISORY-STATED comes from the advisory itself; REPO-INFERRED from cited evidence in this repository; SPECULATIVE needs your judgement.</div>
+                <ol className="grid gap-2 text-[14px] list-decimal pl-5">
+                  {recs.map((r, i) => <li key={i}><span className="label mr-2" style={{ color: r.prov === "ADVISORY-STATED" ? "var(--observed)" : r.prov === "REPO-INFERRED" ? "var(--inferred)" : "var(--unknown)" }}>{r.prov}</span>{r.text}<span className="mono text-[11px] text-ink2 ml-2">→ {r.condition_ids.join(", ") || "general"}</span></li>)}
+                  {recs.length === 0 && <li className="text-ink2">Investigate the unknown conditions; no concrete steps were produced.</li>}
+                </ol>
+              </div>
+              <ActControls briefPath={briefPath} verdict={a.verdict} codexCmd={"# in your checkout of the repository\ncodex exec - < REMEDIATION.md   # review the proposed changes before accepting"} />
+            </div>
+          )}
         </Stage>
       </article>
 
       <aside className="grid gap-6 content-start lg:sticky lg:top-6 lg:max-h-[calc(100vh-48px)] lg:overflow-auto">
         <h2 className="label">Source · read-only at {a.sha.slice(0, 7)}</h2>
+        {sources.length > 1 && <nav className="mono text-[11px] flex flex-wrap gap-2">{sources.map((s) => <a key={s.file} href={`#file:${s.file}`}>{s.file.split("/").pop()}</a>)}</nav>}
         {sources.map((s) => (
           <div key={s.file} className="border hair rounded-[6px] bg-raised overflow-hidden">
-            <div className="mono text-[12px] px-3 py-2 border-b hair">{s.file}</div>
+            <div id={`file:${s.file}`} className="mono text-[12px] px-3 py-2 border-b hair flex justify-between gap-2"><span className="truncate">{s.file}</span><a href={gh(s.file)} target="_blank" rel="noreferrer" className="shrink-0" title="Open on GitHub at this commit">↗ GitHub</a></div>
             <div className="code mono text-[12px] overflow-auto py-2" dangerouslySetInnerHTML={{ __html: s.html }} />
           </div>
         ))}
