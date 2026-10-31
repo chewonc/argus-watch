@@ -1,0 +1,6 @@
+{"c1_affected":{"verdict":"Affected","dependency":"next@14.2.10","locations":[{"file":"middleware.ts","line":4}],
+  "conditions":{"vulnerable_version":"Observed","auth_check_in_middleware":"Observed","not_hosted_on_vercel":"Inferred","external_requests_can_set_header":"Unknown"}},
+ "c2_not_affected":{"verdict":"Not Affected","dependency":"next@14.2.25","locations":[{"file":"middleware.ts","line":4}],
+  "conditions":{"vulnerable_version":"Contradicted","auth_check_in_middleware":"Observed","not_hosted_on_vercel":"Inferred","external_requests_can_set_header":"Unknown"}},
+ "c3_unclear":{"verdict":"Unclear","dependency":"next@14.2.10","locations":[{"file":"middleware.ts","line":4}],
+  "conditions":{"vulnerable_version":"Observed","auth_check_in_middleware":"Observed","not_hosted_on_vercel":"Unknown","external_requests_can_set_header":"Unknown"}}}
