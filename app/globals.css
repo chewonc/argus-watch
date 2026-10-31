@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+/* Argus Watch tokens (strategy/12). Light default; dark follows system. */
+:root {
+  --bg: #f7f5f0;
+  --bg-raised: #ffffff;
+  --ink: #1a1917;
+  --ink-2: #5b5751;
+  --line: #e4dfd5;
+  --accent: #2b4acb;
+  --observed: #1f6b4a;
+  --inferred: #8a5a00;
+  --unknown: #5e5a54;
+  --contradicted: #b03a2e;
+  --affected: #a8321f;
+  --not-affected: #22603f;
+  --unclear: #7a5a10;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121211;
+    --bg-raised: #1b1a18;
+    --ink: #edeae3;
+    --ink-2: #a8a196;
+    --line: #2a2825;
+    --accent: #8ea2ff;
+    --observed: #5fb58a;
+    --inferred: #e0a63e;
+    --unknown: #a39c91;
+    --contradicted: #f07a6a;
+    --affected: #f2826e;
+    --not-affected: #6cc096;
+    --unclear: #e6b450;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-raised: var(--bg-raised);
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink-2);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-instrument-serif);
+}
+
+html { background: var(--bg); color: var(--ink); }
+body { font-family: var(--font-geist-sans), Inter, system-ui, sans-serif; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.serif { font-family: var(--font-instrument-serif), Georgia, serif; letter-spacing: -0.02em; }
+.mono { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 13px; }
+.label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+.hair { border-color: var(--line); }
+a { color: var(--accent); }
+
+/* Evidence chips: square, glyph + word, never colour alone */
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 2px; border: 1px solid currentColor; line-height: 1.4; white-space: nowrap; }
+.chip-Observed { color: var(--observed); }
+.chip-Inferred { color: var(--inferred); }
+.chip-Unknown { color: var(--unknown); }
+.chip-Contradicted { color: var(--contradicted); }
+
+/* Verdict band: full width, serif, left rule; never chip-shaped */
+.band { border-left: 3px solid var(--band); background: color-mix(in oklab, var(--band) 8%, var(--bg)); padding: 16px 20px; }
+.band-Affected { --band: var(--affected); }
+.band-NotAffected { --band: var(--not-affected); }
+.band-Unclear { --band: var(--unclear); }
+.verdict-word { color: var(--band); }
+
+/* Timeline */
+.tl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+.tl > div { position: relative; padding: 0 8px 0 0; }
+.tl > div + div::before { content: ""; position: absolute; left: -2px; top: 9px; width: 4px; height: 1px; background: var(--line); }
+
+.code { counter-reset: line; }
+.code .line { display: block; padding: 0 12px; }
+.code .line::before { counter-increment: line; content: counter(line); display: inline-block; width: 3ch; margin-right: 16px; text-align: right; color: var(--ink-2); opacity: 0.6; }
+.code .line.hit { background: color-mix(in oklab, var(--accent) 12%, transparent); }
+.shiki { background: transparent !important; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .fade { animation: fade 320ms cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .pulse { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+}

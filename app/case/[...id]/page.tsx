@@ -1,0 +1,111 @@
+// Case file: one assessment. Stages read top to bottom; every chip links to its source line.
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { codeToHtml } from "shiki";
+import { Band, Chip, Timeline } from "@/components/ui";
+import { readFile } from "@/lib/repo";
+import { store } from "@/lib/store";
+
+export default async function Case({ params }: { params: Promise<{ id: string[] }> }) {
+  const { id } = await params;
+  const a = await store.getAssessment(id.map(decodeURIComponent).join("/"));
+  if (!a) notFound();
+  const f = await store.getFinding(a.finding_id);
+  const items = f ? (await Promise.all(f.items.map((i) => store.getItem(i)))).filter((x) => !!x) : [];
+  const repoOnly = a.repo.split("/").slice(0, 2).join("/");
+
+  // Source pane: the files cited by evidence, highlighted (server-side Shiki; read-only fetch at the assessed sha)
+  const cited = [...new Set([...a.locations.map((l) => l.file), ...a.conditions.flatMap((c) => c.evidence.map((e) => e.file))])];
+  const sources = await Promise.all(cited.slice(0, 6).map(async (file) => {
+    const text = (await readFile(repoOnly, a.sha, file)) ?? "";
+    const lines = new Set([...a.locations.filter((l) => l.file === file).map((l) => l.line), ...a.conditions.flatMap((c) => c.evidence.filter((e) => e.file === file && e.line).map((e) => e.line!))]);
+    const lang = /\.(ts|tsx)$/.test(file) ? "tsx" : /\.(js|mjs|cjs|jsx)$/.test(file) ? "javascript" : /\.json$/.test(file) ? "json" : /\.ya?ml$/.test(file) ? "yaml" : /Dockerfile$/.test(file) ? "dockerfile" : /\.py$/.test(file) ? "python" : "text";
+    const html = text ? await codeToHtml(text.split("\n").slice(0, 400).join("\n"), { lang, themes: { light: "github-light", dark: "github-dark" }, defaultColor: false,
+      transformers: [{ line(node, line) { node.properties.class = `line${lines.has(line) ? " hit" : ""}`; node.properties.id = `${file}:${line}`; } }] }) : "<pre>(file not readable at this commit)</pre>";
+    return { file, html };
+  }));
+
+  return (
+    <div className="mx-auto max-w-[1480px] px-6 py-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)]">
+      <article className="grid gap-8">
+        <div>
+          <Link href="/" className="text-[12px]">← Watch</Link>
+          <h1 className="serif text-[32px] leading-tight mt-2">{f?.title ?? a.finding_id}</h1>
+          <div className="mono text-[12px] text-ink2 mt-1">{f?.ids.join(" · ")} · {a.repo} @{a.sha.slice(0, 7)} · {a.tier}{a.replayed ? " · REPLAYED (not a live delivery)" : ""}</div>
+        </div>
+
+        <Timeline a={a} />
+
+        <Stage n="1" title="Security signal">
+          <ul className="grid gap-2 text-[13px]">
+            {items.map((it) => <li key={it.id}><span className="label mr-2">{it.source} · {it.sourceClass}</span>{it.url ? <a href={it.url}>{it.title}</a> : it.title}<span className="mono text-ink2 ml-2">{it.published_at ? `published ${it.published_at.slice(0, 10)}` : "publication time unknown"}</span></li>)}
+          </ul>
+          {f?.claim && <p className="mt-3 text-[14px]">{f.claim.summary}</p>}
+        </Stage>
+
+        <Stage n="2" title="Stack match">
+          {a.dependency ? <p className="text-[13px]">Affected package <span className="mono">{a.dependency.name}@{a.dependency.version}</span> found in <span className="mono">{a.dependency.source_file}</span>.</p> : <p className="text-[13px] text-ink2">No affected package coordinates in this report; matched on technology tags.</p>}
+          <p className="text-[12px] text-ink2 mt-1">A vulnerable version does not by itself mean the application is affected.</p>
+        </Stage>
+
+        <Stage n="3" title="Code & environment">
+          {a.locations.length === 0 && <p className="text-[13px] text-ink2">No relevant code located. This does not show the code is safe.</p>}
+          <ul className="grid gap-1 text-[13px]">
+            {a.locations.map((l, i) => <li key={i}><a href={`#${l.file}:${l.line}`} className="mono">{l.file.split("/").slice(-2).join("/")}:{l.line}</a> <span className="text-ink2">{l.why}</span></li>)}
+          </ul>
+        </Stage>
+
+        <Stage n="4–5" title="Failure conditions and evidence">
+          <ul className="grid gap-3">
+            {a.conditions.map((c) => (
+              <li key={c.id} className="grid grid-cols-[130px_1fr] gap-3 items-start border-b hair pb-3">
+                <Chip state={c.state} />
+                <div>
+                  <div className="text-[14px]">{c.text}</div>
+                  <div className="text-[12px] text-ink2 mt-1">{c.role === "required" ? "required condition" : `missing protection · ${c.mitigation_kind}`}{c.computed ? " · computed in code" : ""}</div>
+                  <div className="text-[12px] mt-1">{c.reasoning}</div>
+                  {c.evidence.length > 0 && <div className="mono text-[12px] mt-1">{c.evidence.map((e, i) => <a key={i} href={`#${e.file}:${e.line}`} className="mr-3">{e.file.split("/").slice(-2).join("/")}{e.line ? `:${e.line}` : ""}</a>)}</div>}
+                  {c.state === "Unknown" && <div className="text-[12px] text-ink2 mt-1">Missing evidence: nothing in the inspected files establishes this.</div>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Stage>
+
+        <Stage n="6" title="Verdict">
+          <Band a={a} />
+          <div className="grid sm:grid-cols-3 gap-4 mt-4 text-[13px]">
+            <Col title="Supporting evidence" items={a.conditions.filter((c) => c.state === "Observed" || c.state === "Inferred").map((c) => `${c.state}: ${c.text}`)} empty="None." />
+            <Col title="Missing evidence" items={a.missing_evidence} empty="None identified in inspected files." />
+            <Col title="Unverified" items={a.unverified} empty="—" />
+          </div>
+        </Stage>
+
+        <Stage n="7" title="Recommended action">
+          <ul className="grid gap-2 text-[14px]">
+            {a.recommendations.map((r, i) => <li key={i}>{r.text}<span className="mono text-[11px] text-ink2 ml-2">→ {r.condition_ids.join(", ") || "general"}</span></li>)}
+            {a.recommendations.length === 0 && <li className="text-ink2">Monitor. No mitigation is recommended for an unconfirmed report.</li>}
+          </ul>
+        </Stage>
+      </article>
+
+      <aside className="grid gap-6 content-start lg:sticky lg:top-6 lg:max-h-[calc(100vh-48px)] lg:overflow-auto">
+        <h2 className="label">Source · read-only at {a.sha.slice(0, 7)}</h2>
+        {sources.map((s) => (
+          <div key={s.file} className="border hair rounded-[6px] bg-raised overflow-hidden">
+            <div className="mono text-[12px] px-3 py-2 border-b hair">{s.file}</div>
+            <div className="code mono text-[12px] overflow-auto py-2" dangerouslySetInnerHTML={{ __html: s.html }} />
+          </div>
+        ))}
+        {sources.length === 0 && <p className="text-ink2 text-[13px]">No files were cited.</p>}
+      </aside>
+    </div>
+  );
+}
+
+function Stage({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
+  return <section className="fade"><div className="label mb-2">Stage {n} · {title}</div>{children}</section>;
+}
+function Col({ title, items, empty }: { title: string; items: string[]; empty: string }) {
+  return <div><div className="label mb-1">{title}</div>{items.length ? <ul className="grid gap-1">{items.map((x, i) => <li key={i}>{x}</li>)}</ul> : <p className="text-ink2">{empty}</p>}</div>;
+}
