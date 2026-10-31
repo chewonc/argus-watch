@@ -74,7 +74,8 @@ a { color: var(--accent); }
 .tl > div + div::before { content: ""; position: absolute; left: -2px; top: 9px; width: 4px; height: 1px; background: var(--line); }
 
 .code { counter-reset: line; }
-.code .line { display: block; padding: 0 12px; }
+.code pre { white-space: pre; margin: 0; }
+.code .line { display: inline-block; min-width: 100%; padding: 0 12px; box-sizing: border-box; }
 .code .line::before { counter-increment: line; content: counter(line); display: inline-block; width: 3ch; margin-right: 16px; text-align: right; color: var(--ink-2); opacity: 0.6; }
 .code .line.hit { background: color-mix(in oklab, var(--accent) 12%, transparent); }
 .shiki { background: transparent !important; }
