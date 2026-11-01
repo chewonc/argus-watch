@@ -1,0 +1,58 @@
+{
+  "_comment": "Gold condition definitions per advisory, fixed before any model run. Each condition is written in attack-enabling form (TRUE => system affected). role/mitigation_kind follow argus-watch/lib/schema.ts (ConditionDef). labels.json refers to these ids.",
+  "GHSA-f82v-jwr5-mffw": {
+    "package": "next",
+    "affected_ranges": [">=12.0.0 <12.3.5", ">=13.0.0 <13.5.9", ">=14.0.0 <14.2.25", ">=15.0.0 <15.2.3"],
+    "conditions": [
+      { "id": "vulnerable_version", "role": "required", "mitigation_kind": "not_applicable", "text": "The installed next version is inside an affected range." },
+      { "id": "auth_check_in_middleware", "role": "required", "mitigation_kind": "not_applicable", "text": "An authorization check is performed in Next.js middleware." },
+      { "id": "not_hosted_on_vercel", "role": "required", "mitigation_kind": "not_applicable", "text": "The application is hosted somewhere other than Vercel (Vercel hosting is automatically protected)." },
+      { "id": "external_requests_can_set_header", "role": "mitigation", "mitigation_kind": "workaround", "text": "External requests carrying the x-middleware-subrequest header are not blocked before reaching the application." }
+    ]
+  },
+  "GHSA-qwph-4952-7xr6": {
+    "package": "jsonwebtoken",
+    "affected_ranges": ["<9.0.0"],
+    "conditions": [
+      { "id": "vulnerable_version", "role": "required", "mitigation_kind": "not_applicable", "text": "The installed jsonwebtoken version is below 9.0.0." },
+      { "id": "algorithms_not_specified", "role": "required", "mitigation_kind": "not_applicable", "text": "jwt.verify() is called without an algorithms option." },
+      { "id": "secret_may_be_falsy", "role": "required", "mitigation_kind": "not_applicable", "text": "The secret or key passed to jwt.verify() can be falsy (null, undefined, empty)." },
+      { "id": "unsigned_token_receivable", "role": "required", "mitigation_kind": "not_applicable", "text": "A token with no signature can reach jwt.verify() (tokens come from external requests)." }
+    ]
+  },
+  "GHSA-jr5f-v2jv-69x6": {
+    "package": "axios",
+    "affected_ranges": [">=1.0.0 <1.8.2", "<0.30.0"],
+    "conditions": [
+      { "id": "vulnerable_version", "role": "required", "mitigation_kind": "not_applicable", "text": "The installed axios version is inside an affected range." },
+      { "id": "base_url_configured", "role": "required", "mitigation_kind": "not_applicable", "text": "An axios instance is created with baseURL set." },
+      { "id": "untrusted_path_passed_to_request", "role": "required", "mitigation_kind": "not_applicable", "text": "A user-controlled value is passed as the request URL/path on that instance." },
+      { "id": "path_not_validated", "role": "mitigation", "mitigation_kind": "workaround", "text": "The path parameter is not validated (e.g. rejected if absolute) before the request is sent." }
+    ]
+  },
+  "GHSA-rv95-896h-c2vc": {
+    "package": "express",
+    "affected_ranges": ["<4.19.2", ">=5.0.0-alpha.1 <5.0.0-beta.3"],
+    "conditions": [
+      { "id": "vulnerable_version", "role": "required", "mitigation_kind": "not_applicable", "text": "The installed express version is inside an affected range." },
+      { "id": "redirect_with_user_provided_url", "role": "required", "mitigation_kind": "not_applicable", "text": "res.redirect() or res.location() is called with a user-provided URL." },
+      { "id": "url_not_preparsed", "role": "mitigation", "mitigation_kind": "workaround", "text": "The user-provided URL is not pre-parsed with new URL() or url.parse() before being passed to redirect/location." }
+    ]
+  },
+  "GHSA-w48q-cv73-mx4w": {
+    "package": "@modelcontextprotocol/sdk",
+    "affected_ranges": ["<1.24.0"],
+    "conditions": [
+      { "id": "vulnerable_version", "role": "required", "mitigation_kind": "not_applicable", "text": "The installed @modelcontextprotocol/sdk version is below 1.24.0." },
+      { "id": "http_transport_used", "role": "required", "mitigation_kind": "not_applicable", "text": "The server uses StreamableHTTPServerTransport or SSEServerTransport (stdio is not affected)." },
+      { "id": "localhost_without_auth", "role": "required", "mitigation_kind": "not_applicable", "text": "The HTTP MCP server runs on localhost without authentication." },
+      { "id": "dns_rebinding_protection_not_enabled", "role": "mitigation", "mitigation_kind": "workaround", "text": "enableDnsRebindingProtection is not set and hostHeaderValidation() is not applied." }
+    ]
+  },
+  "adv_injected_rss": {
+    "package": "next",
+    "same_conditions_as": "GHSA-f82v-jwr5-mffw",
+    "tier": "signal",
+    "_comment": "Synthetic RSS item (single unofficial source). Conditions are those of GHSA-f82v-jwr5-mffw; tier cap forbids Affected."
+  }
+}
