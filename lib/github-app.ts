@@ -1,0 +1,53 @@
+// GitHub App authentication: installation tokens for repository reads (and, only after per-repo opt-in and
+// per-fix approval, draft-PR writes). Tokens are cached in the store and refreshed 5 minutes before expiry.
+import { App } from "@octokit/app";
+import { Octokit } from "@octokit/rest";
+import { env, hasGitHubApp } from "./env";
+import { store } from "./store";
+
+let app: App | null = null;
+export function githubApp(): App {
+  if (!hasGitHubApp()) throw new Error("GitHub App not configured (GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY)");
+  return (app ??= new App({ appId: env.GITHUB_APP_ID, privateKey: env.GITHUB_APP_PRIVATE_KEY, oauth: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET } }));
+}
+
+const memo = new Map<number, { token: string; exp: number }>();
+export async function installationToken(installationId: number): Promise<string> {
+  const m = memo.get(installationId);
+  if (m && m.exp - Date.now() > 5 * 60e3) return m.token;
+  const c = await store.getToken(installationId);
+  if (c && Date.parse(c.exp) - Date.now() > 5 * 60e3) { memo.set(installationId, { token: c.token, exp: Date.parse(c.exp) }); return c.token; }
+  const r = await githubApp().octokit.request("POST /app/installations/{installation_id}/access_tokens", { installation_id: installationId });
+  const token = r.data.token, exp = r.data.expires_at;
+  memo.set(installationId, { token, exp: Date.parse(exp) });
+  await store.setToken(installationId, { token, exp });
+  return token;
+}
+
+export const installationOctokit = async (installationId: number) => new Octokit({ auth: await installationToken(installationId), userAgent: "ArgusWatch/0.1" });
+export const userOctokit = (token: string) => new Octokit({ auth: token, userAgent: "ArgusWatch/0.1" });
+
+export type UserInstallation = { id: number; account: string; account_type: "User" | "Organization"; repository_selection: "all" | "selected"; permissions: Record<string, string> };
+/** Installations of this App that the signed-in user can see (GET /user/installations with the user token). */
+export async function listUserInstallations(userToken: string): Promise<UserInstallation[]> {
+  const r = await userOctokit(userToken).request("GET /user/installations", { per_page: 100 });
+  return r.data.installations.map((i) => ({ id: i.id, account: (i.account as { login?: string; slug?: string } | null)?.login ?? (i.account as { slug?: string } | null)?.slug ?? "?", account_type: ((i.account as { type?: string } | null)?.type === "Organization" ? "Organization" : "User"), repository_selection: i.repository_selection as "all" | "selected", permissions: (i.permissions ?? {}) as Record<string, string> }));
+}
+
+export type RepoSummary = { full_name: string; private: boolean; default_branch: string; pushed_at: string | null; language: string | null };
+export async function listInstallationRepos(userToken: string, installationId: number): Promise<RepoSummary[]> {
+  const ok = userOctokit(userToken);
+  const out: RepoSummary[] = [];
+  for (let page = 1; page <= 5; page++) {
+    const r = await ok.request("GET /user/installations/{installation_id}/repositories", { installation_id: installationId, per_page: 100, page });
+    out.push(...r.data.repositories.map((x) => ({ full_name: x.full_name, private: x.private, default_branch: x.default_branch, pushed_at: x.pushed_at ?? null, language: x.language ?? null })));
+    if (r.data.repositories.length < 100) break;
+  }
+  return out.sort((a, b) => (b.pushed_at ?? "").localeCompare(a.pushed_at ?? ""));
+}
+
+/** Which permissions this installation currently has (after the owner accepted an upgrade, write perms appear here). */
+export async function installationPermissions(installationId: number): Promise<Record<string, string>> {
+  const r = await githubApp().octokit.request("GET /app/installations/{installation_id}", { installation_id: installationId });
+  return (r.data.permissions ?? {}) as Record<string, string>;
+}

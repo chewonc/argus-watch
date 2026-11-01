@@ -1,8 +1,9 @@
 // Read-only repository access via the GitHub contents/trees API. Nothing is cloned or executed.
 import semver from "semver";
-import { env } from "./env";
+import { env, hasGitHubApp } from "./env";
+import { installationToken } from "./github-app";
 import type { WatchedRepo } from "./schema";
-import { kv } from "./store";
+import { kv, store } from "./store";
 
 // Trees and file contents are immutable per commit sha: cache them (store-backed) so each is fetched once.
 // Values are wrapped as { v } because Upstash Redis auto-parses stored strings that look like JSON
@@ -20,27 +21,44 @@ async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
 }
 
 const GH = "https://api.github.com";
-const hdr = () => ({ Accept: "application/vnd.github+json", "User-Agent": "ArgusWatch/0.1", ...(env.GITHUB_TOKEN ? { Authorization: `Bearer ${env.GITHUB_TOKEN}` } : {}) });
+// Auth per repository: the GitHub App installation token when the watched repo was connected through the App,
+// otherwise the read-only PAT (public demo fixtures). Installation lookups are memoised for a minute.
+let repoInstMemo: { at: number; map: Map<string, number> } | null = null;
+async function installationFor(repo: string): Promise<number | null> {
+  if (!repoInstMemo || Date.now() - repoInstMemo.at > 60e3) {
+    const map = new Map<string, number>();
+    for (const w of await store.listRepos()) if (w.installation_id) map.set(w.repo, w.installation_id);
+    repoInstMemo = { at: Date.now(), map };
+  }
+  return repoInstMemo.map.get(repo) ?? null;
+}
+export const forgetInstallations = () => { repoInstMemo = null; };
+async function hdr(repo: string): Promise<Record<string, string>> {
+  const base: Record<string, string> = { Accept: "application/vnd.github+json", "User-Agent": "ArgusWatch/0.1" };
+  const inst = hasGitHubApp() ? await installationFor(repo) : null;
+  if (inst) { try { return { ...base, Authorization: `Bearer ${await installationToken(inst)}` }; } catch { /* fall back to PAT */ } }
+  return env.GITHUB_TOKEN ? { ...base, Authorization: `Bearer ${env.GITHUB_TOKEN}` } : base;
+}
 
 export async function headSha(repo: string, branch: string): Promise<string> {
-  const r = await fetch(`${GH}/repos/${repo}/commits/${encodeURIComponent(branch)}`, { headers: hdr() });
+  const r = await fetch(`${GH}/repos/${repo}/commits/${encodeURIComponent(branch)}`, { headers: await hdr(repo) });
   if (!r.ok) throw new Error(`GitHub ${r.status} for ${repo}@${branch}`);
   return ((await r.json()) as { sha: string }).sha;
 }
 
-export type TreeEntry = { path: string; type: "blob" | "tree"; size?: number };
+export type TreeEntry = { path: string; type: "blob" | "tree"; size?: number; sha?: string };
 export async function tree(repo: string, sha: string): Promise<TreeEntry[]> {
   return cached(`gh:tree:${repo}:${sha}`, async () => {
-  const r = await fetch(`${GH}/repos/${repo}/git/trees/${sha}?recursive=1`, { headers: hdr() });
+  const r = await fetch(`${GH}/repos/${repo}/git/trees/${sha}?recursive=1`, { headers: await hdr(repo) });
   if (!r.ok) throw new Error(`GitHub tree ${r.status}${r.status === 403 ? " (unauthenticated rate limit is 60/h; set GITHUB_TOKEN)" : ""}`);
   const j = (await r.json()) as { tree: TreeEntry[]; truncated: boolean };
-  return j.tree.filter((e) => e.type === "blob").map((e) => ({ path: e.path, type: e.type, size: e.size }));
+  return j.tree.filter((e) => e.type === "blob").map((e) => ({ path: e.path, type: e.type, size: e.size, sha: e.sha }));
   });
 }
 
 export async function readFile(repo: string, sha: string, path: string): Promise<string | null> {
   return cached(`gh:file:${repo}:${sha}:${path}`, async () => {
-  const r = await fetch(`${GH}/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${sha}`, { headers: { ...hdr(), Accept: "application/vnd.github.raw+json" } });
+  const r = await fetch(`${GH}/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${sha}`, { headers: { ...(await hdr(repo)), Accept: "application/vnd.github.raw+json" } });
   if (r.status === 403 || r.status === 429) throw new Error(`GitHub ${r.status} (rate limit?) reading ${path}`);
   if (!r.ok) return null;
   return await r.text();
