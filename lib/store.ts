@@ -33,7 +33,7 @@ function loadMem(): Map<string, unknown> {
 const g = globalThis as unknown as { __aw_mem?: Map<string, unknown>; __aw_timer?: NodeJS.Timeout };
 const mem = (g.__aw_mem ??= loadMem());
 function persist() {
-  if (hasRedis()) return;
+  if (hasRedis() || process.env.AW_NO_PERSIST) return; // tests never touch .data/store.json
   clearTimeout(g.__aw_timer);
   g.__aw_timer = setTimeout(() => {
     try {
