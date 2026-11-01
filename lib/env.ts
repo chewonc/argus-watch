@@ -8,6 +8,7 @@ export const env = {
   UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL ?? "",
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN ?? "",
   QSTASH_TOKEN: process.env.QSTASH_TOKEN ?? "",
+  QSTASH_URL: process.env.QSTASH_URL ?? "", // regional endpoint, e.g. https://qstash-eu-central-1.upstash.io (from the Upstash console)
   QSTASH_CURRENT_SIGNING_KEY: process.env.QSTASH_CURRENT_SIGNING_KEY ?? "",
   QSTASH_NEXT_SIGNING_KEY: process.env.QSTASH_NEXT_SIGNING_KEY ?? "",
   ALERT_WEBHOOK_URL: process.env.ALERT_WEBHOOK_URL ?? "", // Slack or Discord incoming webhook

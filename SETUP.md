@@ -14,6 +14,7 @@ Create `.env.local` at the project root (gitignored). On Vercel, add the same na
 | `GITHUB_WEBHOOK_SECRET` | yes | The secret you set on the GitHub App webhook. |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | yes for deployment | Durable storage. Without them the app uses `.data/store.json` (dev only). |
 | `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY` | yes for deployment | Scheduler + queue. Without them, polls run only when called and findings are processed inline. |
+| `QSTASH_URL` | yes if your QStash account is regional | The endpoint shown next to the token in the Upstash console (e.g. `https://qstash-eu-central-1.upstash.io`). Without it the client calls the default endpoint and a regional account fails with "user … not found". |
 | `ALERT_WEBHOOK_URL` | optional | A Slack or Discord *incoming webhook* URL. Alerts always also land in the in-app inbox. |
 | `ADMIN_TOKEN` | yes | A long random string. Protects `/api/admin`, `/api/analyze`, and manual poll triggers. |
 | `APP_URL` | yes for deployment | Public base URL, e.g. `https://argus-watch.vercel.app`. QStash calls back to it. |
