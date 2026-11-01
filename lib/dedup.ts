@@ -20,7 +20,7 @@ export function canonicalUrl(u: string | null): string | null {
   }
 }
 
-const OFFICIAL: SourceId[] = ["ghsa", "kev"];
+const OFFICIAL: SourceId[] = ["ghsa", "ghadv", "kev", "nvd", "osv"];
 
 export function tierFor(f: Pick<Finding, "sources" | "ids" | "items">): Tier {
   if (f.sources.some((s) => OFFICIAL.includes(s))) return "official";

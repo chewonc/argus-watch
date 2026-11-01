@@ -8,6 +8,7 @@ import { itemFromGHSA } from "@/lib/sources/ghsa";
 import { store } from "@/lib/store";
 import { enqueueProcess } from "@/lib/queue";
 import { sha } from "@/lib/dedup";
+import { TICK_MIN, tick } from "@/lib/poll";
 
 export const maxDuration = 300;
 
@@ -58,18 +59,12 @@ export async function POST(req: Request) {
     }
     case "reprocess": { await processFinding(String(body.id), { replayed: !!body.replayed }); return Response.json({ ok: true, ms: Date.now() - t0 }); }
     case "heartbeat": {
-      // Re-run any poll whose last run is older than its interval * 2 (backup for QStash).
-      const limits: Record<string, number> = { kev: 30, rss: 10 };
-      const ran: string[] = [];
-      for (const [src, min] of Object.entries(limits)) {
-        const st = await store.getPollState<{ last_run: string }>(src);
-        if (!st || Date.now() - Date.parse(st.last_run) > min * 2 * 60e3) {
-          await fetch(`${env.APP_URL}/api/poll/${src}`, { method: "POST", headers: { authorization: `Bearer ${env.ADMIN_TOKEN}` } });
-          ran.push(src);
-        }
-      }
-      await store.log({ kind: "heartbeat", source: "admin", detail: ran.length ? `re-ran stale polls: ${ran.join(", ")}` : "all polls fresh" });
-      return Response.json({ ok: true, ran });
+      // Backup for QStash: if the tick has not run for 2 tick intervals, run it now (each source still honours its own interval).
+      const st = await store.getPollState<{ last_run: string }>("tick");
+      const stale = !st || Date.now() - Date.parse(st.last_run) > TICK_MIN * 2 * 60e3;
+      const r = stale ? await tick() : null;
+      await store.log({ kind: "heartbeat", source: "admin", detail: stale ? `tick was stale; ran: ${r!.ran.join(", ") || "nothing due"}` : "tick fresh" });
+      return Response.json({ ok: true, stale, ran: r?.ran ?? [] });
     }
     default: return Response.json({ error: "unknown op" }, { status: 400 });
   }

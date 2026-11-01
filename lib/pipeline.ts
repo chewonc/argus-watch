@@ -56,7 +56,7 @@ export async function processFinding(id: string, opts: { replayed?: boolean } = 
     const version = sha(text);
     if (f.claim_version !== version || !f.claim) {
       const { claim } = await extractClaim(text);
-      f.claim = claim; f.claim_version = version;
+      f.claim = claim; f.claim_version = version; f.extracted_at = new Date().toISOString();
       if (!claim.actionable) {
         f.status = "not_actionable"; await store.putFinding(f);
         await store.log({ kind: "process", source: "extract", detail: `not actionable: ${claim.not_actionable_reason ?? ""}`.slice(0, 160), ref: f.id, ms: Date.now() - t0 });

@@ -64,8 +64,9 @@ export default async function Watch() {
           <h2 className="label mb-3">Coverage</h2>
           <ul className="text-[13px] grid gap-2">
             <Row glyph="●" name="GitHub-reviewed advisories" cls="push" note={lastDelivery ? `last delivery ${fmtTime(lastDelivery)}` : "no deliveries yet"} />
-            <Row glyph="◐" name="CISA KEV" cls="polled · 30 min nominal" />
-            <Row glyph="◐" name={`${FEEDS.length} research & disclosure feeds`} cls="polled · 10 min nominal" />
+            <Row glyph="◐" name="GitHub Advisory Database (REST)" cls="near-real-time · polled every 5 min" />
+            <Row glyph="◐" name={`${FEEDS.filter((f) => f.cadence === "fast").length} fast disclosure feeds`} cls="near-real-time · polled every 5 min" />
+            <Row glyph="○" name={`CISA KEV · ${FEEDS.filter((f) => f.cadence === "slow").length} research feeds`} cls="periodic · 10 min / hourly" />
             <Row glyph="⊘" name="Threads, LinkedIn, X" cls="not accessible / not funded" />
           </ul>
           <Link href="/sources" className="text-[12px] mt-2 inline-block">Measured intervals and feed list →</Link>

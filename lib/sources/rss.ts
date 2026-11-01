@@ -4,18 +4,31 @@ import { XMLParser } from "fast-xml-parser";
 import { canonicalUrl, extractIds, sha } from "../dedup";
 import type { Item } from "../schema";
 
-export type Feed = { id: string; name: string; url: string; kind: "list" | "release" | "research" | "ai_security" | "academic" | "aggregator" };
+// cadence: "fast" feeds are fetched on every 5-minute tick (near-real-time); "slow" feeds hourly (periodic), matching how often they actually publish.
+// demo: the feed's terms permit personal/non-commercial use only; items are labelled low-trust and the feed is listed as demo-only.
+export type Feed = { id: string; name: string; url: string; kind: "list" | "release" | "research" | "ai_security" | "academic" | "aggregator" | "vendor" | "incidents" | "social" | "news"; cadence: "fast" | "slow"; demo?: boolean };
 export const FEEDS: Feed[] = [
-  { id: "oss-sec", name: "oss-security (seclists mirror)", url: "https://seclists.org/rss/oss-sec.rss", kind: "list" },
-  { id: "fulldisclosure", name: "Full Disclosure", url: "https://seclists.org/rss/fulldisclosure.rss", kind: "list" },
-  { id: "nextjs-releases", name: "Next.js releases", url: "https://github.com/vercel/next.js/releases.atom", kind: "release" },
-  { id: "arxiv-cscr", name: "arXiv cs.CR", url: "https://rss.arxiv.org/atom/cs.CR", kind: "academic" },
-  { id: "project-zero", name: "Google Project Zero", url: "https://googleprojectzero.blogspot.com/feeds/posts/default", kind: "research" },
-  { id: "portswigger", name: "PortSwigger Research", url: "https://portswigger.net/research/rss", kind: "research" },
-  { id: "wiz", name: "Wiz Research", url: "https://www.wiz.io/feed/rss.xml", kind: "research" },
-  { id: "embracethered", name: "Embrace The Red (AI/agent security)", url: "https://embracethered.com/blog/index.xml", kind: "ai_security" },
-  { id: "willison-pi", name: "Simon Willison: prompt injection", url: "https://simonwillison.net/tags/prompt-injection.atom", kind: "ai_security" },
-  { id: "hn-vuln", name: "Hacker News: vulnerability", url: "https://hnrss.org/newest?q=vulnerability", kind: "aggregator" },
+  { id: "oss-sec", name: "oss-security (seclists mirror)", url: "https://seclists.org/rss/oss-sec.rss", kind: "list", cadence: "fast" },
+  { id: "fulldisclosure", name: "Full Disclosure", url: "https://seclists.org/rss/fulldisclosure.rss", kind: "list", cadence: "fast" },
+  { id: "nextjs-releases", name: "Next.js releases", url: "https://github.com/vercel/next.js/releases.atom", kind: "release", cadence: "fast" },
+  { id: "hn-vuln", name: "Hacker News: vulnerability / prompt injection", url: "https://hnrss.org/newest?q=vulnerability+OR+%22prompt+injection%22+OR+%22supply+chain%22", kind: "aggregator", cadence: "fast" },
+  { id: "embracethered", name: "Embrace The Red (AI/agent security)", url: "https://embracethered.com/blog/index.xml", kind: "ai_security", cadence: "fast" },
+  { id: "willison-pi", name: "Simon Willison: prompt injection", url: "https://simonwillison.net/tags/prompt-injection.atom", kind: "ai_security", cadence: "fast" },
+  { id: "project-zero", name: "Google Project Zero", url: "https://googleprojectzero.blogspot.com/feeds/posts/default", kind: "research", cadence: "fast" },
+  { id: "portswigger", name: "PortSwigger Research", url: "https://portswigger.net/research/rss", kind: "research", cadence: "fast" },
+  { id: "wiz", name: "Wiz Research", url: "https://www.wiz.io/feed/rss.xml", kind: "research", cadence: "fast" },
+  { id: "certcc", name: "CERT/CC vulnerability notes", url: "https://www.kb.cert.org/vuls/atomfeed/", kind: "list", cadence: "fast" },
+  { id: "msrc", name: "Microsoft Security Update Guide", url: "https://api.msrc.microsoft.com/update-guide/rss", kind: "vendor", cadence: "fast" },
+  { id: "trailofbits", name: "Trail of Bits", url: "https://blog.trailofbits.com/feed/", kind: "research", cadence: "slow" },
+  { id: "github-security", name: "GitHub Blog: security", url: "https://github.blog/security/feed/", kind: "vendor", cadence: "slow" },
+  { id: "snyk", name: "Snyk blog (incl. Invariant Labs)", url: "https://snyk.io/blog/feed/", kind: "research", cadence: "slow" },
+  { id: "owasp-genai", name: "OWASP GenAI Security Project", url: "https://genai.owasp.org/feed/", kind: "ai_security", cadence: "slow" },
+  { id: "hf-blog", name: "Hugging Face blog", url: "https://huggingface.co/blog/feed.xml", kind: "vendor", cadence: "slow" },
+  { id: "aiid", name: "AI Incident Database", url: "https://incidentdatabase.ai/rss.xml", kind: "incidents", cadence: "slow" },
+  { id: "arxiv-cscr", name: "arXiv cs.CR", url: "https://rss.arxiv.org/atom/cs.CR", kind: "academic", cadence: "slow" },
+  { id: "arxiv-ai-sec", name: "arXiv query: prompt injection / LLM agents", url: "http://export.arxiv.org/api/query?search_query=%28cat:cs.CR+OR+cat:cs.AI+OR+cat:cs.LG%29+AND+%28abs:%22prompt+injection%22+OR+abs:jailbreak+OR+abs:%22LLM+agent%22+OR+abs:%22model+context+protocol%22%29&sortBy=submittedDate&max_results=25", kind: "academic", cadence: "slow" },
+  { id: "mastodon-infosec", name: "Mastodon infosec.exchange #vulnerability", url: "https://infosec.exchange/tags/vulnerability.rss", kind: "social", cadence: "slow" },
+  { id: "gnews-ai-sec", name: "Google News: AI security (demo only)", url: "https://news.google.com/rss/search?q=%22prompt+injection%22+OR+%22AI+agent%22+vulnerability&hl=en-US&gl=US&ceid=US:en", kind: "news", cadence: "slow", demo: true },
 ];
 
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", textNodeName: "#text", cdataPropName: "#cdata" });
@@ -55,10 +68,16 @@ export function parseFeed(xml: string): FeedEntry[] {
 
 function toISO(s: string): string | null { if (!s) return null; const d = new Date(s); return isNaN(d.getTime()) ? null : d.toISOString(); }
 
-export async function fetchFeed(f: Feed): Promise<FeedEntry[]> {
-  const r = await fetch(f.url, { headers: { "User-Agent": "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)", Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" } });
+export type Conditional = { etag?: string | null; last_modified?: string | null };
+/** Conditional GET: an unchanged feed answers 304 and costs nothing downstream. */
+export async function fetchFeed(f: Feed, cond: Conditional = {}): Promise<{ entries: FeedEntry[]; not_modified: boolean; etag: string | null; last_modified: string | null }> {
+  const headers: Record<string, string> = { "User-Agent": "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)", Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" };
+  if (cond.etag) headers["If-None-Match"] = cond.etag;
+  if (cond.last_modified) headers["If-Modified-Since"] = cond.last_modified;
+  const r = await fetch(f.url, { headers, signal: AbortSignal.timeout(15000) });
+  if (r.status === 304) return { entries: [], not_modified: true, etag: cond.etag ?? null, last_modified: cond.last_modified ?? null };
   if (!r.ok) throw new Error(`${f.id} ${r.status}`);
-  return parseFeed(await r.text());
+  return { entries: parseFeed(await r.text()), not_modified: false, etag: r.headers.get("etag"), last_modified: r.headers.get("last-modified") };
 }
 
 export function itemFromEntry(f: Feed, e: FeedEntry, discovered_at: string): Item {
@@ -76,6 +95,6 @@ export function itemFromEntry(f: Feed, e: FeedEntry, discovered_at: string): Ite
     packages: [],
     published_at: e.published,
     discovered_at,
-    raw: { feed: f.id, kind: f.kind },
+    raw: { feed: f.id, kind: f.kind, cadence: f.cadence, demo: !!f.demo },
   };
 }

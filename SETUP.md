@@ -28,11 +28,10 @@ Create `.env.local` at the project root (gitignored). On Vercel, add the same na
    - Permissions: none are needed for the global advisory event. (For private watched repos, add *Contents: read* and install the app on them, or use `GITHUB_TOKEN`.)
    - **Subscribe to events: "Security advisory"** (this is the global, GitHub-reviewed advisory stream; it is only available to GitHub Apps).
    - Install the app on your account (required for deliveries to start). Then open Advanced → Recent deliveries and confirm the `ping` arrived (it is logged in the app's Live log).
-4. **QStash schedules** (QStash console → Schedules), both POST with no body:
-   - `https://<APP_URL>/api/poll/kev` every 30 minutes (`*/30 * * * *`)
-   - `https://<APP_URL>/api/poll/rss` every 10 minutes (`*/10 * * * *`)
-   QStash signs these requests; the routes verify the signature.
-5. **Backup heartbeat (optional):** the workflow in `.github/workflows/heartbeat.yml` calls `/api/admin` `{"op":"heartbeat"}` every 15 minutes and re-runs any poll that is stale. Add repository secrets `APP_URL` and `ADMIN_TOKEN`.
+4. **QStash schedule** (QStash console → Schedules): ONE schedule, POST with no body, every 5 minutes (`*/5 * * * *`):
+   - `https://<APP_URL>/api/poll/tick`
+   The tick runs each source on its own interval (GitHub Advisory DB and fast feeds every 5 min, CISA KEV every 10 min, slow research feeds hourly) and uses conditional GET so unchanged feeds cost nothing. Delete the older per-source `/api/poll/kev` and `/api/poll/rss` schedules if they exist. QStash signs these requests; the routes verify the signature. Budget: 288 messages/day on the free tier's 1,000.
+5. **Backup heartbeat (optional):** the workflow in `.github/workflows/heartbeat.yml` calls `/api/admin` `{"op":"heartbeat"}` every 15 minutes and runs the tick if QStash has not run it for 10 minutes. Add repository secrets `APP_URL` and `ADMIN_TOKEN`.
 
 ## 3. Register watched repositories
 

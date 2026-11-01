@@ -173,6 +173,9 @@ export const store = {
   // poll state + log
   getPollState: <T>(source: string) => kv.get<T>(K.pollState(source)),
   setPollState: (source: string, v: unknown) => kv.set(K.pollState(source), v),
+  /** one document per poller family holding etags + recent guids (replaces one setnx per entry) */
+  getSeenDoc: <T>(key: string) => kv.get<T>(key),
+  setSeenDoc: (key: string, v: unknown) => kv.set(key, v),
   async log(e: Omit<LogEntry, "at">) {
     const entry: LogEntry = { at: new Date().toISOString(), ...e };
     await kv.lpush(K.log, entry);

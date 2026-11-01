@@ -9,10 +9,14 @@ type KEV = { catalogVersion: string; dateReleased: string; count: number; vulner
   shortDescription: string; requiredAction: string; dueDate: string; knownRansomwareCampaignUse: string; notes: string; cwes?: string[];
 }[] };
 
-export async function fetchKEV(): Promise<KEV> {
-  const r = await fetch(KEV_URL, { headers: { "User-Agent": "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)" } });
+/** Conditional GET on the 1.8 MB catalog: unchanged → 304, nothing parsed. */
+export async function fetchKEV(etag?: string | null): Promise<{ kev: KEV | null; etag: string | null; not_modified: boolean }> {
+  const headers: Record<string, string> = { "User-Agent": "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)" };
+  if (etag) headers["If-None-Match"] = etag;
+  const r = await fetch(KEV_URL, { headers, signal: AbortSignal.timeout(30000) });
+  if (r.status === 304) return { kev: null, etag: etag ?? null, not_modified: true };
   if (!r.ok) throw new Error(`KEV ${r.status}`);
-  return (await r.json()) as KEV;
+  return { kev: (await r.json()) as KEV, etag: r.headers.get("etag"), not_modified: false };
 }
 
 export function itemsFromKEV(k: KEV, sinceDateAdded: string | null, discovered_at: string): Item[] {

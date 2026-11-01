@@ -4,7 +4,7 @@ import { z } from "zod";
 export const SourceClass = z.enum(["push", "polled", "on_demand", "not_accessible"]);
 export type SourceClass = z.infer<typeof SourceClass>;
 
-export const SourceId = z.enum(["ghsa", "kev", "rss", "manual"]);
+export const SourceId = z.enum(["ghsa", "ghadv", "kev", "rss", "nvd", "osv", "bsky", "manual"]);
 export type SourceId = z.infer<typeof SourceId>;
 
 // ---- Trust tier (what a finding may produce downstream) -----------------
@@ -70,6 +70,7 @@ export const Finding = z.object({
   discovered_at: z.string(), // earliest discovery
   claim: Claim.nullable(), // null until extracted
   claim_version: z.string().nullable(), // hash of the text the claim was extracted from
+  extracted_at: z.string().nullable().optional(), // when the claim was (last) extracted; latency stage L2
   status: z.enum(["new", "not_relevant", "not_actionable", "analyzing", "assessed", "error"]),
   relevant_repos: z.array(z.string()),
   error: z.string().nullable().optional(),
