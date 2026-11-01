@@ -5,14 +5,17 @@ import type { WatchedRepo } from "./schema";
 import { kv } from "./store";
 
 // Trees and file contents are immutable per commit sha: cache them (store-backed) so each is fetched once.
+// Values are wrapped as { v } because Upstash Redis auto-parses stored strings that look like JSON
+// (a cached package-lock.json would otherwise come back as an object, not text).
 const memo = new Map<string, unknown>();
 async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  if (memo.has(key)) return memo.get(key) as T;
-  const hit = await kv.get<T>(key);
-  if (hit !== null && hit !== undefined) { memo.set(key, hit); return hit; }
+  const k = `c2:${key}`;
+  if (memo.has(k)) return memo.get(k) as T;
+  const hit = await kv.get<{ v: T }>(k);
+  if (hit && typeof hit === "object" && "v" in hit) { memo.set(k, hit.v); return hit.v; }
   const v = await fn();
-  memo.set(key, v);
-  if (v !== null && v !== undefined) await kv.set(key, v);
+  memo.set(k, v);
+  if (v !== null && v !== undefined) await kv.set(k, { v });
   return v;
 }
 

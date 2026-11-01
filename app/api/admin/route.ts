@@ -19,7 +19,9 @@ export async function POST(req: Request) {
   switch (body.op) {
     case "watch": {
       const w = WatchedRepo.parse({ repo: body.repo, default_branch: body.default_branch ?? "main", subdir: body.subdir ?? "", label: body.label });
-      const r = await refreshRepo(w);
+      let r;
+      try { r = await refreshRepo(w); }
+      catch (e) { return Response.json({ ok: false, error: `cannot read ${w.repo}@${w.default_branch}: ${String(e).slice(0, 200)}. Check the repo name, branch, and that GITHUB_TOKEN can read it.` }, { status: 400 }); }
       await store.putRepo(r);
       return Response.json({ ok: true, repo: store.repoKey(r), sha: r.sha, packages: r.packages.length, tech_tags: r.tech_tags });
     }
