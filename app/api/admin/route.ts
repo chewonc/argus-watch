@@ -5,7 +5,7 @@ import { ingest, processFinding } from "@/lib/pipeline";
 import { refreshRepo } from "@/lib/repo";
 import { WatchedRepo } from "@/lib/schema";
 import { itemFromGHSA } from "@/lib/sources/ghsa";
-import { store } from "@/lib/store";
+import { SYSTEM_USER, store } from "@/lib/store";
 import { enqueueProcess } from "@/lib/queue";
 import { sha } from "@/lib/dedup";
 import { TICK_MIN, tick } from "@/lib/poll";
@@ -25,7 +25,15 @@ export async function POST(req: Request) {
       try { r = await refreshRepo(w); }
       catch (e) { return Response.json({ ok: false, error: `cannot read ${w.repo}@${w.default_branch}: ${String(e).slice(0, 200)}. Check the repo name, branch, and that GITHUB_TOKEN can read it.` }, { status: 400 }); }
       await store.putRepo(r);
+      // Admin-registered repos belong to the reserved "system" user (demo mode shows them to every signed-in user).
+      await store.addUserRepo({ user_id: SYSTEM_USER, repo_key: store.repoKey(r), installation_id: null, allow_pr: false, local_root: null, added_at: new Date().toISOString() });
       return Response.json({ ok: true, repo: store.repoKey(r), sha: r.sha, packages: r.packages.length, tech_tags: r.tech_tags });
+    }
+    case "migrate_system": {
+      // One-time: link every existing watched repo to the system user so it stays visible after the identity layer.
+      let n = 0;
+      for (const w of await store.listRepos()) { const k = store.repoKey(w); if (!(await store.getUserRepo(SYSTEM_USER, k))) { await store.addUserRepo({ user_id: SYSTEM_USER, repo_key: k, installation_id: null, allow_pr: false, local_root: null, added_at: new Date().toISOString() }); n++; } }
+      return Response.json({ ok: true, linked: n });
     }
     case "unwatch": {
       const k = String(body.repo);
