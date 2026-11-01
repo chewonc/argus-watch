@@ -1,0 +1,25 @@
+"use client";
+// Language selector: every language the translation service supports. Switching sets a cookie (server action),
+// mirrors it to localStorage, and refreshes the server tree in place: the current page, open alert and client state stay.
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
+import { setLocale } from "@/app/actions/locale";
+
+export function LanguageSwitcher({ current, languages }: { current: string; languages: { code: string; name: string }[] }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [value, setValue] = useState(current);
+  useEffect(() => {
+    // first visit without a cookie: restore a previously chosen language from this browser
+    try { const saved = localStorage.getItem("aw_locale"); if (saved && saved !== current && current === "en" && !document.cookie.includes("aw_locale=")) start(async () => { await setLocale(saved); router.refresh(); }); } catch { /* storage unavailable */ }
+  }, [current, router]);
+  const list = languages.some((l) => l.code === current) ? languages : [{ code: current, name: current }, ...languages];
+  return (
+    <label className="flex items-center gap-1 text-[12px]" aria-busy={pending}>
+      <span className="sr-only">Language</span>
+      <select value={value} onChange={(e) => { const code = e.target.value; setValue(code); try { localStorage.setItem("aw_locale", code); } catch { /* ignore */ } start(async () => { await setLocale(code); router.refresh(); }); }} className="border hair rounded-[4px] px-1 py-0.5 bg-transparent max-w-[140px]" disabled={pending}>
+        {list.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
+      </select>
+    </label>
+  );
+}

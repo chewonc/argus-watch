@@ -8,14 +8,14 @@ export function Chip({ state }: { state: EvidenceState }) {
 
 export function verdictClass(v: Verdict) { return v === "Affected" ? "band-Affected" : v === "Not Affected" ? "band-NotAffected" : "band-Unclear"; }
 
-export function Band({ a, compact = false }: { a: Assessment; compact?: boolean }) {
+export function Band({ a, compact = false, qualifier }: { a: Assessment; compact?: boolean; qualifier?: string }) {
   return (
     <div className={`band ${verdictClass(a.verdict)}`}>
       <div className="flex items-baseline gap-3 flex-wrap">
         <span className={`serif verdict-word ${compact ? "text-[22px]" : "text-[32px]"}`}>{a.verdict}</span>
         <span className="label">{a.tier}{a.replayed ? " · replayed" : ""}</span>
       </div>
-      {!compact && <p className="mt-1 text-[15px]">{a.verdict_qualifier}</p>}
+      {!compact && <p className="mt-1 text-[15px]">{qualifier ?? a.verdict_qualifier}</p>}
       {!compact && <p className="mt-1 text-[12px] text-ink2 mono">rule: {a.verdict_reason}</p>}
     </div>
   );

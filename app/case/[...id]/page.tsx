@@ -8,6 +8,7 @@ import { FixPreview } from "@/components/fix-preview";
 import { MarkRead } from "@/components/mark-read";
 import { OpenIn } from "@/components/open-in";
 import { Band, Chip, Timeline } from "@/components/ui";
+import { getDict, getLocale, tr } from "@/lib/i18n";
 import { permalink, provenanceOf } from "@/lib/remediation";
 import { readFile } from "@/lib/repo";
 import { deriveSeverity } from "@/lib/severity";
@@ -25,6 +26,8 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   if (!a || !(await canSee(user.id, a.repo))) notFound();
   const [ur, demoRepo, fixes, w] = await Promise.all([store.getUserRepo(user.id, a.repo), isSystemRepo(a.repo), store.listFixes(a.id), store.getRepo(a.repo)]);
   const latestFix = fixes.find((x) => x.status === "pr_created") ?? fixes.find((x) => x.status === "drafted") ?? fixes[0] ?? null;
+  const locale = await getLocale();
+  const d = await getDict(locale);
   const f = await store.getFinding(a.finding_id);
   const itemsAll = f ? (await Promise.all(f.items.map((i) => store.getItem(i)))).filter((x) => !!x) : [];
   // Replays and re-deliveries store separate items for the same source occurrence; show each occurrence once.
@@ -34,7 +37,19 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   const advisoryText = items.map((i) => i.text).join("\n");
   const briefPath = `/api/remediation/${a.id.split("/").map(encodeURIComponent).join("/")}`;
   const PROV_ORDER = ["ADVISORY-STATED", "REPO-INFERRED", "SPECULATIVE"] as const;
-  const recs = a.recommendations.map((r) => ({ ...r, prov: provenanceOf(r.text, advisoryText, r.condition_ids, a) })).sort((x, y) => PROV_ORDER.indexOf(x.prov) - PROV_ORDER.indexOf(y.prov));
+  const recs0 = a.recommendations.map((r) => ({ ...r, prov: provenanceOf(r.text, advisoryText, r.condition_ids, a) })).sort((x, y) => PROV_ORDER.indexOf(x.prov) - PROV_ORDER.indexOf(y.prov));
+  // Translate the dynamic text of this case in one bounded batch (identifiers, paths and package names protected).
+  const keep = [...new Set([...(f?.claim?.packages.map((p) => p.name) ?? []), ...a.locations.map((l) => l.file)])];
+  const srcProblem = f?.claim?.summary ? firstSentence(f.claim.summary) : a.verdict_qualifier;
+  const srcFix = suggestedFix(a);
+  const texts = [f?.title ?? a.finding_id, srcProblem, srcFix ?? "", f?.claim?.summary ?? "", a.verdict_qualifier, ...a.conditions.flatMap((c) => [c.text, c.reasoning]), ...recs0.map((r) => r.text), ...a.missing_evidence, ...a.locations.map((l) => l.why)];
+  const tx = locale === "en" ? texts : await tr(locale, texts, keep);
+  let ti = 0; const next = () => tx[ti++] ?? "";
+  const T = { title: next(), problem: next(), fix: next() || null, summary: next(), qualifier: next() };
+  const condT = a.conditions.map(() => ({ text: next(), reasoning: next() }));
+  const recs = recs0.map((r) => ({ ...r, text: next() }));
+  const missingT = a.missing_evidence.map(() => next());
+  const locWhy = a.locations.map(() => next());
 
   // Source pane: the files cited by evidence, highlighted (server-side Shiki; read-only fetch at the assessed sha)
   const cited = [...new Set([...a.locations.map((l) => l.file), ...a.conditions.flatMap((c) => c.evidence.map((e) => e.file))])];
@@ -52,37 +67,37 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
       <article className="grid gap-8">
         <div>
           <Link href="/" className="text-[12px]">← Watch</Link>
-          <h1 className="serif text-[32px] leading-tight mt-2">{f?.title ?? a.finding_id}</h1>
+          <h1 className="serif text-[32px] leading-tight mt-2">{T.title}</h1>
           <div className="mono text-[12px] text-ink2 mt-1">{f?.ids.join(" · ")} · {a.repo} @{a.sha.slice(0, 7)} · {a.tier}{a.replayed ? " · REPLAYED (not a live delivery)" : ""}</div>
         </div>
 
         <MarkRead assessmentId={a.id} />
-        {(() => { const sev = a.severity ?? deriveSeverity(a, items); const loc = location(a); const fix = suggestedFix(a); const briefUrl = `${briefPath}?agent=claude&download=1`; return (
+        {(() => { const sev = a.severity ?? deriveSeverity(a, items); const loc = location(a); const fix = T.fix; const briefUrl = `${briefPath}?agent=claude&download=1`; return (
           <section className="border hair rounded-[6px] bg-raised p-4 grid gap-3">
             <div className="flex flex-wrap items-center gap-2"><SeverityChip s={sev} /><span className={`chip ${a.verdict === "Affected" ? "chip-Contradicted" : a.verdict === "Not Affected" ? "chip-Observed" : "chip-Inferred"}`}>{relevance(a.verdict, a.tier, a.conditions)}</span><span className="label">{a.tier}{a.replayed ? " · replayed" : ""}</span></div>
             <div className="grid sm:grid-cols-2 gap-3 text-[13px]">
-              <div><div className="label">Problem</div>{f?.claim?.summary ? firstSentence(f.claim.summary) : a.verdict_qualifier}</div>
-              <div><div className="label">Suggested fix</div>{fix ?? <span className="text-ink2">No concrete fix produced; see missing evidence.</span>}</div>
-              <div><div className="label">Where</div>{loc ? <a href={`#${loc.file}:${loc.from}`} className="mono">{loc.file}:{loc.from}{loc.to !== loc.from ? `–${loc.to}` : ""}</a> : <span className="text-ink2">exact location not available: no source line could be cited</span>}</div>
-              <div><div className="label">What happens if you approve a fix</div>A draft pull request on a new branch; nothing is merged and the default branch is untouched. Changes are syntax-checked only, never executed.</div>
+              <div><div className="label">{d.problem}</div>{T.problem}</div>
+              <div><div className="label">{d.suggested_fix}</div>{fix ?? <span className="text-ink2">{d.no_fix}</span>}</div>
+              <div><div className="label">{d.where}</div>{loc ? <a href={`#${loc.file}:${loc.from}`} className="mono">{loc.file}:{loc.from}{loc.to !== loc.from ? `–${loc.to}` : ""}</a> : <span className="text-ink2">{d.no_location}</span>}</div>
+              <div><div className="label">{d.what_if_approve}</div>{d.approve_explainer}</div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {loc && <a href={`#${loc.file}:${loc.from}`} className="btn-ghost no-underline">View code</a>}
-              {a.verdict !== "Not Affected" && <a href="#fix" className="btn no-underline">{latestFix?.status === "pr_created" ? "View draft PR" : "Preview fix"}</a>}
+              {loc && <a href={`#${loc.file}:${loc.from}`} className="btn-ghost no-underline">{d.view_code}</a>}
+              {a.verdict !== "Not Affected" && <a href="#fix" className="btn no-underline">{latestFix?.status === "pr_created" ? d.view_pr : d.preview_fix}</a>}
               <OpenIn t={{ repo: repoOnly, sha: a.sha, file: loc?.file ?? null, line: loc?.from ?? null, localRoot: ur?.local_root ?? null, caseUrl: `/case/${a.id.split("/").map(encodeURIComponent).join("/")}`, briefUrl, ids: f?.ids.join(", ") || a.finding_id }} />
-              <a href={briefUrl} className="btn-ghost no-underline">Generate fix prompt</a>
+              <a href={briefUrl} className="btn-ghost no-underline">{d.generate_prompt}</a>
             </div>
             <Timeline a={a} />
           </section>); })()}
 
-        <FixPreview assessmentId={a.id} initial={latestFix} allowPr={!!ur?.allow_pr} isDemoRepo={demoRepo} verdict={a.verdict} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} />
+        <FixPreview assessmentId={a.id} initial={latestFix} allowPr={!!ur?.allow_pr} isDemoRepo={demoRepo} verdict={a.verdict} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} labels={{ proposed_fix: d.proposed_fix, draft_fix: d.draft_fix, drafting: d.drafting, re_draft: d.re_draft, approve: d.approve_open_pr, not_verified: d.not_verified }} />
 
-        <h2 className="label mt-2">Full analysis</h2>
+        <h2 className="label mt-2">{d.full_analysis}</h2>
         <Stage n="1" title="Security signal">
           <ul className="grid gap-2 text-[13px]">
             {items.map((it) => <li key={it.id}><span className="label mr-2">{it.source} · {it.sourceClass}</span>{it.url ? <a href={it.url}>{it.title}</a> : it.title}<span className="mono text-ink2 ml-2">{it.published_at ? `published ${it.published_at.slice(0, 10)}` : "publication time unknown"}</span></li>)}
           </ul>
-          {f?.claim && <p className="mt-3 text-[14px]">{f.claim.summary}</p>}
+          {f?.claim && <p className="mt-3 text-[14px]">{T.summary}</p>}
         </Stage>
 
         <Stage n="2" title="Stack match">
@@ -93,19 +108,19 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
         <Stage n="3" title="Code & environment">
           {a.locations.length === 0 && <p className="text-[13px] text-ink2">No relevant code located. This does not show the code is safe.</p>}
           <ul className="grid gap-1 text-[13px]">
-            {a.locations.map((l, i) => <li key={i}><a href={`#${l.file}:${l.line}`} className="mono">{l.file.split("/").slice(-2).join("/")}:{l.line}</a> <a href={gh(l.file, l.line)} target="_blank" rel="noreferrer" className="mono text-[11px] ml-1" title="Open on GitHub at this commit">↗ GitHub</a> <span className="text-ink2">{l.why}</span></li>)}
+            {a.locations.map((l, i) => <li key={i}><a href={`#${l.file}:${l.line}`} className="mono">{l.file.split("/").slice(-2).join("/")}:{l.line}</a> <a href={gh(l.file, l.line)} target="_blank" rel="noreferrer" className="mono text-[11px] ml-1" title="Open on GitHub at this commit">↗ GitHub</a> <span className="text-ink2">{locWhy[i]}</span></li>)}
           </ul>
         </Stage>
 
         <Stage n="4–5" title="Failure conditions and evidence">
           <ul className="grid gap-3">
-            {a.conditions.map((c) => (
+            {a.conditions.map((c, ci) => (
               <li key={c.id} className="grid grid-cols-[130px_1fr] gap-3 items-start border-b hair pb-3">
                 <Chip state={c.state} />
                 <div>
-                  <div className="text-[14px]">{c.text}</div>
+                  <div className="text-[14px]">{condT[ci].text}</div>
                   <div className="text-[12px] text-ink2 mt-1">{c.role === "required" ? "required condition" : `missing protection · ${c.mitigation_kind}`}{c.computed ? " · computed in code" : ""}</div>
-                  <div className="text-[12px] mt-1">{c.reasoning}</div>
+                  <div className="text-[12px] mt-1">{condT[ci].reasoning}</div>
                   {c.evidence.length > 0 && <div className="mono text-[12px] mt-1">{c.evidence.map((e, i) => <span key={i} className="mr-3"><a href={`#${e.file}:${e.line}`}>{e.file.split("/").slice(-2).join("/")}{e.line ? `:${e.line}` : ""}</a> <a href={gh(e.file, e.line)} target="_blank" rel="noreferrer" className="text-[11px]" title="Open on GitHub at this commit">↗</a></span>)}</div>}
                   {c.state === "Unknown" && <div className="text-[12px] text-ink2 mt-1">Missing evidence: nothing in the inspected files establishes this.</div>}
                 </div>
@@ -115,10 +130,10 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
         </Stage>
 
         <Stage n="6" title="Verdict">
-          <Band a={a} />
+          <Band a={a} qualifier={T.qualifier} />
           <div className="grid sm:grid-cols-3 gap-4 mt-4 text-[13px]">
-            <Col title="Supporting evidence" items={a.conditions.filter((c) => c.state === "Observed" || c.state === "Inferred").map((c) => `${c.state}: ${c.text}`)} empty="None." />
-            <Col title="Missing evidence" items={a.missing_evidence} empty="None identified in inspected files." />
+            <Col title="Supporting evidence" items={a.conditions.map((c, ci) => ({ c, t: condT[ci].text })).filter(({ c }) => c.state === "Observed" || c.state === "Inferred").map(({ c, t }) => `${c.state}: ${t}`)} empty="None." />
+            <Col title="Missing evidence" items={missingT} empty="None identified in inspected files." />
             <Col title="Unverified" items={a.unverified} empty="—" />
           </div>
         </Stage>

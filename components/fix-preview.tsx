@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import type { Fix } from "@/lib/schema";
 
-type Props = { assessmentId: string; initial: Fix | null; allowPr: boolean; isDemoRepo: boolean; verdict: string; defaultBranch: string; repo: string };
+type Labels = { proposed_fix: string; draft_fix: string; drafting: string; re_draft: string; approve: string; not_verified: string };
+type Props = { assessmentId: string; initial: Fix | null; allowPr: boolean; isDemoRepo: boolean; verdict: string; defaultBranch: string; repo: string; labels?: Labels };
 
-export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict, defaultBranch, repo }: Props) {
+const EN: Labels = { proposed_fix: "Proposed fix", draft_fix: "Draft fix", drafting: "Drafting… (model call, ~30–90 s)", re_draft: "Re-draft", approve: "Approve & open draft PR…", not_verified: "Security remediation: not verified" };
+export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict, defaultBranch, repo, labels = EN }: Props) {
   const router = useRouter();
   const [fix, setFix] = useState<Fix | null>(initial);
   const [busy, setBusy] = useState<"draft" | "apply" | "checks" | null>(null);
@@ -34,11 +36,11 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
   if (verdict === "Not Affected") return null;
   return (
     <section id="fix" className="grid gap-4">
-      <div className="label">Proposed fix</div>
+      <div className="label">{labels.proposed_fix}</div>
       {!fix && (
         <div className="grid gap-2">
           <p className="text-[13px]">Draft a minimal change for the cited files. Drafting reads the files at the assessed commit and writes nothing to GitHub.</p>
-          <button className="btn w-fit" onClick={() => draft()} disabled={busy === "draft"}>{busy === "draft" ? "Drafting… (model call, ~30–90 s)" : "Draft fix"}</button>
+          <button className="btn w-fit" onClick={() => draft()} disabled={busy === "draft"}>{busy === "draft" ? labels.drafting : labels.draft_fix}</button>
         </div>
       )}
       {err && <p className="text-[13px]" style={{ color: "var(--contradicted)" }}>{err}</p>}
@@ -65,8 +67,8 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
 
           {fix.status === "drafted" && (
             <div className="flex flex-wrap items-center gap-3">
-              <button className="btn" onClick={() => dlg.current?.showModal()} disabled={!allowPr || isDemoRepo} title={isDemoRepo ? "Shared demo repositories never receive pull requests" : !allowPr ? "Enable draft pull requests for this repository on the Repos page first" : ""}>Approve &amp; open draft PR…</button>
-              <button className="btn-ghost" onClick={() => draft(true)} disabled={busy === "draft"}>{busy === "draft" ? "Drafting…" : "Re-draft"}</button>
+              <button className="btn" onClick={() => dlg.current?.showModal()} disabled={!allowPr || isDemoRepo} title={isDemoRepo ? "Shared demo repositories never receive pull requests" : !allowPr ? "Enable draft pull requests for this repository on the Repos page first" : ""}>{labels.approve}</button>
+              <button className="btn-ghost" onClick={() => draft(true)} disabled={busy === "draft"}>{busy === "draft" ? labels.drafting : labels.re_draft}</button>
               {(!allowPr || isDemoRepo) && <span className="text-[12px] text-ink2">{isDemoRepo ? "Demo repository: preview only." : <>Draft PRs are off for this repository. <a href="/repos">Enable on Repos</a> or use the remediation prompt below.</>}</span>}
             </div>
           )}
