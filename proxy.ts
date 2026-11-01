@@ -3,7 +3,6 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 
-export const runtime = "nodejs";
 
 const PRIVATE = [/^\/repos(\/|$)/, /^\/notifications(\/|$)/, /^\/settings(\/|$)/];
 
