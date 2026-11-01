@@ -3,6 +3,7 @@
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { env, hasQStash } from "@/lib/env";
 import { tick } from "@/lib/poll";
+import { store } from "@/lib/store";
 
 export const maxDuration = 300;
 
@@ -15,7 +16,12 @@ async function handler(req: Request) {
 export async function POST(req: Request) {
   const auth = req.headers.get("authorization");
   if (env.ADMIN_TOKEN && auth === `Bearer ${env.ADMIN_TOKEN}`) return handler(req);
-  if (hasQStash()) return verifySignatureAppRouter(handler)(req);
+  if (hasQStash()) {
+    const res = await verifySignatureAppRouter(handler)(req);
+    // Diagnostics: a schedule that reaches us with a bad or missing signature would otherwise be invisible.
+    if (res.status === 401 || res.status === 403) await store.log({ kind: "error", source: "tick", detail: `rejected ${res.status}: signature ${req.headers.get("upstash-signature") ? "present but invalid (different QStash project/keys?)" : "missing"}; message ${req.headers.get("upstash-message-id") ?? "-"}; schedule ${req.headers.get("upstash-schedule-id") ?? "-"}` });
+    return res;
+  }
   if (process.env.NODE_ENV !== "production") return handler(req);
   return new Response("unauthorized", { status: 401 });
 }
