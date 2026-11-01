@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Evaluation fixtures are static sample repositories, not app code.
+    "feasibility/cases/**",
   ]),
 ]);
 

@@ -35,7 +35,8 @@ Alongside: per-user notifications (in-app badge, browser push with receipt measu
 | Notifications: in-app records with dedup, badge, inbox, settings, per-user webhook, Web Push with receipt ack | Implemented; push **not yet exercised** (needs VAPID keys on the deployment) |
 | Multilingual UI (Google Cloud Translation, all languages, cached, identifiers protected, in-place switch) | Implemented; **not yet exercised** (needs `GOOGLE_TRANSLATE_API_KEY`) |
 | Unit tests (20) for verdict rule, version ranges, lockfiles, dedup, prefilter, severity, masking, hunks, syntax check, store | Passing locally; CI workflow added |
-| Evaluation set 12 + 4 adversarial (AT-4), AT-1 live advisory delivery, AT-3 24 h unattended run | Pending; see `feasibility/EVAL.md` when it lands and the status page's `unattended_24h` counter |
+| Evaluation set 12 + 4 adversarial (AT-4) | **Run Nov 1:** rule verdict 16/16, false Not Affected 0/10, invented references 0, condition-state accuracy 0.82, injection checks 2/2, gate PASS (after adding the prose-evidence downgrade a first run exposed). Details and limitations in `feasibility/EVAL.md` |
+| AT-1 live advisory delivery, AT-3 24 h unattended run | AT-1: first live `security_advisory` delivery logged Nov 1 09:33 UTC (no watched-repo match yet). AT-3: pending on the tick schedule; see `/api/status` `unattended_24h` |
 | Email notifications, X/LinkedIn/Threads/Reddit sources, VS Code extension, JetBrains | Planned or excluded (see docs) |
 
 Measured latency and coverage are published at `/api/status` and on the Sources page; they are computed from stored timestamps over live items only, with first-run backlog excluded, and they read "not yet measured" until data exists.

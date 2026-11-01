@@ -123,8 +123,7 @@ for (const [id, lab] of Object.entries(labels)) {
   for (let r = 0; r < RUNS; r++) {
     const dir = path.join(ROOT, "cases", id);
     try {
-      const { out, ms } = await analyze(dir, advisory, cd, tier, lab);
-      const [labName, labVer] = lab.dependency.split(/@(?=[^@]+$)/);
+      const { out, ms } = await analyze(dir, advisory, cd, tier, lab); void ms;
       const lockVer = lockVersion(dir, cd.package);
       const depComputedOk = `${cd.package}@${lockVer}` === lab.dependency;          // D: computed from lockfile (what the app does)
       const depModelOk = `${out.dependency.name}@${out.dependency.version}` === lab.dependency;
@@ -139,7 +138,8 @@ for (const [id, lab] of Object.entries(labels)) {
         if (!m) return { ...c, state: "Unknown" };
         const bad = m.evidence_file && !citationOk(dir, m.evidence_file, m.evidence_line, null);
         const noEv = (m.state === "Observed" || m.state === "Contradicted") && !m.evidence_file;
-        return { ...c, state: bad || noEv ? "Unknown" : m.state };
+        const prose = m.state !== "Unknown" && /\.(md|mdx|markdown|txt|rst|adoc)$/i.test(m.evidence_file ?? ""); // a README claim is not code evidence (argus-watch/lib/analyze.ts isProseFile)
+        return { ...c, state: bad || noEv || prose ? "Unknown" : m.state };
       });
       const condHits = ids.filter((cid) => states.find((s) => s.id === cid).state === lab.conditions[cid]).length;
       for (const cid of ids) { const k = `${lab.conditions[cid]}->${states.find((s) => s.id === cid).state}`; confusion[k] = (confusion[k] ?? 0) + 1; }

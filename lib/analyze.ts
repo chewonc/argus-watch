@@ -29,6 +29,9 @@ Return every condition id exactly as given. Do not choose a verdict. Recommendat
 
 const numbered = (t: string) => t.split("\n").map((l, i) => `${i + 1}| ${l}`).join("\n");
 
+/** Prose files (README, docs, notes) describe code but are not code: a claim found there cannot establish a code condition. */
+export const isProseFile = (file: string | null | undefined) => !!file && /\.(md|mdx|markdown|txt|rst|adoc)$/i.test(file);
+
 function citationOk(files: Map<string, string[]>, file: string | null, line: number | null, quote: string | null): boolean {
   if (!file) return true;
   const lines = files.get(file);
@@ -59,6 +62,7 @@ export async function modelConditionStates(files: { path: string; text: string }
     const ok = citationOk(fileMap, m.evidence_file, m.evidence_line, null);
     if (!ok && m.evidence_file) { dropped.push(`${m.evidence_file}:${m.evidence_line}`); return { id: c.id, state: "Unknown" as const, file: null, line: null, quote: null, reasoning: `Cited evidence could not be verified (${m.evidence_file}:${m.evidence_line}); state downgraded`, verified: false }; }
     if ((m.state === "Observed" || m.state === "Contradicted") && !m.evidence_file) return { id: c.id, state: "Unknown" as const, file: null, line: null, quote: null, reasoning: `State ${m.state} given without evidence; downgraded`, verified: false };
+    if ((m.state === "Observed" || m.state === "Inferred" || m.state === "Contradicted") && isProseFile(m.evidence_file)) return { id: c.id, state: "Unknown" as const, file: m.evidence_file, line: m.evidence_line, quote: null, reasoning: `Only evidence is a prose claim in ${m.evidence_file}:${m.evidence_line}, not code or configuration; state downgraded to Unknown`, verified: false };
     return { id: c.id, state: m.state, file: m.evidence_file, line: m.evidence_line, quote: m.evidence_file ? (fileMap.get(m.evidence_file)?.[m.evidence_line! - 1] ?? null) : null, reasoning: m.reasoning, verified: !!m.evidence_file };
   });
   return { states, locations, recommendations: r.out.recommendations, unverified: r.out.unverified, dropped, model: r.model };
@@ -111,6 +115,7 @@ export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, 
     const ok = citationOk(fileMap, m.evidence_file, m.evidence_line, null);
     if (!ok && m.evidence_file) { dropped.push(`${m.evidence_file}:${m.evidence_line}`); return cond(c.id, c.text, "Unknown", [], `Cited evidence could not be verified (${m.evidence_file}:${m.evidence_line}); state downgraded`, false, c); }
     if ((m.state === "Observed" || m.state === "Contradicted") && !m.evidence_file) return cond(c.id, c.text, "Unknown", [], `State ${m.state} given without evidence; downgraded`, false, c);
+    if ((m.state === "Observed" || m.state === "Inferred" || m.state === "Contradicted") && isProseFile(m.evidence_file)) return cond(c.id, c.text, "Unknown", [{ file: m.evidence_file!, line: m.evidence_line, quote: fileMap.get(m.evidence_file!)?.[m.evidence_line! - 1] ?? null, sha }], `Only evidence is a prose claim in ${m.evidence_file}:${m.evidence_line}, not code or configuration; state downgraded to Unknown`, false, c);
     return cond(c.id, c.text, m.state, m.evidence_file ? [{ file: m.evidence_file, line: m.evidence_line, quote: m.evidence_file ? (fileMap.get(m.evidence_file)?.[m.evidence_line! - 1] ?? null) : null, sha }] : [], m.reasoning, false, c);
   });
 

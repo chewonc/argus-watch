@@ -91,3 +91,9 @@ test("unifiedDiff and syntaxCheck", () => {
   assert.equal(syntaxCheck("Dockerfile", "FROM x").label, "not checked (no parser for this file type)");
 });
 test("gitBlobSha matches git's blob hashing", () => { assert.equal(gitBlobSha("hello\n"), "ce013625030ba8dba906f756967f9e9ca394464a"); });
+
+test("isProseFile: README claims are not code evidence", async () => {
+  const { isProseFile } = await import("../lib/analyze");
+  assert.equal(isProseFile("README.md"), true); assert.equal(isProseFile("docs/notes.txt"), true);
+  assert.equal(isProseFile("middleware.ts"), false); assert.equal(isProseFile("Dockerfile"), false); assert.equal(isProseFile(null), false);
+});
