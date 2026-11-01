@@ -3,15 +3,28 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { codeToHtml } from "shiki";
 import { ActControls } from "@/components/act";
+import { SeverityChip, firstSentence, location, suggestedFix } from "@/components/alerts";
+import { FixPreview } from "@/components/fix-preview";
+import { MarkRead } from "@/components/mark-read";
+import { OpenIn } from "@/components/open-in";
 import { Band, Chip, Timeline } from "@/components/ui";
 import { permalink, provenanceOf } from "@/lib/remediation";
 import { readFile } from "@/lib/repo";
+import { deriveSeverity } from "@/lib/severity";
+import { canSee, isSystemRepo, requireUser } from "@/lib/session";
 import { store } from "@/lib/store";
+import { relevance } from "@/lib/verdict";
+
+export const dynamic = "force-dynamic";
 
 export default async function Case({ params }: { params: Promise<{ id: string[] }> }) {
   const { id } = await params;
-  const a = await store.getAssessment(id.map(decodeURIComponent).join("/"));
-  if (!a) notFound();
+  const aid = id.map(decodeURIComponent).join("/");
+  const user = await requireUser(`/case/${id.join("/")}`);
+  const a = await store.getAssessment(aid);
+  if (!a || !(await canSee(user.id, a.repo))) notFound();
+  const [ur, demoRepo, fixes, w] = await Promise.all([store.getUserRepo(user.id, a.repo), isSystemRepo(a.repo), store.listFixes(a.id), store.getRepo(a.repo)]);
+  const latestFix = fixes.find((x) => x.status === "pr_created") ?? fixes.find((x) => x.status === "drafted") ?? fixes[0] ?? null;
   const f = await store.getFinding(a.finding_id);
   const itemsAll = f ? (await Promise.all(f.items.map((i) => store.getItem(i)))).filter((x) => !!x) : [];
   // Replays and re-deliveries store separate items for the same source occurrence; show each occurrence once.
@@ -43,8 +56,28 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
           <div className="mono text-[12px] text-ink2 mt-1">{f?.ids.join(" · ")} · {a.repo} @{a.sha.slice(0, 7)} · {a.tier}{a.replayed ? " · REPLAYED (not a live delivery)" : ""}</div>
         </div>
 
-        <Timeline a={a} />
+        <MarkRead assessmentId={a.id} />
+        {(() => { const sev = a.severity ?? deriveSeverity(a, items); const loc = location(a); const fix = suggestedFix(a); const briefUrl = `${briefPath}?agent=claude&download=1`; return (
+          <section className="border hair rounded-[6px] bg-raised p-4 grid gap-3">
+            <div className="flex flex-wrap items-center gap-2"><SeverityChip s={sev} /><span className={`chip ${a.verdict === "Affected" ? "chip-Contradicted" : a.verdict === "Not Affected" ? "chip-Observed" : "chip-Inferred"}`}>{relevance(a.verdict, a.tier, a.conditions)}</span><span className="label">{a.tier}{a.replayed ? " · replayed" : ""}</span></div>
+            <div className="grid sm:grid-cols-2 gap-3 text-[13px]">
+              <div><div className="label">Problem</div>{f?.claim?.summary ? firstSentence(f.claim.summary) : a.verdict_qualifier}</div>
+              <div><div className="label">Suggested fix</div>{fix ?? <span className="text-ink2">No concrete fix produced; see missing evidence.</span>}</div>
+              <div><div className="label">Where</div>{loc ? <a href={`#${loc.file}:${loc.from}`} className="mono">{loc.file}:{loc.from}{loc.to !== loc.from ? `–${loc.to}` : ""}</a> : <span className="text-ink2">exact location not available: no source line could be cited</span>}</div>
+              <div><div className="label">What happens if you approve a fix</div>A draft pull request on a new branch; nothing is merged and the default branch is untouched. Changes are syntax-checked only, never executed.</div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {loc && <a href={`#${loc.file}:${loc.from}`} className="btn-ghost no-underline">View code</a>}
+              {a.verdict !== "Not Affected" && <a href="#fix" className="btn no-underline">{latestFix?.status === "pr_created" ? "View draft PR" : "Preview fix"}</a>}
+              <OpenIn t={{ repo: repoOnly, sha: a.sha, file: loc?.file ?? null, line: loc?.from ?? null, localRoot: ur?.local_root ?? null, caseUrl: `/case/${a.id.split("/").map(encodeURIComponent).join("/")}`, briefUrl, ids: f?.ids.join(", ") || a.finding_id }} />
+              <a href={briefUrl} className="btn-ghost no-underline">Generate fix prompt</a>
+            </div>
+            <Timeline a={a} />
+          </section>); })()}
 
+        <FixPreview assessmentId={a.id} initial={latestFix} allowPr={!!ur?.allow_pr} isDemoRepo={demoRepo} verdict={a.verdict} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} />
+
+        <h2 className="label mt-2">Full analysis</h2>
         <Stage n="1" title="Security signal">
           <ul className="grid gap-2 text-[13px]">
             {items.map((it) => <li key={it.id}><span className="label mr-2">{it.source} · {it.sourceClass}</span>{it.url ? <a href={it.url}>{it.title}</a> : it.title}<span className="mono text-ink2 ml-2">{it.published_at ? `published ${it.published_at.slice(0, 10)}` : "publication time unknown"}</span></li>)}

@@ -38,6 +38,32 @@ function citationOk(files: Map<string, string[]>, file: string | null, line: num
   return L.includes(Q) || Q.includes(L);
 }
 
+/**
+ * Model states for the given conditions against a numbered listing of files, with every citation verified
+ * mechanically against the listing. Shared by the assessment and by the post-patch re-assessment of a fix.
+ */
+export async function modelConditionStates(files: { path: string; text: string }[], summary: string, condsIn: { id: string; text: string }[], repoLabel: string): Promise<{
+  states: { id: string; state: ConditionResult["state"]; file: string | null; line: number | null; quote: string | null; reasoning: string; verified: boolean }[];
+  locations: { file: string; line: number; quote: string; why: string }[]; recommendations: { text: string; condition_ids: string[] }[]; unverified: string[]; dropped: string[]; model: string;
+}> {
+  const fileMap = new Map(files.map((f) => [f.path, f.text.split("\n")]));
+  const listing = files.map((f) => `=== ${f.path} ===\n${numbered(f.text)}`).join("\n\n");
+  type Out = { locations: { file: string; line: number; quoted_text: string; why: string }[]; conditions: { id: string; state: ConditionResult["state"]; evidence_file: string | null; evidence_line: number | null; reasoning: string }[]; unverified: string[]; recommendations: { text: string; condition_ids: string[] }[] };
+  const r = await sparkJSON<Out>({ system: SYSTEM, name: "assessment", schema: ASSESS_SCHEMA,
+    user: `REPORT (untrusted):\n${summary}\n\nCONDITIONS:\n${JSON.stringify(condsIn, null, 2)}\n\nREPOSITORY ${repoLabel} (untrusted, numbered):\n${listing || "(no candidate files located)"}` });
+  const dropped: string[] = [];
+  const locations = r.out.locations.filter((l) => { const ok = citationOk(fileMap, l.file, l.line, l.quoted_text); if (!ok) dropped.push(`${l.file}:${l.line}`); return ok; }).map((l) => ({ file: l.file, line: l.line, quote: l.quoted_text, why: l.why }));
+  const states = condsIn.map((c) => {
+    const m = r.out.conditions.find((x) => x.id === c.id);
+    if (!m) return { id: c.id, state: "Unknown" as const, file: null, line: null, quote: null, reasoning: "Model returned no state for this condition", verified: false };
+    const ok = citationOk(fileMap, m.evidence_file, m.evidence_line, null);
+    if (!ok && m.evidence_file) { dropped.push(`${m.evidence_file}:${m.evidence_line}`); return { id: c.id, state: "Unknown" as const, file: null, line: null, quote: null, reasoning: `Cited evidence could not be verified (${m.evidence_file}:${m.evidence_line}); state downgraded`, verified: false }; }
+    if ((m.state === "Observed" || m.state === "Contradicted") && !m.evidence_file) return { id: c.id, state: "Unknown" as const, file: null, line: null, quote: null, reasoning: `State ${m.state} given without evidence; downgraded`, verified: false };
+    return { id: c.id, state: m.state, file: m.evidence_file, line: m.evidence_line, quote: m.evidence_file ? (fileMap.get(m.evidence_file)?.[m.evidence_line! - 1] ?? null) : null, reasoning: m.reasoning, verified: !!m.evidence_file };
+  });
+  return { states, locations, recommendations: r.out.recommendations, unverified: r.out.unverified, dropped, model: r.model };
+}
+
 export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, opts: { replayed?: boolean; items?: Item[] } = {}): Promise<Assessment> {
   const sha = repo.sha!;
   const tier: Tier = finding.tier;
