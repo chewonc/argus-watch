@@ -86,3 +86,25 @@ a { color: var(--accent); }
   .pulse { animation: pulse 1.2s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: 0.35; } }
 }
+
+/* Buttons, badges, severity chips, diff lines (added Nov 1) */
+.btn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 5px 12px; border-radius: 4px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; text-decoration: none; }
+.btn:hover { opacity: .9; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.btn-ghost { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 5px 10px; border-radius: 4px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; text-decoration: none; }
+.btn-ghost:hover { border-color: var(--ink-2); }
+.btn-danger { border-color: var(--affected); background: var(--affected); }
+.badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--affected); color: #fff; font-size: 11px; font-weight: 600; text-align: center; line-height: 18px; }
+.chip-sev-critical { color: var(--affected); }
+.chip-sev-high { color: var(--contradicted); }
+.chip-sev-moderate { color: var(--unclear); }
+.chip-sev-low { color: var(--unknown); }
+.chip-sev-none, .chip-sev-unknown { color: var(--ink-2); }
+.diff { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 12px; line-height: 1.5; }
+.diff .dl { display: grid; grid-template-columns: 44px 44px 1fr; white-space: pre; }
+.diff .dl .ln { color: var(--ink-2); text-align: right; padding-right: 8px; user-select: none; }
+.diff .diff-add { color: var(--observed); background: color-mix(in srgb, var(--observed) 8%, transparent); font-style: italic; border-left: 2px dashed var(--observed); }
+.diff .diff-del { color: var(--contradicted); background: color-mix(in srgb, var(--contradicted) 8%, transparent); text-decoration: line-through; opacity: .75; }
+.diff .diff-hunk { color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+dialog.modal { border: 1px solid var(--line); border-radius: 6px; background: var(--bg-raised); color: var(--ink); max-width: 560px; padding: 20px; }
+dialog.modal::backdrop { background: rgba(0,0,0,.35); }

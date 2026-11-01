@@ -1,7 +1,8 @@
 // Stages 3–5 for one (finding, repo): locate, assess conditions with cited evidence, verify citations.
 // Port of feasibility/gate.mjs + extract.mjs with the version condition computed in code.
-import type { Assessment, Claim, ConditionDef, ConditionResult, Finding, Tier, WatchedRepo } from "./schema";
+import type { Assessment, Claim, ConditionDef, ConditionResult, Finding, Item, Tier, WatchedRepo } from "./schema";
 import { candidateFiles, versionInRanges } from "./repo";
+import { deriveSeverity } from "./severity";
 import { READ_ONLY, UNTRUSTED, sparkJSON } from "./spark";
 import { decide, qualifier } from "./verdict";
 
@@ -37,7 +38,7 @@ function citationOk(files: Map<string, string[]>, file: string | null, line: num
   return L.includes(Q) || Q.includes(L);
 }
 
-export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, opts: { replayed?: boolean } = {}): Promise<Assessment> {
+export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, opts: { replayed?: boolean; items?: Item[] } = {}): Promise<Assessment> {
   const sha = repo.sha!;
   const tier: Tier = finding.tier;
   const pkgNames = claim.packages.map((p) => p.name);
@@ -90,7 +91,9 @@ export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, 
   const all = [...computed, ...conditions];
   const d = decide(all, tier);
   const processed_at = new Date().toISOString();
+  const severity = deriveSeverity({ verdict: d.verdict, tier }, opts.items ?? []);
   return {
+    severity,
     id: `${finding.id}:${repo.repo}${repo.subdir ? "/" + repo.subdir : ""}:${sha.slice(0, 12)}:${finding.claim_version ?? "0"}`,
     finding_id: finding.id, repo: repo.subdir ? `${repo.repo}/${repo.subdir}` : repo.repo, sha, tier, dependency, locations, conditions: all,
     verdict: d.verdict, verdict_reason: d.reason, verdict_qualifier: qualifier(d.verdict, tier),

@@ -1,7 +1,7 @@
 // Storage: Upstash Redis when configured, else an in-process Map persisted to .data/store.json (dev only).
 import { Redis } from "@upstash/redis";
 import { env, hasRedis } from "./env";
-import type { Assessment, Finding, Item, LogEntry, WatchedRepo } from "./schema";
+import type { Assessment, Finding, Fix, Installation, Item, LogEntry, Notification, PushSubscription, User, UserRepo, WatchedRepo } from "./schema";
 
 type KV = {
   get<T>(k: string): Promise<T | null>;
@@ -98,7 +98,26 @@ const K = {
   seen: (source: string, key: string) => `seen:${source}:${key}`,
   pollState: (source: string) => `poll:${source}`,
   daily: (d: string) => `msgs:${d}`,
+  // identity layer
+  user: (uid: string) => `user:${uid}`,
+  users: "users",
+  inst: (id: number) => `inst:${id}`,
+  userInsts: (uid: string) => `user:${uid}:insts`,
+  urepo: (uid: string, k: string) => `urepo:${uid}:${k}`,
+  userRepos: (uid: string) => `user:${uid}:repos`,
+  repoUsers: (k: string) => `repo:${k}:users`,
+  read: (uid: string) => `read:${uid}`,
+  resolved: (uid: string) => `resolved:${uid}`,
+  notif: (uid: string) => `notif:${uid}`, // list of notification ids, newest first
+  notifi: (nid: string) => `notifi:${nid}`,
+  unread: (uid: string) => `notif:${uid}:unread`,
+  notifDedup: (uid: string, fid: string, k: string) => `notifd:${uid}:${fid}:${k}`,
+  push: (uid: string) => `push:${uid}`,
+  fix: (id: string) => `fix:${id}`,
+  fixesFor: (aid: string) => `assessment:${aid}:fixes`,
+  ghtok: (inst: number) => `ghtok:${inst}`,
 };
+export const SYSTEM_USER = "system";
 
 export const store = {
   // items
@@ -185,4 +204,73 @@ export const store = {
   recentLog: (n = 200) => kv.lrange<LogEntry>(K.log, 0, n - 1),
   /** daily QStash message counter (free tier: 1,000/day) */
   countMessage: () => kv.incr(K.daily(new Date().toISOString().slice(0, 10))),
+
+  // ---- users / installations / per-user repos ----------------------------
+  async putUser(u: User) { await kv.set(K.user(u.id), u); await kv.sadd(K.users, u.id); },
+  getUser: (uid: string) => kv.get<User>(K.user(uid)),
+  listUserIds: () => kv.smembers(K.users),
+  async putInstallation(i: Installation) { await kv.set(K.inst(i.id), i); for (const u of i.user_ids) await kv.sadd(K.userInsts(u), String(i.id)); },
+  getInstallation: (id: number) => kv.get<Installation>(K.inst(id)),
+  async listUserInstallations(uid: string): Promise<Installation[]> {
+    const ids = await kv.smembers(K.userInsts(uid));
+    return (await kv.mget<Installation>(ids.map((i) => K.inst(Number(i))))).filter((x): x is Installation => !!x);
+  },
+  async addUserRepo(ur: UserRepo) { await kv.set(K.urepo(ur.user_id, ur.repo_key), ur); await kv.sadd(K.userRepos(ur.user_id), ur.repo_key); await kv.sadd(K.repoUsers(ur.repo_key), ur.user_id); },
+  getUserRepo: (uid: string, k: string) => kv.get<UserRepo>(K.urepo(uid, k)),
+  /** Remove the user's link; drop the WatchedRepo itself once nobody watches it. */
+  async removeUserRepo(uid: string, k: string): Promise<{ repo_removed: boolean }> {
+    await kv.del(K.urepo(uid, k)); await kv.srem(K.userRepos(uid), k); await kv.srem(K.repoUsers(k), uid);
+    if ((await kv.scard(K.repoUsers(k))) === 0) { await this.removeRepo(k); return { repo_removed: true }; }
+    return { repo_removed: false };
+  },
+  listUserRepoKeys: (uid: string) => kv.smembers(K.userRepos(uid)),
+  async listUserRepos(uid: string): Promise<UserRepo[]> {
+    const ks = await kv.smembers(K.userRepos(uid));
+    return (await kv.mget<UserRepo>(ks.map((k) => K.urepo(uid, k)))).filter((x): x is UserRepo => !!x);
+  },
+  repoUsers: (k: string) => kv.smembers(K.repoUsers(k)),
+
+  // ---- per-user read / resolved state ---------------------------------------
+  markRead: (uid: string, aid: string) => kv.sadd(K.read(uid), aid),
+  readSet: (uid: string) => kv.smembers(K.read(uid)),
+  markResolved: (uid: string, aid: string) => kv.sadd(K.resolved(uid), aid),
+  unresolve: (uid: string, aid: string) => kv.srem(K.resolved(uid), aid),
+  resolvedSet: (uid: string) => kv.smembers(K.resolved(uid)),
+
+  // ---- notifications ----------------------------------------------------------
+  async putNotification(n: Notification, isNew: boolean) {
+    await kv.set(K.notifi(n.id), n);
+    if (isNew) { await kv.lpush(K.notif(n.user_id), n.id); await kv.ltrim(K.notif(n.user_id), 0, 299); }
+    if (!n.read_at) await kv.sadd(K.unread(n.user_id), n.id);
+  },
+  getNotification: (nid: string) => kv.get<Notification>(K.notifi(nid)),
+  async listNotifications(uid: string, n = 50): Promise<Notification[]> {
+    const ids = [...new Set(await kv.lrange<string>(K.notif(uid), 0, n - 1))];
+    return (await kv.mget<Notification>(ids.map(K.notifi))).filter((x): x is Notification => !!x);
+  },
+  unreadCount: (uid: string) => kv.scard(K.unread(uid)),
+  unreadIds: (uid: string) => kv.smembers(K.unread(uid)),
+  async markNotificationRead(uid: string, nid: string) {
+    const n = await kv.get<Notification>(K.notifi(nid));
+    if (n && n.user_id === uid) { if (!n.read_at) { n.read_at = new Date().toISOString(); await kv.set(K.notifi(nid), n); } await kv.srem(K.unread(uid), nid); await kv.sadd(K.read(uid), n.assessment_id); }
+  },
+  notifDedupGet: (uid: string, fid: string, k: string) => kv.get<string>(K.notifDedup(uid, fid, k)),
+  notifDedupSet: (uid: string, fid: string, k: string, nid: string) => kv.set(K.notifDedup(uid, fid, k), nid),
+
+  // ---- push subscriptions -----------------------------------------------------
+  addPush: (uid: string, s: PushSubscription) => kv.sadd(K.push(uid), JSON.stringify(s)),
+  removePush: (uid: string, endpoint: string) => kv.smembers(K.push(uid)).then(async (all) => { for (const j of all) if ((JSON.parse(j) as PushSubscription).endpoint === endpoint) await kv.srem(K.push(uid), j); }),
+  async listPush(uid: string): Promise<PushSubscription[]> { return (await kv.smembers(K.push(uid))).map((j) => JSON.parse(j) as PushSubscription); },
+
+  // ---- fixes ------------------------------------------------------------------
+  async putFix(f: Fix, isNew = false) { await kv.set(K.fix(f.id), f); if (isNew) await kv.lpush(K.fixesFor(f.assessment_id), f.id); },
+  getFix: (id: string) => kv.get<Fix>(K.fix(id)),
+  async listFixes(aid: string): Promise<Fix[]> {
+    const ids = [...new Set(await kv.lrange<string>(K.fixesFor(aid), 0, 19))];
+    return (await kv.mget<Fix>(ids.map(K.fix))).filter((x): x is Fix => !!x);
+  },
+
+  // ---- installation token cache (KV has no TTL; expiry checked by the caller) ----
+  getToken: (inst: number) => kv.get<{ token: string; exp: string }>(K.ghtok(inst)),
+  setToken: (inst: number, v: { token: string; exp: string }) => kv.set(K.ghtok(inst), v),
 };

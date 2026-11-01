@@ -15,6 +15,7 @@ type GHSAPayload = {
   security_advisory: {
     ghsa_id: string; cve_id: string | null; summary: string; description: string; severity: string;
     published_at: string; updated_at: string; withdrawn_at: string | null;
+    cvss?: { score: number | null; vector_string: string | null } | null;
     references?: { url: string }[];
     vulnerabilities?: { package: { ecosystem: string; name: string }; vulnerable_version_range: string; first_patched_version: { identifier: string } | string | null }[];
   };
@@ -36,7 +37,7 @@ export function itemFromGHSA(p: GHSAPayload, discovered_at: string): Item {
     packages: (a.vulnerabilities ?? []).map((v) => ({ ecosystem: v.package.ecosystem.toLowerCase(), name: v.package.name })),
     published_at: a.published_at,
     discovered_at,
-    raw: { action: p.action, updated_at: a.updated_at, vulnerabilities: a.vulnerabilities ?? [] },
+    raw: { action: p.action, updated_at: a.updated_at, severity: a.severity, cvss_score: a.cvss?.score ?? null, withdrawn_at: a.withdrawn_at, vulnerabilities: a.vulnerabilities ?? [] },
   };
 }
 

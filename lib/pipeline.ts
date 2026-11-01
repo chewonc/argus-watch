@@ -78,7 +78,7 @@ export async function processFinding(id: string, opts: { replayed?: boolean } = 
     for (const r of matched) {
       const aid = `${f.id}:${r.repo}${r.subdir ? "/" + r.subdir : ""}:${r.sha!.slice(0, 12)}:${f.claim_version}`;
       if (!opts.replayed && (await store.getAssessment(aid))) continue;
-      const a = await assess(f, f.claim!, r, { replayed: opts.replayed });
+      const a = await assess(f, f.claim!, r, { replayed: opts.replayed, items });
       if (a.verdict === "Affected" || a.verdict === "Unclear") await sendAlert(a); else await store.putAssessment(a);
     }
     f.status = "assessed"; await store.putFinding(f);
