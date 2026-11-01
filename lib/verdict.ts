@@ -17,6 +17,16 @@ export function decide(conds: ConditionResult[], tier: Tier): { verdict: Verdict
   return { verdict: "Affected", reason: "All required conditions Observed/Inferred; no contradiction; environment protections not unknown", missing };
 }
 
+/** Five-step relevance label (code, not model): how strongly the evidence supports that this repository is affected. */
+export type Relevance = "Confirmed affected" | "Likely affected" | "Potentially affected" | "Insufficient evidence" | "Not affected";
+export function relevance(v: Verdict, tier: Tier, conds: Pick<ConditionResult, "state" | "role">[]): Relevance {
+  if (v === "Not Affected") return "Not affected";
+  if (v === "Affected") return tier === "official" ? "Confirmed affected" : "Likely affected";
+  const required = conds.filter((c) => c.role === "required");
+  const anyKnown = required.some((c) => c.state === "Observed" || c.state === "Inferred");
+  return anyKnown ? "Potentially affected" : "Insufficient evidence";
+}
+
 export function qualifier(v: Verdict, tier: Tier): string {
   const pre = tier === "official" ? "" : tier === "corroborated" ? " Pre-advisory: not yet officially confirmed." : " Preliminary report from a single unconfirmed source.";
   if (v === "Affected") return `Affected under the stated conditions, based on inspected static evidence only.${pre}`;
