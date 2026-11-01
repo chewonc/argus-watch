@@ -1,22 +1,57 @@
 # Argus Watch
 
-A read-only agent that tells you whether a newly published security advisory actually affects your repository, condition by condition, with cited evidence and stated uncertainty.
+**What touched your code.** Argus Watch continuously watches security advisories and research disclosures, checks each one against the GitHub repositories you connect, and tells you exactly where and why your code is affected, with a proposed fix you can review and open as a draft pull request.
 
-Built for the Meta Global AI Developer Hackathon (Indie track, Oct 26 – Nov 4, 2026).
+Live: https://argus-watch-three.vercel.app · Solo Indie entry, Meta Global AI Developer Hackathon (Nov 2026) · Apache-2.0
 
-## Status
+> Read-only by design. Argus Watch never executes repository code, never reproduces or tests a vulnerability, never writes exploit or proof-of-concept code, and never merges. The only write it can ever make is a **draft pull request on a new branch**, after you opt in per repository and approve a specific fix.
 
-Early development. The feasibility harness is in `feasibility/`; it has not been run yet and no results are claimed.
+## The workflow
 
-## How it works (planned)
+```
+Discover → Verify → Locate → Explain → Preview → Approve → Fix → Validate → Commit
+```
 
-1. **Watch:** fetch advisories from OSV.dev / GHSA for the packages in your lockfile (on demand in the MVP; scheduled checks next).
-2. **Locate:** find where your code and config touch the affected package.
-3. **Predict:** Muse Spark 1.3 extracts the advisory's preconditions and labels each one Observed / Inferred / Unknown / Contradicted, citing file:line evidence.
-4. **Verify:** every citation is re-read mechanically; unmatched quotes are dropped.
-5. **Decide:** a deterministic rule returns **Affected**, **Not Affected** or **Unclear**, with the evidence and the gaps.
-6. **Recommend:** mitigation linked to the conditions that drive the verdict.
+1. **Discover.** GitHub-reviewed advisories arrive by webhook (push). The GitHub Advisory Database and eleven fast disclosure feeds are polled every 5 minutes; CISA KEV every 10 minutes; ten research feeds hourly. Every source is labelled by how it is really monitored and by its *measured* interval; "real-time" appears only for the push source and only after a live delivery has been measured.
+2. **Verify.** Items are deduplicated across sources (advisory ids, canonical URLs) and tiered: official, corroborated, or signal. A claim (affected packages, technology tags, failure conditions) is extracted once per text version. Social or single-source reports are capped at "Unclear".
+3. **Locate.** Lockfiles are parsed and the installed version is checked against the advisory ranges **in code**; the model then assesses each condition against a numbered listing of the cited files, and every citation is verified mechanically against the real file (an unverifiable citation downgrades the condition to Unknown).
+4. **Explain.** The verdict (Affected / Not Affected / Unclear) is decided by a fixed rule, never by the model alone, with the rule shown. Each condition is Observed / Inferred / Unknown / Contradicted with a file:line, and the case page highlights the cited lines in a read-only source pane.
+5. **Preview.** A minimal patch is drafted for the cited files and manifests, applied in memory, shown as a diff (additions as ghost text), and syntax-checked (parsed only, never executed).
+6. **Static remediation assessment.** Before approval, the patch is compared with the conditions that drove the verdict: version changes are re-computed in code, the patched text is re-assessed with citations verified, a risk screen flags removed checks or dynamic code, and the result is labelled *supported / partially supported / not supported*, with every row tagged COMPUTED, CITATION-VERIFIED, MODEL-ASSUMPTION or UNCHANGED. The ladder always ends with **"Security remediation: not verified"**.
+7. **Approve.** A dialog states exactly what will happen (repository, base branch, new branch, files, draft PR, nothing merged). Approval is per fix, and only for repositories where you enabled draft PRs.
+8. **Fix / Validate / Commit.** A branch and commit are created through the Git Data API and a draft pull request is opened. The repository's own CI check-runs are shown in a separate panel with the note that CI does not verify that the vulnerability is fixed.
 
-## Safety boundary
+Alongside: per-user notifications (in-app badge, browser push with receipt measurement, Slack/Discord webhook), one notification per finding and repository that is updated in place when a verdict or severity changes, and a language selector covering every language supported by Google Cloud Translation (identifiers, paths, versions and code are never translated).
 
-Argus Watch never reproduces, triggers or exploits a vulnerability, never generates proof-of-concept code, and never executes repository or advisory code. It reads advisories, lockfiles, source and config as text. It makes no autonomous code changes.
+## Verified status (Nov 1 2026)
+
+| Area | Status |
+|---|---|
+| Multi-source ingestion (GHSA webhook, GitHub Advisory DB, KEV, 21 feeds), dedup, tiers, claim extraction, repo matching, condition assessment with citation verification, strict verdict rule | Implemented; exercised live on the deployment and by replay (AT-2) |
+| Single 5-minute scheduler with per-source intervals, conditional GET, batched seen-document, per-stage latency (L1–L6) | Implemented; polled locally; latency figures appear only after live runs accumulate |
+| GitHub sign-in (Better Auth, stateless), GitHub App installation flow, repository picker, per-repo draft-PR opt-in | Implemented; **not yet exercised end-to-end** (needs the App's OAuth client and private key configured on the deployment) |
+| Dashboard: per-repo status, counts by severity / new / unread / resolved, actionable alert cards, Open-in menu, case page at-a-glance | Implemented |
+| Fix drafting, diff preview, syntax check, static remediation assessment, approval dialog, draft PR, CI readout | Implemented; drafting exercised locally (the model correctly declined when no manifest was editable); PR creation **not yet exercised** (needs App write permission accepted) |
+| Notifications: in-app records with dedup, badge, inbox, settings, per-user webhook, Web Push with receipt ack | Implemented; push **not yet exercised** (needs VAPID keys on the deployment) |
+| Multilingual UI (Google Cloud Translation, all languages, cached, identifiers protected, in-place switch) | Implemented; **not yet exercised** (needs `GOOGLE_TRANSLATE_API_KEY`) |
+| Unit tests (20) for verdict rule, version ranges, lockfiles, dedup, prefilter, severity, masking, hunks, syntax check, store | Passing locally; CI workflow added |
+| Evaluation set 12 + 4 adversarial (AT-4), AT-1 live advisory delivery, AT-3 24 h unattended run | Pending; see `feasibility/EVAL.md` when it lands and the status page's `unattended_24h` counter |
+| Email notifications, X/LinkedIn/Threads/Reddit sources, VS Code extension, JetBrains | Planned or excluded (see docs) |
+
+Measured latency and coverage are published at `/api/status` and on the Sources page; they are computed from stored timestamps over live items only, with first-run backlog excluded, and they read "not yet measured" until data exists.
+
+## Security boundary
+
+- Reads: repository metadata, trees and file contents at one commit, lockfiles. Nothing is cloned.
+- Stores: package names and versions, technology tags, cited line excerpts, assessments, notifications. Never full repositories, never secrets (lines that look like credentials are withheld from briefs).
+- Executes: nothing from any repository or advisory. Patches are parsed, never run. Tests are never generated or run. CI results are read, never triggered.
+- Writes: only a draft pull request on a new branch, after per-repository opt-in and per-fix approval. The default branch is never modified; nothing is merged.
+- Untrusted text (advisories, feeds, pages, repository content) is treated as data; prompts fence it and the mechanical citation check keeps model claims anchored to real lines.
+
+## Documents
+
+- `SETUP.md`: environment variables, GitHub App settings, scheduler, local development.
+- `docs/USER_GUIDE.md`: how to sign in, connect repositories, read alerts, preview and approve a fix, configure notifications and language.
+- `../strategy/14_argus_watch_master_plan.md`: audit, research, architecture, plan, roadmap, acceptance tests.
+- `../strategy/research/br_intel_sources_2026-11-01.md`: intelligence-source comparison with references.
+- `feasibility/`: evaluation harness and fixture cases.

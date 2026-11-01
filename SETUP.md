@@ -1,6 +1,6 @@
 # Argus Watch — setup and operations
 
-Everything here is read-only toward your repositories. Argus Watch never executes repository code, never runs tests it generates, and never reproduces or exploits a vulnerability.
+Everything here is read-only toward your repositories except the draft pull request a user explicitly approves. Argus Watch never executes repository code, never runs tests it generates, and never reproduces or exploits a vulnerability.
 
 ## 1. Secrets (never commit, never paste into chat)
 
@@ -8,64 +8,74 @@ Create `.env.local` at the project root (gitignored). On Vercel, add the same na
 
 | Variable | Required | What it is |
 |---|---|---|
-| `META_API_KEY` | yes | Meta Model API key (dev.meta.ai). Used only for Muse Spark 1.3 structured-output calls. |
-| `META_MODEL` | no | Defaults to `muse-spark-1.3`. |
-| `GITHUB_TOKEN` | yes in practice | A fine-grained token with **read-only Contents** on the watched repos (public repos: a token is still needed because unauthenticated reads are limited to 60/hour). |
-| `GITHUB_WEBHOOK_SECRET` | yes | The secret you set on the GitHub App webhook. |
+| `META_API_KEY` | yes | Meta Model API key (dev.meta.ai). Structured-output calls to Muse Spark 1.3 for claim extraction, condition assessment, fix drafting and the post-patch re-assessment. |
+| `META_MODEL`, `META_BASE_URL` | no | Defaults `muse-spark-1.3`, `https://api.meta.ai/v1`. |
+| `GITHUB_TOKEN` | fallback | Fine-grained token with read-only Contents; used only for repositories registered by the admin API (demo fixtures) or when an installation token is unavailable. |
+| `GITHUB_WEBHOOK_SECRET` | yes | The secret set on the GitHub App webhook. |
+| `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_SLUG` | yes for onboarding | App id, the PEM private key (newlines may be escaped as `\n`), and the App's URL slug (`https://github.com/apps/<slug>`). |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | yes for sign-in | The GitHub App's OAuth client id and a client secret. |
+| `BETTER_AUTH_SECRET` | yes for sign-in | 32+ random bytes (`openssl rand -base64 32`). Sessions are stateless cookies encrypted with it. |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | yes for deployment | Durable storage. Without them the app uses `.data/store.json` (dev only). |
 | `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY` | yes for deployment | Scheduler + queue. Without them, polls run only when called and findings are processed inline. |
-| `QSTASH_URL` | yes if your QStash account is regional | The endpoint shown next to the token in the Upstash console (e.g. `https://qstash-eu-central-1.upstash.io`). Without it the client calls the default endpoint and a regional account fails with "user … not found". |
-| `ALERT_WEBHOOK_URL` | optional | A Slack or Discord *incoming webhook* URL. Alerts always also land in the in-app inbox. |
-| `ADMIN_TOKEN` | yes | A long random string. Protects `/api/admin`, `/api/analyze`, and manual poll triggers. |
-| `APP_URL` | yes for deployment | Public base URL, e.g. `https://argus-watch.vercel.app`. QStash calls back to it. |
+| `QSTASH_URL` | yes if the QStash account is regional | The endpoint shown next to the token in the Upstash console (e.g. `https://qstash-eu-central-1.upstash.io`). Without it a regional account fails with "user … not found". |
+| `ALERT_WEBHOOK_URL` | optional | A global Slack or Discord *incoming webhook*. Users can add their own in Settings. |
+| `GOOGLE_TRANSLATE_API_KEY` | optional (multilingual UI) | A Google Cloud API key restricted to the **Cloud Translation API**. Free tier 500,000 characters/month, then $20 per million. Translations are cached per string and language. Without it the UI is English only and the language selector shows English. |
+| `VAPID_PUBLIC_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | optional (browser push) | `npx web-push generate-vapid-keys`; put the public key in both public-key variables; subject is `mailto:you@example.com`. |
+| `DEMO_SHARED_REPOS` | optional | `1` shows admin-registered (system) repositories to every signed-in user, labelled demo. |
+| `ADMIN_TOKEN` | yes | Long random string protecting `/api/admin`, `/api/analyze`, manual polls and the push fan-out route. |
+| `APP_URL` | yes for deployment | Public base URL (`https://argus-watch-three.vercel.app`). QStash, GitHub and Better Auth call back to it. |
 
-## 2. Accounts and one-time setup (owner actions, ~45 minutes)
+## 2. Accounts and one-time setup (owner actions)
 
-1. **Vercel:** import the repo, add the env vars, deploy. Functions use up to 300 s (Hobby limit).
-2. **Upstash:** create one Redis database (free) and copy the REST URL/token. Create a QStash project (free) and copy the token and both signing keys.
-3. **GitHub App** (Settings → Developer settings → GitHub Apps → New):
-   - Webhook URL: `https://<APP_URL>/api/webhooks/github`; Webhook secret: your `GITHUB_WEBHOOK_SECRET`.
-   - Permissions: none are needed for the global advisory event. (For private watched repos, add *Contents: read* and install the app on them, or use `GITHUB_TOKEN`.)
-   - **Subscribe to events: "Security advisory"** (this is the global, GitHub-reviewed advisory stream; it is only available to GitHub Apps).
-   - Install the app on your account (required for deliveries to start). Then open Advanced → Recent deliveries and confirm the `ping` arrived (it is logged in the app's Live log).
-4. **QStash schedule** (QStash console → Schedules): ONE schedule, POST with no body, every 5 minutes (`*/5 * * * *`):
-   - `https://<APP_URL>/api/poll/tick`
-   The tick runs each source on its own interval (GitHub Advisory DB and fast feeds every 5 min, CISA KEV every 10 min, slow research feeds hourly) and uses conditional GET so unchanged feeds cost nothing. Delete the older per-source `/api/poll/kev` and `/api/poll/rss` schedules if they exist. QStash signs these requests; the routes verify the signature. Budget: 288 messages/day on the free tier's 1,000.
-5. **Backup heartbeat (optional):** the workflow in `.github/workflows/heartbeat.yml` calls `/api/admin` `{"op":"heartbeat"}` every 15 minutes and runs the tick if QStash has not run it for 10 minutes. Add repository secrets `APP_URL` and `ADMIN_TOKEN`.
+1. **Vercel:** import the repo, add the env vars, deploy. Functions use up to 300 s.
+2. **Upstash:** one Redis database (free) and one QStash project (free).
+3. **GitHub App** (Settings → Developer settings → GitHub Apps):
+   - Webhook URL `https://<APP_URL>/api/webhooks/github`, secret = `GITHUB_WEBHOOK_SECRET`.
+   - Callback URL `https://<APP_URL>/api/auth/callback/github`. Leave "Request user authorization (OAuth) during installation" off (sign-in and installation are separate steps).
+   - Setup URL `https://<APP_URL>/api/github/setup`, tick "Redirect on update".
+   - Repository permissions: **Metadata: read, Contents: read & write, Pull requests: read & write, Checks: read**. Account permissions: **Email addresses: read**. Contents/Pull requests write is used only after a user enables draft PRs for a repository and approves a specific fix; read-only monitoring never uses it.
+   - Subscribe to events: **Security advisory**, **Push**, **Installation**, **Installation repositories**.
+   - Generate a private key and a client secret; copy the App id, slug, client id.
+   - Existing installations must accept the new permissions (GitHub prompts the account owner; until then writes fail with 403 and the UI says so).
+4. **QStash schedule** (QStash console → Schedules): ONE schedule, POST with no body, every 5 minutes (`*/5 * * * *`): `https://<APP_URL>/api/poll/tick`. The tick runs each source on its own interval (GitHub Advisory DB and fast feeds every 5 min, CISA KEV every 10 min, slow research feeds hourly) with conditional GET, so unchanged feeds cost nothing. Delete older per-source schedules. Budget: 288 messages/day on the free tier's 1,000.
+5. **Backup heartbeat:** `.github/workflows/heartbeat.yml` calls `/api/admin` `{"op":"heartbeat"}` every 15 minutes and runs the tick if QStash has not run it for 10 minutes. Add repository secrets `APP_URL` and `ADMIN_TOKEN`.
+6. **After deploying the identity layer:** run `{"op":"migrate_system"}` once so repositories registered earlier stay visible (as demo repos).
 
-## 3. Register watched repositories
+## 3. Register demo repositories (admin API; users use the Repos page instead)
 
 ```bash
 curl -X POST "$APP_URL/api/admin" -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
   -d '{"op":"watch","repo":"owner/name","default_branch":"main","label":"production"}'
 ```
 
-Optional `"subdir":"path/inside/repo"` watches a sub-folder (used for the demo fixtures under `feasibility/cases/`).
+Optional `"subdir":"path/inside/repo"` watches a sub-folder (demo fixtures under `feasibility/cases/`). `{"op":"unwatch","repo":"owner/name[/subdir]"}` removes one. `{"op":"cleanup"}` dedupes the assessment list; `{"op":"cleanup","repo_prefix":"owner/name/feasibility"}` also deletes demo assessments and findings under that prefix.
 
-## 4. Replay a received advisory (labeled, never counted as live)
-
-```bash
-curl -X POST "$APP_URL/api/admin" -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
-  -d @replay.json   # {"op":"replay_ghsa","payload":{"action":"published","security_advisory":{...}}}
-```
-
-The payload shape is the GitHub `security_advisory` webhook payload. The same pipeline runs; every resulting assessment is marked **replayed**.
-
-## 5. On-demand / agent-callable analysis (manual override)
+## 4. Replay a received advisory (labelled, never counted as live)
 
 ```bash
-curl -X POST "$APP_URL/api/analyze" -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
-  -d '{"advisory_id":"GHSA-f82v-jwr5-mffw"}'
+curl -X POST "$APP_URL/api/admin" -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" -d @replay.json
+# {"op":"replay_ghsa","payload":{"action":"published","security_advisory":{...}}}
 ```
 
-Returns the finding and its assessments as JSON. This is the read-only tool contract an agent can call.
+The same pipeline runs; every resulting assessment and notification is marked **replayed**. Repeated replays of the same payload reuse the same item id.
 
-## 6. Local development
+## 5. On-demand / agent-callable analysis
+
+```bash
+curl -X POST "$APP_URL/api/analyze" -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" -d '{"advisory_id":"GHSA-f82v-jwr5-mffw"}'
+```
+
+## 6. Status, latency and acceptance tests
+
+`GET /api/status` (public) reports each source's class (push / near_realtime / periodic), nominal and measured interval, first and last successful poll, per-stage latency medians (L1 publish→discover per source, L2 extract, L3 assess, L4 alert, L5 push sent, L6 push received, totals) over live items with first-run backlog excluded, and `unattended_24h` (poll runs logged in the last 24 h vs expected) for AT-3.
+
+## 7. Local development
 
 ```bash
 npm install
-npm run dev     # http://localhost:3000 ; store = .data/store.json ; findings are processed inline
+npm run dev        # http://localhost:3000 ; store = .data/store.json ; findings are processed inline
+npm test           # unit tests (no network, no model)
+npm run typecheck && npm run lint
 ```
 
-Set at least `META_API_KEY`, `GITHUB_TOKEN` and `ADMIN_TOKEN` in `.env.local`. Trigger a poll with
-`curl -X POST localhost:3000/api/poll/rss -H "authorization: Bearer $ADMIN_TOKEN"`.
+Set at least `META_API_KEY`, `GITHUB_TOKEN`, `ADMIN_TOKEN` in `.env.local`; add the sign-in and App variables to try onboarding locally (GitHub callback URLs must then point at `http://localhost:3000`). Trigger the scheduler with `curl -X POST "localhost:3000/api/poll/tick?force=1" -H "authorization: Bearer $ADMIN_TOKEN"`.
