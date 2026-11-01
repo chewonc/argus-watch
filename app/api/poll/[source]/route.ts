@@ -16,14 +16,18 @@ async function runPoll(source: string) {
   const st: PollState = (await store.getPollState<PollState>(source)) ?? { last_run: now, last_ok: null, cursor: null, runs: 0, errors: 0, last_error: null, intervals_ms: [] };
   if (st.runs > 0) { st.intervals_ms.unshift(Date.now() - Date.parse(st.last_run)); st.intervals_ms = st.intervals_ms.slice(0, 50); }
   st.last_run = now; st.runs++;
-  let ingested = 0, created = 0, errors: string[] = [];
+  let ingested = 0, created = 0;
+  const errors: string[] = [];
   try {
     if (source === "kev") {
       const k = await fetchKEV();
       const items = itemsFromKEV(k, st.cursor, now);
       // first run: only take the last 3 days so we don't flood the queue
       const cutoff = new Date(Date.now() - 3 * 86400e3).toISOString().slice(0, 10);
-      for (const it of items.filter((i) => st.cursor || i.published_at!.slice(0, 10) >= cutoff)) { const r = await ingest(it); ingested++; if (r.created) created++; }
+      for (const it of items.filter((i) => st.cursor || i.published_at!.slice(0, 10) >= cutoff)) {
+        if (!(await store.markSeen("kev", it.id))) continue; // cursor day is re-read every run; skip items already ingested
+        const r = await ingest(it); ingested++; if (r.created) created++;
+      }
       st.cursor = k.vulnerabilities.reduce((m, v) => (v.dateAdded > m ? v.dateAdded : m), st.cursor ?? "");
     } else if (source === "rss") {
       for (const f of FEEDS) {

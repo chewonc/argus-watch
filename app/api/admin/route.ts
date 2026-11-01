@@ -26,12 +26,24 @@ export async function POST(req: Request) {
       await store.putRepo(r);
       return Response.json({ ok: true, repo: store.repoKey(r), sha: r.sha, packages: r.packages.length, tech_tags: r.tech_tags });
     }
-    case "unwatch": { await store.putRepo({ ...(await store.getRepo(String(body.repo)))!, packages: [], tech_tags: [] }); return Response.json({ ok: true }); }
+    case "unwatch": {
+      const k = String(body.repo);
+      if (!(await store.getRepo(k))) return Response.json({ ok: false, error: `not watched: ${k}` }, { status: 404 });
+      await store.removeRepo(k);
+      return Response.json({ ok: true, removed: k });
+    }
+    case "cleanup": {
+      // Dedupe the assessments list; optionally delete demo data for repos under a prefix (e.g. "chewonc/argus-watch/feasibility").
+      const r = await store.cleanup(body.repo_prefix ? String(body.repo_prefix) : undefined);
+      await store.log({ kind: "process", source: "admin", detail: `cleanup: list ${r.list_before}→${r.list_after}, deleted ${r.deleted_assessments} assessment(s), ${r.deleted_findings} finding(s)` });
+      return Response.json({ ok: true, ...r });
+    }
     case "replay_ghsa": {
-      // body.payload = a real security_advisory webhook payload previously received (or a GHSA fetched as such)
+      // body.payload = a real security_advisory webhook payload previously received (or a GHSA fetched as such).
+      // The replayed item id is stable per payload so repeated replays do not accumulate duplicate items on the finding.
       const discovered_at = new Date().toISOString();
       const item = itemFromGHSA(body.payload as Parameters<typeof itemFromGHSA>[0], discovered_at);
-      item.id = sha(`replay:${item.id}:${discovered_at}`);
+      item.id = sha(`replay:${item.id}`);
       await store.log({ kind: "replay", source: "admin", detail: `replaying ${item.ids[0] ?? item.title.slice(0, 40)}`, ref: item.id });
       const { finding } = await ingest(item, { enqueue: false });
       await processFinding(finding.id, { replayed: true });

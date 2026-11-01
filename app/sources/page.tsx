@@ -24,7 +24,7 @@ export default async function Sources() {
         <h2 className="label mb-3">● Push (event-driven)</h2>
         <div className="border hair rounded-[6px] p-4 text-[13px]">
           <div className="font-medium">GitHub-reviewed global advisories</div>
-          <div className="text-ink2">GitHub App webhook <span className="mono">security_advisory</span> (published / updated / withdrawn). Real-time from GitHub's publication, not from first disclosure.</div>
+          <div className="text-ink2">GitHub App webhook <span className="mono">security_advisory</span> (published / updated / withdrawn). Push-delivered from GitHub&apos;s publication, not from first disclosure; shown as real-time only once a live delivery has been measured.</div>
           <div className="mono text-[12px] mt-2">deliveries logged: {deliveries.length} · last: {fmtTime(deliveries[0]?.at ?? null)}</div>
         </div>
       </section>

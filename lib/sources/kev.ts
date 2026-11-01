@@ -17,7 +17,8 @@ export async function fetchKEV(): Promise<KEV> {
 
 export function itemsFromKEV(k: KEV, sinceDateAdded: string | null, discovered_at: string): Item[] {
   return k.vulnerabilities
-    .filter((v) => !sinceDateAdded || v.dateAdded > sinceDateAdded)
+    // dateAdded is day-granular: include the cursor day too and let the caller dedupe by item id (same-day additions are not missed)
+    .filter((v) => !sinceDateAdded || v.dateAdded >= sinceDateAdded)
     .map((v) => ({
       id: sha(`kev:${v.cveID}:${v.dateAdded}`),
       source: "kev" as const,

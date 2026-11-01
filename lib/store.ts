@@ -1,4 +1,4 @@
-// Storage: Upstash Redis when configured, else an in-process Map (dev/tests only; not durable).
+// Storage: Upstash Redis when configured, else an in-process Map persisted to .data/store.json (dev only).
 import { Redis } from "@upstash/redis";
 import { env, hasRedis } from "./env";
 import type { Assessment, Finding, Item, LogEntry, WatchedRepo } from "./schema";
@@ -14,6 +14,10 @@ type KV = {
   ltrim(k: string, start: number, stop: number): Promise<void>;
   setnx(k: string, v: unknown): Promise<boolean>;
   incr(k: string): Promise<number>;
+  srem(k: string, ...m: string[]): Promise<void>;
+  scard(k: string): Promise<number>;
+  mget<T>(ks: string[]): Promise<(T | null)[]>;
+  mset(kv: Record<string, unknown>): Promise<void>;
 };
 
 // Dev fallback persists to .data/store.json (gitignored) so hot reloads and restarts keep state.
@@ -51,6 +55,10 @@ const memKV: KV = {
   async ltrim(k, a, b) { const l = (mem.get(k) as unknown[]) ?? []; mem.set(k, l.slice(a, b + 1)); persist(); },
   async setnx(k, v) { if (mem.has(k)) return false; mem.set(k, v); persist(); return true; },
   async incr(k) { const n = ((mem.get(k) as number) ?? 0) + 1; mem.set(k, n); persist(); return n; },
+  async srem(k, ...m) { const s = mem.get(k) as Set<string> | undefined; if (!s) return; m.forEach((x) => s.delete(x)); persist(); },
+  async scard(k) { return ((mem.get(k) as Set<string>) ?? new Set()).size; },
+  async mget<T>(ks: string[]) { return ks.map((k) => (mem.get(k) as T) ?? null); },
+  async mset(o) { for (const [k, v] of Object.entries(o)) mem.set(k, v); persist(); },
 };
 
 function redisKV(): KV {
@@ -66,6 +74,10 @@ function redisKV(): KV {
     ltrim: async (k, a, b) => { await r.ltrim(k, a, b); },
     setnx: async (k, v) => (await r.setnx(k, v)) === 1,
     incr: (k) => r.incr(k),
+    srem: async (k, ...m) => { if (m.length) await r.srem(k, m[0], ...m.slice(1)); },
+    scard: (k) => r.scard(k),
+    mget: async <T,>(ks: string[]) => (ks.length ? await r.mget<(T | null)[]>(...ks) : []),
+    mset: async (o) => { if (Object.keys(o).length) await r.mset(o); },
   };
 }
 
@@ -111,23 +123,47 @@ export const store = {
     return fs.filter((x): x is Finding => !!x).sort((a, b) => b.discovered_at.localeCompare(a.discovered_at));
   },
 
-  // assessments
+  // assessments (idempotent: the list holds each id once, newest first)
   async putAssessment(a: Assessment) {
+    const had = await kv.get<Assessment>(K.assessment(a.id));
     await kv.set(K.assessment(a.id), a);
-    await kv.lpush(K.assessments, a.id);
-    await kv.ltrim(K.assessments, 0, 999);
+    if (!had) { await kv.lpush(K.assessments, a.id); await kv.ltrim(K.assessments, 0, 999); }
   },
   getAssessment: (id: string) => kv.get<Assessment>(K.assessment(id)),
+  async listAssessmentIds(n = 1000): Promise<string[]> {
+    return [...new Set(await kv.lrange<string>(K.assessments, 0, n - 1))];
+  },
   async listAssessments(n = 100): Promise<Assessment[]> {
-    const ids = await kv.lrange<string>(K.assessments, 0, n - 1);
-    const as = await Promise.all(ids.map((id) => kv.get<Assessment>(K.assessment(id))));
+    const ids = (await this.listAssessmentIds(n + 50)).slice(0, n);
+    const as = await kv.mget<Assessment>(ids.map(K.assessment));
     return as.filter((x): x is Assessment => !!x);
+  },
+  /** Rewrite the assessments list without duplicates or dangling ids; delete assessments/findings whose repo matches `repoPrefix` when given. */
+  async cleanup(repoPrefix?: string): Promise<{ list_before: number; list_after: number; deleted_assessments: number; deleted_findings: number }> {
+    const raw = await kv.lrange<string>(K.assessments, 0, -1);
+    const ids = [...new Set(raw)];
+    const as = await kv.mget<Assessment>(ids.map(K.assessment));
+    const keep: string[] = []; let deleted_assessments = 0;
+    for (let i = 0; i < ids.length; i++) {
+      const a = as[i];
+      if (!a) continue;
+      if (repoPrefix && a.repo.startsWith(repoPrefix)) { await kv.del(K.assessment(ids[i])); deleted_assessments++; continue; }
+      keep.push(ids[i]);
+    }
+    await kv.del(K.assessments);
+    for (const id of keep.reverse()) await kv.lpush(K.assessments, id);
+    let deleted_findings = 0;
+    if (repoPrefix) for (const f of await this.listFindings()) if (f.relevant_repos.some((r) => r.startsWith(repoPrefix)) && f.relevant_repos.every((r) => r.startsWith(repoPrefix))) {
+      await kv.del(K.finding(f.id)); await kv.srem(K.findings, f.id); for (const a of f.ids) await kv.del(K.alias(a)); deleted_findings++;
+    }
+    return { list_before: raw.length, list_after: keep.length, deleted_assessments, deleted_findings };
   },
 
   // repos
   repoKey: (r: WatchedRepo) => (r.subdir ? `${r.repo}/${r.subdir}` : r.repo),
   async putRepo(r: WatchedRepo) { const k = r.subdir ? `${r.repo}/${r.subdir}` : r.repo; await kv.set(K.repo(k), r); await kv.sadd(K.repos, k); },
   getRepo: (r: string) => kv.get<WatchedRepo>(K.repo(r)),
+  async removeRepo(k: string) { await kv.del(K.repo(k)); await kv.srem(K.repos, k); },
   async listRepos(): Promise<WatchedRepo[]> {
     const ids = await kv.smembers(K.repos);
     const rs = await Promise.all(ids.map((id) => kv.get<WatchedRepo>(K.repo(id))));

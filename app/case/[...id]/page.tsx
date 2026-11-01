@@ -13,7 +13,9 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   const a = await store.getAssessment(id.map(decodeURIComponent).join("/"));
   if (!a) notFound();
   const f = await store.getFinding(a.finding_id);
-  const items = f ? (await Promise.all(f.items.map((i) => store.getItem(i)))).filter((x) => !!x) : [];
+  const itemsAll = f ? (await Promise.all(f.items.map((i) => store.getItem(i)))).filter((x) => !!x) : [];
+  // Replays and re-deliveries store separate items for the same source occurrence; show each occurrence once.
+  const items = itemsAll.filter((it, i) => itemsAll.findIndex((o) => o.source === it.source && o.url === it.url && o.title === it.title) === i);
   const repoOnly = a.repo.split("/").slice(0, 2).join("/");
   const gh = (file: string, line?: number | null) => permalink(repoOnly, a.sha, file, line);
   const advisoryText = items.map((i) => i.text).join("\n");
