@@ -6,6 +6,7 @@ import { refreshRepo } from "@/lib/repo";
 import { WatchedRepo } from "@/lib/schema";
 import { itemFromGHSA } from "@/lib/sources/ghsa";
 import { store } from "@/lib/store";
+import { enqueueProcess } from "@/lib/queue";
 import { sha } from "@/lib/dedup";
 
 export const maxDuration = 300;
@@ -35,6 +36,13 @@ export async function POST(req: Request) {
       const { finding } = await ingest(item, { enqueue: false });
       await processFinding(finding.id, { replayed: true });
       return Response.json({ ok: true, finding: finding.id, replayed: true, ms: Date.now() - t0 });
+    }
+    case "requeue_stuck": {
+      // Re-queue findings left in "new" or "error" (e.g. after a queue outage). Same pipeline; not replays.
+      const stuck = (await store.listFindings()).filter((f) => f.status === "new" || f.status === "error");
+      for (const f of stuck) await enqueueProcess(f.id);
+      await store.log({ kind: "process", source: "admin", detail: `re-queued ${stuck.length} stuck finding(s)` });
+      return Response.json({ ok: true, requeued: stuck.length });
     }
     case "reprocess": { await processFinding(String(body.id), { replayed: !!body.replayed }); return Response.json({ ok: true, ms: Date.now() - t0 }); }
     case "heartbeat": {
