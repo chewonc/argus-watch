@@ -1,0 +1,5 @@
+{
+  "name": "c1",
+  "private": true,
+  "dependencies": { "next": "14.2.10" }
+}

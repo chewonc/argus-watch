@@ -3,7 +3,7 @@ import { env } from "./env";
 import type { Assessment } from "./schema";
 import { store } from "./store";
 
-function fmt(a: Assessment): string {
+export function fmtAlert(a: Assessment): string {
   const lat = a.timestamps.published_at ? `${Math.round((Date.parse(a.timestamps.processed_at) - Date.parse(a.timestamps.published_at)) / 1000)}s since publication` : "publication time unknown";
   const tag = a.replayed ? " [REPLAYED]" : "";
   const conds = a.conditions.map((c) => `• ${c.state}: ${c.text}`).join("\n");
@@ -11,7 +11,7 @@ function fmt(a: Assessment): string {
 }
 
 export async function sendAlert(a: Assessment): Promise<Assessment> {
-  const text = fmt(a);
+  const text = fmtAlert(a);
   let delivered = "inbox";
   if (env.ALERT_WEBHOOK_URL) {
     const isDiscord = /discord(app)?\.com\/api\/webhooks/.test(env.ALERT_WEBHOOK_URL);

@@ -4,6 +4,7 @@ import { assess } from "./analyze";
 import { sha, upsertFinding } from "./dedup";
 import { extractClaim } from "./extract";
 import { fetchPageText } from "./fetchpage";
+import { notifyAssessment } from "./notify";
 import { enqueueProcess } from "./queue";
 import { refreshRepo } from "./repo";
 import type { Finding, Item, WatchedRepo } from "./schema";
@@ -75,12 +76,16 @@ export async function processFinding(id: string, opts: { replayed?: boolean } = 
     f.relevant_repos = matched.map((r) => store.repoKey(r));
     if (!matched.length) { f.status = "not_relevant"; await store.putFinding(f); await store.log({ kind: "process", source: "match", detail: "claim extracted; no watched repo matches", ref: f.id, ms: Date.now() - t0 }); return; }
     // Stages 3–6 + alert, per matched repo (skip if an identical assessment exists)
-    for (const r of matched) {
+    // Assess matched repos with bounded concurrency (3): the model call dominates L3, so repos no longer wait in line.
+    const todo = matched;
+    const runOne = async (r: WatchedRepo) => {
       const aid = `${f.id}:${r.repo}${r.subdir ? "/" + r.subdir : ""}:${r.sha!.slice(0, 12)}:${f.claim_version}`;
-      if (!opts.replayed && (await store.getAssessment(aid))) continue;
-      const a = await assess(f, f.claim!, r, { replayed: opts.replayed, items });
-      if (a.verdict === "Affected" || a.verdict === "Unclear") await sendAlert(a); else await store.putAssessment(a);
-    }
+      if (!opts.replayed && (await store.getAssessment(aid))) return;
+      let a = await assess(f, f.claim!, r, { replayed: opts.replayed, items });
+      if (a.verdict === "Affected" || a.verdict === "Unclear") a = await sendAlert(a); else await store.putAssessment(a);
+      await notifyAssessment(a, f, items).catch((e) => store.log({ kind: "error", source: "notify", detail: String(e).slice(0, 200), ref: a.id }));
+    };
+    for (let i = 0; i < todo.length; i += 3) await Promise.all(todo.slice(i, i + 3).map(runOne));
     f.status = "assessed"; await store.putFinding(f);
     await store.log({ kind: opts.replayed ? "replay" : "process", source: "pipeline", detail: `assessed ${matched.length} repo(s)`, ref: f.id, ms: Date.now() - t0 });
   } catch (e) {

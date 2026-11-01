@@ -1,7 +1,6 @@
 // Read-only repository access via the GitHub contents/trees API. Nothing is cloned or executed.
 import semver from "semver";
 import { env, hasGitHubApp } from "./env";
-import { installationToken } from "./github-app";
 import type { WatchedRepo } from "./schema";
 import { kv, store } from "./store";
 
@@ -36,7 +35,7 @@ export const forgetInstallations = () => { repoInstMemo = null; };
 async function hdr(repo: string): Promise<Record<string, string>> {
   const base: Record<string, string> = { Accept: "application/vnd.github+json", "User-Agent": "ArgusWatch/0.1" };
   const inst = hasGitHubApp() ? await installationFor(repo) : null;
-  if (inst) { try { return { ...base, Authorization: `Bearer ${await installationToken(inst)}` }; } catch { /* fall back to PAT */ } }
+  if (inst) { try { const { installationToken } = await import("./github-app"); return { ...base, Authorization: `Bearer ${await installationToken(inst)}` }; } catch { /* fall back to PAT */ } }
   return env.GITHUB_TOKEN ? { ...base, Authorization: `Bearer ${env.GITHUB_TOKEN}` } : base;
 }
 

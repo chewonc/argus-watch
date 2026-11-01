@@ -6,7 +6,7 @@ import { createTwoFilesPatch } from "diff";
 import ts from "typescript";
 import type { Assessment, Finding, Fix, FixHunk, Item } from "./schema";
 import { assessFix } from "./fixassess";
-import { LOCKFILES, readFile } from "./repo";
+import { LOCKFILES, readFile, tree } from "./repo";
 import { permalink, provenanceOf } from "./remediation";
 import { READ_ONLY, UNTRUSTED, sparkJSON } from "./spark";
 import { store } from "./store";
@@ -70,9 +70,17 @@ export async function draftFix(a: Assessment, f: Finding | null, items: Item[], 
   const id = createHash("sha256").update(`${a.id}:${userId}:${Date.now()}`).digest("hex").slice(0, 16);
   const base: Fix = { id, assessment_id: a.id, user_id: userId, repo: repoFull, repo_key: a.repo, base_sha: a.sha, status: "drafting", summary: "", caveats: [], files: [], rejected_hunks: [], syntax_check: [], assessment: null, verified: false, branch: null, pr_url: null, pr_number: null, pr_draft: null, check_runs: [], checks_at: null, model: "none", created_at: new Date().toISOString(), approved_at: null, error: null };
   const paths = fixableFiles(a);
+  // When the advisory names a package, the manifest that declares it is editable too (an upgrade is the usual root-cause fix),
+  // even if the assessment cited only the lockfile.
+  if (f?.claim?.packages.length) {
+    const subdir = a.repo.split("/").slice(2).join("/");
+    const entries = await tree(repoFull, a.sha).catch(() => []);
+    const manifests = entries.filter((e) => /(^|\/)(package\.json|requirements\.txt)$/.test(e.path) && (!subdir || e.path.startsWith(subdir + "/")) && !/node_modules/.test(e.path)).map((e) => e.path).sort((x, y) => x.split("/").length - y.split("/").length);
+    for (const m of manifests.slice(0, 2)) if (!paths.includes(m)) paths.push(m);
+  }
   if (!paths.length) return { ...base, status: "failed", error: "No cited source files to change (only lockfiles or nothing was cited). Use the remediation prompt instead." };
   const before = new Map<string, string>();
-  for (const p of paths.slice(0, 6)) { const t = await readFile(repoFull, a.sha, p); if (t != null) before.set(p, t); }
+  for (const p of paths.slice(0, 8)) { const t = await readFile(repoFull, a.sha, p); if (t != null) before.set(p, t); }
   if (!before.size) return { ...base, status: "failed", error: "Cited files could not be read at the assessed commit." };
   const advisoryText = items.map((i) => i.text).join("\n\n");
   const recs = a.recommendations.map((r) => `- [${provenanceOf(r.text, advisoryText, r.condition_ids, a)}] ${r.text} (conditions: ${r.condition_ids.join(", ") || "general"})`).join("\n");
