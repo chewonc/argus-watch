@@ -30,7 +30,7 @@ export default async function Settings() {
       </section>
       <section className="grid gap-2 text-[13px]">
         <h2 className="label">{d.account}</h2>
-        <p>{d.account_text} <a href="/repos">{d.nav_repos}</a></p>
+        <p>{d.account_text} <a href="/repos">{d.nav_repos}</a>{d.account_text_2}</p>
       </section>
     </div>
   );

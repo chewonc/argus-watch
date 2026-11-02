@@ -23,7 +23,7 @@ export const en = {
   pr_enabled_note: "Draft PRs enabled: a fix still needs your explicit approval each time, and the App installation must have Contents and Pull requests write permission.",
   settings_title: "Settings", signed_in_as: "Signed in as", inapp_label: "In-app notifications and header badge", webhook_label: "Slack or Discord incoming webhook (optional; stored server-side and shown masked)",
   browser_push: "Browser push", devices_subscribed: "device(s) subscribed.", email: "Email", planned_not_available: "Planned; not available in this version.", account: "Account",
-  account_text: "Sign-in uses GitHub. Repository access is granted only through the GitHub App installations you connect on Repos; revoke it there or on GitHub (Settings → Applications).",
+  account_text: "Sign-in uses GitHub. Repository access is granted only through the GitHub App installations you connect on", account_text_2: "; revoke it there or on GitHub (Settings → Applications).",
   notif_intro: "unread · one entry per finding and repository; a changed verdict or severity updates the entry instead of adding another.", preferences: "Preferences →",
   notif_empty: "Nothing yet. You are notified when a finding matches one of your repositories with an Affected or Unclear verdict, when a verdict or severity changes, and when a draft PR is opened.",
   detected: "detected", unread: "unread",
