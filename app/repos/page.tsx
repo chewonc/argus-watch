@@ -34,7 +34,7 @@ export default async function Repos({ searchParams }: { searchParams: Promise<Re
         {sp.rescanned && <p className="mt-2 text-[13px]" style={{ color: "var(--observed)" }}>Rescanned.</p>}
       </div>
 
-      <section className="grid md:grid-cols-[1fr_360px] gap-8">
+      <section className="grid md:grid-cols-[1fr_360px] gap-8 items-start">
         <div className="grid gap-4">
           <h2 className="label">{d.step_connect}</h2>
           {!hasGitHubApp() || !env.GITHUB_APP_SLUG ? (
