@@ -136,3 +136,31 @@ test("hosted model calls: measured per path (model vs deterministic vs capped)",
     assert.ok((used ?? 0) >= 1);
   } finally { globalThis.fetch = orig; }
 });
+
+test("MCP route: 401 without or with a bad token, 403 for a foreign browser origin, works with a valid token", async () => {
+  const { POST, GET } = await import("../app/api/mcp/route");
+  const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+  assert.equal((await POST(new Request("http://x/api/mcp", { method: "POST", body }))).status, 401);
+  assert.equal((await POST(new Request("http://x/api/mcp", { method: "POST", body, headers: { authorization: "Bearer aw_notarealtokennotarealtoken" } }))).status, 401);
+  const t = await createAgentToken("gh:route", "test");
+  assert.equal((await POST(new Request("http://x/api/mcp", { method: "POST", body, headers: { authorization: `Bearer ${t}`, origin: "https://evil.example" } }))).status, 403);
+  const ok = await POST(new Request("http://x/api/mcp", { method: "POST", body, headers: { authorization: `Bearer ${t}` } }));
+  assert.equal(ok.status, 200);
+  assert.equal(((await ok.json()) as { result: { tools: unknown[] } }).result.tools.length, 4);
+  assert.equal((await GET()).status, 405);
+});
+
+test("hosted budget: per-user monthly cap; repositories with any user under the cap keep hosted analysis", async () => {
+  const { hostedBudgetLeft, chargeHosted, hostedUsedBy } = await import("../lib/usage");
+  const { env } = await import("../lib/env");
+  const cap = env.HOSTED_ANALYSIS_CAP; env.HOSTED_ANALYSIS_CAP = 2;
+  try {
+    await store.addUserRepo({ user_id: "gh:cap", repo_key: "cap/repo", installation_id: null, allow_pr: false, local_root: null, added_at: "now" });
+    assert.equal(await hostedBudgetLeft("cap/repo"), true);
+    await chargeHosted("cap/repo"); await chargeHosted("cap/repo");
+    assert.equal((await hostedUsedBy("gh:cap")).used, 2);
+    assert.equal(await hostedBudgetLeft("cap/repo"), false);
+    await store.addUserRepo({ user_id: "gh:cap2", repo_key: "cap/repo", installation_id: null, allow_pr: false, local_root: null, added_at: "now" });
+    assert.equal(await hostedBudgetLeft("cap/repo"), true);
+  } finally { env.HOSTED_ANALYSIS_CAP = cap; }
+});

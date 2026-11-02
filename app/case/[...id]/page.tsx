@@ -5,7 +5,9 @@ import { notFound } from "next/navigation";
 import { codeToHtml } from "shiki";
 import { StatusPill, firstSentence, lineAnchor, suggestedFix } from "@/components/alerts";
 import { FixPreview } from "@/components/fix-preview";
+import { AskAgent } from "@/components/ask-agent";
 import { MarkRead } from "@/components/mark-read";
+import { listAgentTokens } from "@/lib/agent-token";
 import { Band, Chip, Timeline } from "@/components/ui";
 import { env, hasGitHubApp } from "@/lib/env";
 import { canFix } from "@/lib/fixgate";
@@ -78,6 +80,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
 
   const writeOk = env.FIX_ENABLED && ur?.installation_id && hasGitHubApp() ? await installationPermissions(ur.installation_id).then((p) => p.contents === "write" && p.pull_requests === "write").catch(() => false) : null;
   const fixAllowed = !prFix && canFix(a, { allowPr: !!ur?.allow_pr, isDemo: demoRepo, hasInstallation: !!ur?.installation_id, writePermission: writeOk, loc, priorFailed: fixes.length > 0 && fixes.every((x) => x.status === "failed") });
+  const agentConnected = (await listAgentTokens(user.id)).length > 0;
   const ghUrl = verified && loc ? permalink(repoOnly, a.sha, loc.file, loc.from, loc.to) : null;
   const severeUnverified = !verified && a.verdict !== "Not Affected" && (sev.level === "critical" || sev.level === "high");
 
@@ -111,6 +114,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
       )}
       {fixAllowed && <div id="fix"><FixPreview assessmentId={a.id} initial={latestFix} allowPr={!!ur?.allow_pr} isDemoRepo={demoRepo} verdict={a.verdict} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} labels={{ proposed_fix: d.proposed_fix, draft_fix: d.fix, drafting: d.drafting, re_draft: d.re_draft, approve: d.approve_open_pr, not_verified: d.not_verified }} /></div>}
 
+      {a.verdict !== "Not Affected" && <AskAgent id={a.id} connected={agentConnected} verified={verified} />}
 
       <details className="disclose border-t hair pt-5">
         <summary>{d.technical_details}</summary>

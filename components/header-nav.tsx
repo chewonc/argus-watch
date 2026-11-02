@@ -66,6 +66,7 @@ function AccountMenu({ user, labels }: { user: NonNullable<HeaderUser>; labels: 
           <Item href="/repos">{labels.repos}</Item>
           <Item href="/monitoring">{labels.monitoring}</Item>
           <Item href="/activity">{labels.activity}</Item>
+          <Item href="/settings#connect-agent">Connect AI agent</Item>
           <Item href="/settings">{labels.settings}</Item>
           <div className="border-t hair my-1" />
           <button role="menuitem" tabIndex={-1} type="button" onClick={() => signOut().then(() => { router.push("/"); router.refresh(); })}>{labels.signOut}</button>

@@ -16,6 +16,11 @@ export async function hostedBudgetLeft(repoKey: string): Promise<boolean> {
   return used.some((n) => (n ?? 0) < env.HOSTED_ANALYSIS_CAP);
 }
 
+/** Hosted analyses charged to this user this month, and the cap (negative = unlimited). */
+export async function hostedUsedBy(uid: string): Promise<{ used: number; cap: number }> {
+  return { used: (await kv.get<number>(key(uid))) ?? 0, cap: env.HOSTED_ANALYSIS_CAP };
+}
+
 export async function chargeHosted(repoKey: string) {
   for (const u of await store.repoUsers(repoKey)) await kv.incr(key(u));
 }

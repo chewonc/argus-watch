@@ -12,9 +12,9 @@ import { createAgentTokenAction, revokeAgentTokenAction, saveSettings } from "./
 
 export const dynamic = "force-dynamic";
 
-function Section({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
+function Section({ id, title, desc, children }: { id?: string; title: string; desc?: string; children: React.ReactNode }) {
   return (
-    <section className="grid sm:grid-cols-[220px_1fr] gap-x-8 gap-y-3 py-8 border-t hair first:border-0 first:pt-0">
+    <section id={id} className="scroll-mt-20 grid sm:grid-cols-[220px_1fr] gap-x-8 gap-y-3 py-8 border-t hair first:border-0 first:pt-0">
       <div className="grid gap-1 content-start"><h2 className="text-[15px] font-semibold">{title}</h2>{desc && <p className="text-[13px] text-ink2">{desc}</p>}</div>
       <div className="grid gap-4 min-w-0">{children}</div>
     </section>
@@ -31,7 +31,7 @@ export default async function Settings() {
     <div className="mx-auto max-w-[860px] px-4 sm:px-6 py-8 sm:py-10 grid gap-8">
       <div className="grid gap-1"><h1 className="text-[28px] font-semibold tracking-[-0.02em]">{d.settings_title}</h1><p className="text-[15px] text-ink2">Signed in as {user.login}</p></div>
       <div>
-        <Section title="Connect AI agent" desc="Let Claude Code, Codex or another AI coding agent look into your alerts and help fix them in your editor, using your own AI plan.">
+        <Section id="connect-agent" title="Connect AI agent" desc="Let Claude Code, Codex or another AI coding agent look into your alerts and help fix them in your editor, using your own AI plan.">
           <ConnectAgent endpoint={`${env.APP_URL}/api/mcp`} create={createAgentTokenAction} />
           {tokens.length > 0 && (
             <ul className="border hair rounded-[8px] text-[13px]">
