@@ -103,3 +103,9 @@ export function location(a: Pick<Assessment, "locations" | "conditions"> & { age
 }
 
 export const caseHref = (aid: string) => `/case/${aid.split("/").map(encodeURIComponent).join("/")}`;
+
+/** Display name for the hosted model id stored on an assessment ("muse-spark-1.3" -> "Meta Muse Spark 1.3"). */
+export function modelName(id: string): string {
+  const m = /^muse-([a-z]+)-([\d.]+)$/.exec(id);
+  return m ? `Meta Muse ${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}` : id === "none" ? "No model" : id;
+}

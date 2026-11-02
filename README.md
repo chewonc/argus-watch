@@ -8,6 +8,20 @@ Live: https://argus-watch-three.vercel.app · Solo Indie entry, Meta Global AI D
 
 ## The workflow
 
+## Where Meta's model does the work
+
+Argus Watch runs on **Meta Muse Spark 1.3** through the Meta Model API (`lib/spark.ts`: strict JSON-schema output, temperature 0). Spark does the three steps that need reasoning over unstructured text and code; code checks everything Spark says.
+
+| Step | Spark does | Code then checks | File |
+|---|---|---|---|
+| Read the threat | Turns an advisory, mailing-list post or AI-security blog post into affected packages and *checkable code conditions* ("auth is enforced only in middleware"). Works for research posts with no CVE or version range. | Merges packages; strips version checks out of conditions (versions are computed from lockfiles instead). | `lib/extract.ts` |
+| Read your code | Judges each condition against numbered listings of the relevant files: Observed / Inferred / Unknown / Contradicted, with file:line. | Every citation is matched against the real file; unverifiable, evidence-less or prose-only (README) evidence is downgraded to Unknown. The verdict is a fixed rule (`lib/verdict.ts`). | `lib/analyze.ts` |
+| Draft a fix | Proposes minimal search/replace hunks tied to condition ids. | Hunks applied in memory, syntax-checked, diffed, re-assessed; only a draft PR after your approval. | `lib/fix.ts` |
+
+Without Spark, Argus would be a lockfile version matcher: it could not read non-CVE research, and could not say *which line* makes a repository exploitable.
+
+**Evaluation** (`feasibility/EVAL.md`, 16 labelled cases incl. 4 adversarial, Muse Spark 1.3, Nov 1 2026): verdict 16/16, false "Not Affected" 0/10, condition-state accuracy 0.82, prompt-injected feed item did not change the outcome.
+
 ```
 Discover → Verify → Locate → Explain → Preview → Approve → Fix → Validate → Commit
 ```

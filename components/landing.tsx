@@ -7,7 +7,7 @@ import { SignInButton } from "@/components/sign-in-button";
 
 const STEPS = [
   { k: "01", t: "A new threat is published", d: "Argus follows security advisories, vulnerability databases and security research around the clock." },
-  { k: "02", t: "Checked against your code", d: "It looks at your packages and the code that matters, and cites the exact lines. Nothing is run." },
+  { k: "02", t: "Checked against your code", d: "Meta Muse Spark reads the threat and the code that matters and cites the exact lines; versions are checked from your lockfile. Nothing is run." },
   { k: "03", t: "You get a plain alert", d: "What's wrong, where, and how sure we are. Unconfirmed issues are clearly marked as possible." },
   { k: "04", t: "Fix it with your approval", d: "Open the exact line on GitHub, or let your own AI coding agent fix it in your editor." },
 ];
@@ -43,7 +43,7 @@ export function Landing({ signin, next, authReady, signedIn = false }: { signin:
       </section>
 
       <section className="py-14 border-t hair grid md:grid-cols-3 gap-8 text-[14px]">
-        <div className="grid gap-1.5 content-start"><span className="font-semibold">Evidence, not guesses</span><span className="text-ink2 leading-relaxed">An issue is marked as affecting you only when the code that makes it possible is found and cited. Everything else is labelled a possible issue.</span></div>
+        <div className="grid gap-1.5 content-start"><span className="font-semibold">Evidence, not guesses</span><span className="text-ink2 leading-relaxed">Meta Muse Spark reads each threat and your code and points to the lines that matter; Argus then checks every cited line against the real file. An issue is marked as affecting you only when that evidence holds. Everything else is labelled a possible issue.</span></div>
         <div className="grid gap-1.5 content-start"><span className="font-semibold">Read-only by default</span><span className="text-ink2 leading-relaxed">Argus reads your lockfiles and the files it cites. It never runs your code, and never changes your repository without your approval.</span></div>
         <div className="grid gap-1.5 content-start"><span className="font-semibold">Works with your AI agent</span><span className="text-ink2 leading-relaxed">Connect Claude Code or Codex once, and ask it to investigate and fix an alert in your editor using your own AI plan.</span></div>
       </section>

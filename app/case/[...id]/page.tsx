@@ -17,6 +17,8 @@ import { readFile } from "@/lib/repo";
 import { deriveSeverity } from "@/lib/severity";
 import { canSee, isSystemRepo, requireUser } from "@/lib/session";
 import { store } from "@/lib/store";
+import type { Assessment } from "@/lib/schema";
+import { modelName } from "@/lib/labels";
 import { relevance } from "@/lib/verdict";
 
 export const dynamic = "force-dynamic";
@@ -109,6 +111,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
       )}
       {fixAllowed && <div id="fix"><FixPreview assessmentId={a.id} initial={latestFix} allowPr={!!ur?.allow_pr} isDemoRepo={demoRepo} verdict={a.verdict} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} labels={{ proposed_fix: d.proposed_fix, draft_fix: d.fix, drafting: d.drafting, re_draft: d.re_draft, approve: d.approve_open_pr, not_verified: d.not_verified }} /></div>}
 
+
       <details className="disclose border-t hair pt-5">
         <summary>{d.technical_details}</summary>
         <div className="grid gap-8 mt-6">
@@ -159,6 +162,8 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
             </ul>
           </Stage>
 
+          <Stage title="How this was analysed"><Provenance a={a} extracted={f?.claim?.conditions.length ?? null} /></Stage>
+
           <Stage title="How sure are we?">
             <Band a={a} qualifier={T.qualifier} />
             <div className="grid sm:grid-cols-3 gap-4 mt-4 text-[13px]">
@@ -191,6 +196,27 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
         </div>
       </details>
     </div>
+  );
+}
+
+/** Which steps Meta's model did and which steps code did, with the counts code checked. */
+function Provenance({ a, extracted }: { a: Assessment; extracted: number | null }) {
+  const name = modelName(a.model);
+  const computed = a.conditions.filter((c) => c.computed).length;
+  const judged = a.conditions.filter((c) => !c.computed);
+  const downgraded = judged.filter((c) => /downgraded|could not be verified|returned no state/.test(c.reasoning)).length;
+  const dropped = Number(a.unverified.map((u) => /^(\d+) citation\(s\) failed/.exec(u)?.[1]).find(Boolean) ?? 0);
+  const steps: [string, string][] = [
+    ["Read the report", extracted == null ? "—" : `${name} turned the report into ${extracted} checkable code condition${extracted === 1 ? "" : "s"}.`],
+    ["Version check", computed ? `${computed} package version condition${computed === 1 ? "" : "s"} computed in code from your lockfile.` : "No package version to compute."],
+    ["Read your code", a.model === "none" ? (a.hosted === "capped" ? "Skipped: monthly analysis budget reached." : "Not needed: version check only.") : `${name} judged ${judged.length} condition${judged.length === 1 ? "" : "s"} against the cited files and pointed to ${a.locations.length + dropped} line${a.locations.length + dropped === 1 ? "" : "s"}.`],
+    ["Proof check", a.model === "none" ? "—" : `Code checked every cited line against the real file: ${a.locations.length} kept, ${dropped} rejected${downgraded ? `, ${downgraded} condition${downgraded === 1 ? "" : "s"} downgraded to Unknown` : ""}.`],
+    ["Verdict", `${a.verdict}, decided by a fixed rule in code, never by the model.`],
+  ];
+  return (
+    <ol className="grid gap-1.5 text-[13px]">
+      {steps.map(([k, v]) => <li key={k} className="grid sm:grid-cols-[130px_1fr] gap-1 sm:gap-3"><span className="text-ink2">{k}</span><span>{v}</span></li>)}
+    </ol>
   );
 }
 
