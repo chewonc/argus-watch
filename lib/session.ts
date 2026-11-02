@@ -11,10 +11,34 @@ const memo = new Map<string, { uid: string; at: number }>();
 
 /** The GitHub user access token from the encrypted account cookie (null when signed out). */
 export async function githubUserToken(): Promise<string | null> {
+  return (await githubUserTokenDiag()).token;
+}
+/** Same, with the failure reason kept (never the token itself) for /api/auth/whoami and the auth log. */
+export async function githubUserTokenDiag(): Promise<{ token: string | null; error: string | null }> {
   try {
     const r = await auth.api.getAccessToken({ body: { providerId: "github", useAccountCookie: true } as never, headers: await headers() });
-    return (r as { accessToken?: string } | null)?.accessToken ?? null;
-  } catch { return null; }
+    const token = (r as { accessToken?: string } | null)?.accessToken ?? null;
+    return { token, error: token ? null : "getAccessToken returned no accessToken (account cookie missing or not bound to this session)" };
+  } catch (e) { return { token: null, error: `getAccessToken threw: ${String((e as Error).message ?? e).slice(0, 160)}` }; }
+}
+
+/** Step-by-step view of the current browser's sign-in state (no secrets). */
+export async function whoami(): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = { auth_configured: hasAuth(), dev_stub: !!devUserLogin() };
+  if (!hasAuth()) return out;
+  try {
+    const s = await auth.api.getSession({ headers: await headers() });
+    out.session = s ? { user_id: s.user.id, name: s.user.name, expires: s.session.expiresAt } : null;
+  } catch (e) { out.session_error = String((e as Error).message ?? e).slice(0, 160); }
+  const t = await githubUserTokenDiag();
+  out.github_token = !!t.token; if (t.error) out.github_token_error = t.error;
+  if (t.token) {
+    const r = await fetch("https://api.github.com/user", { headers: { Authorization: `Bearer ${t.token}`, "User-Agent": "ArgusWatch/0.1", Accept: "application/vnd.github+json" } }).catch((e) => ({ ok: false, status: 0, statusText: String(e) } as Response));
+    out.github_user = r.ok ? (await r.json() as { id: number; login: string }).login : `GitHub /user ${r.status} ${r.statusText}`;
+  }
+  const u = await currentUser().catch((e) => ({ error: String(e).slice(0, 160) } as unknown as User));
+  out.resolved_user = u ? { id: (u as User).id, login: (u as User).login } : null;
+  return out;
 }
 
 /** Local development only: `AW_DEV_USER=<login>` signs in a stub user so the signed-in UI can be exercised without GitHub
@@ -43,14 +67,26 @@ export async function currentUser(): Promise<User | null> {
   let uid = cached && Date.now() - cached.at < 10 * 60e3 ? cached.uid : (await kv.get<string>(`uidmap:${baId}`)) ?? null;
   if (!uid) {
     // First sight of this session: ask GitHub for the numeric id once, then remember the mapping.
-    const token = await githubUserToken();
-    const gh = token ? await fetch("https://api.github.com/user", { headers: { Authorization: `Bearer ${token}`, "User-Agent": "ArgusWatch/0.1", Accept: "application/vnd.github+json" } }).then((r) => (r.ok ? r.json() : null)).catch(() => null) as { id: number; login: string; name: string | null; email: string | null; avatar_url: string | null } | null : null;
-    if (!gh) return null;
-    uid = `gh:${gh.id}`;
-    await kv.set(`uidmap:${baId}`, uid);
-    if (!(await store.getUser(uid))) {
-      await store.putUser({ id: uid, login: gh.login, name: gh.name ?? s.user.name ?? null, email: gh.email ?? s.user.email ?? null, avatar: gh.avatar_url ?? s.user.image ?? null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" } });
-      await store.log({ kind: "auth", source: "github", detail: `new user ${gh.login}` });
+    const t = await githubUserTokenDiag();
+    let ghErr: string | null = t.error;
+    const gh = t.token ? await fetch("https://api.github.com/user", { headers: { Authorization: `Bearer ${t.token}`, "User-Agent": "ArgusWatch/0.1", Accept: "application/vnd.github+json" } }).then(async (r) => (r.ok ? r.json() : (ghErr = `GitHub /user ${r.status}`, null))).catch((e) => (ghErr = `GitHub /user failed: ${String(e).slice(0, 80)}`, null)) as { id: number; login: string; name: string | null; email: string | null; avatar_url: string | null } | null : null;
+    if (gh) {
+      uid = `gh:${gh.id}`;
+      await kv.set(`uidmap:${baId}`, uid);
+      if (!(await store.getUser(uid))) {
+        await store.putUser({ id: uid, login: gh.login, name: gh.name ?? s.user.name ?? null, email: gh.email ?? s.user.email ?? null, avatar: gh.avatar_url ?? s.user.image ?? null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" } });
+        await store.log({ kind: "auth", source: "github", detail: `new user ${gh.login}` });
+      }
+    } else {
+      // The Better Auth session is valid but the GitHub token path failed: keep the user signed in with the session
+      // identity rather than silently showing the landing page, and record why so /api/status shows it.
+      // (Repository listing needs the token, so the Repos page will say so; demo repos still work.)
+      uid = `ba:${baId}`;
+      await store.log({ kind: "auth", source: "github", detail: `session ok but no GitHub token: ${ghErr ?? "unknown"}; using session identity` });
+      if (!(await store.getUser(uid))) {
+        const login = (s.user.name || s.user.email || baId).replace(/\s+/g, "-").slice(0, 40);
+        await store.putUser({ id: uid, login, name: s.user.name ?? null, email: s.user.email ?? null, avatar: s.user.image ?? null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" } });
+      }
     }
   }
   memo.set(baId, { uid, at: Date.now() });
