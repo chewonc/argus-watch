@@ -6,12 +6,14 @@ import type { Item } from "../schema";
 
 // cadence: "fast" feeds are fetched on every 5-minute tick (near-real-time); "slow" feeds hourly (periodic), matching how often they actually publish.
 // demo: the feed's terms permit personal/non-commercial use only; items are labelled low-trust and the feed is listed as demo-only.
-export type Feed = { id: string; name: string; url: string; kind: "list" | "release" | "research" | "ai_security" | "academic" | "aggregator" | "vendor" | "incidents" | "social" | "news"; cadence: "fast" | "slow"; demo?: boolean };
+// format: "rss" (default) is RSS/Atom XML; "hn_algolia" is the Hacker News Algolia JSON search API (hnrss.org, the
+// previous source, failed about half of all polls with 502/timeouts on Nov 1 2026; Algolia answered every probe in <1.5 s).
+export type Feed = { id: string; name: string; url: string; kind: "list" | "release" | "research" | "ai_security" | "academic" | "aggregator" | "vendor" | "incidents" | "social" | "news"; cadence: "fast" | "slow"; demo?: boolean; format?: "rss" | "hn_algolia"; queries?: string[] };
 export const FEEDS: Feed[] = [
   { id: "oss-sec", name: "oss-security (seclists mirror)", url: "https://seclists.org/rss/oss-sec.rss", kind: "list", cadence: "fast" },
   { id: "fulldisclosure", name: "Full Disclosure", url: "https://seclists.org/rss/fulldisclosure.rss", kind: "list", cadence: "fast" },
   { id: "nextjs-releases", name: "Next.js releases", url: "https://github.com/vercel/next.js/releases.atom", kind: "release", cadence: "fast" },
-  { id: "hn-vuln", name: "Hacker News: vulnerability / prompt injection", url: "https://hnrss.org/newest?q=vulnerability+OR+%22prompt+injection%22+OR+%22supply+chain%22", kind: "aggregator", cadence: "fast" },
+  { id: "hn-vuln", name: "Hacker News: vulnerability / prompt injection (Algolia)", url: "https://hn.algolia.com/api/v1/search_by_date", kind: "aggregator", cadence: "fast", format: "hn_algolia", queries: ["vulnerability", "\"prompt injection\"", "\"supply chain\""] },
   { id: "embracethered", name: "Embrace The Red (AI/agent security)", url: "https://embracethered.com/blog/index.xml", kind: "ai_security", cadence: "fast" },
   { id: "willison-pi", name: "Simon Willison: prompt injection", url: "https://simonwillison.net/tags/prompt-injection.atom", kind: "ai_security", cadence: "fast" },
   { id: "project-zero", name: "Google Project Zero", url: "https://googleprojectzero.blogspot.com/feeds/posts/default", kind: "research", cadence: "fast" },
@@ -69,8 +71,36 @@ export function parseFeed(xml: string): FeedEntry[] {
 function toISO(s: string): string | null { if (!s) return null; const d = new Date(s); return isNaN(d.getTime()) ? null : d.toISOString(); }
 
 export type Conditional = { etag?: string | null; last_modified?: string | null };
+
+// ---- Hacker News via Algolia (JSON) -------------------------------------------------------------
+export type HNHit = { objectID: string; title: string | null; url: string | null; author: string | null; created_at: string; created_at_i: number; story_text?: string | null; points?: number | null };
+/** Pure mapping of one Algolia story hit to the common FeedEntry shape (unit-tested). */
+export function entryFromHNHit(h: HNHit): FeedEntry {
+  const hnUrl = `https://news.ycombinator.com/item?id=${h.objectID}`;
+  return { title: strip(h.title ?? ""), link: h.url || hnUrl, author: h.author ?? null, published: toISO(h.created_at), summary: strip(h.story_text ?? "").slice(0, 4000), guid: `hn:${h.objectID}` };
+}
+/** One request per keyword query, newest first; `since` (epoch seconds, kept in the seen-doc's last_modified slot) bounds the response. */
+async function fetchHNAlgolia(f: Feed, since: number | null): Promise<{ entries: FeedEntry[]; newest: number | null }> {
+  const byId = new Map<string, HNHit>();
+  for (const q of f.queries ?? ["vulnerability"]) {
+    const p = new URLSearchParams({ query: q, tags: "story", hitsPerPage: "30" });
+    if (since) p.set("numericFilters", `created_at_i>${since}`);
+    const r = await fetch(`${f.url}?${p}`, { headers: { "User-Agent": "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)", Accept: "application/json" }, signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error(`${f.id} ${r.status}`);
+    for (const h of ((await r.json()) as { hits: HNHit[] }).hits ?? []) if (h.objectID && h.title) byId.set(h.objectID, h);
+  }
+  const hits = [...byId.values()].sort((a, b) => b.created_at_i - a.created_at_i);
+  return { entries: hits.map(entryFromHNHit), newest: hits[0]?.created_at_i ?? since };
+}
+
 /** Conditional GET: an unchanged feed answers 304 and costs nothing downstream. */
 export async function fetchFeed(f: Feed, cond: Conditional = {}): Promise<{ entries: FeedEntry[]; not_modified: boolean; etag: string | null; last_modified: string | null }> {
+  if (f.format === "hn_algolia") {
+    const since = cond.last_modified && /^\d+$/.test(cond.last_modified) ? Number(cond.last_modified) : null;
+    const r = await fetchHNAlgolia(f, since);
+    if (!r.entries.length) return { entries: [], not_modified: true, etag: null, last_modified: cond.last_modified ?? null };
+    return { entries: r.entries, not_modified: false, etag: null, last_modified: r.newest ? String(r.newest) : cond.last_modified ?? null };
+  }
   const headers: Record<string, string> = { "User-Agent": "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)", Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" };
   if (cond.etag) headers["If-None-Match"] = cond.etag;
   if (cond.last_modified) headers["If-Modified-Since"] = cond.last_modified;

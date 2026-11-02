@@ -83,7 +83,7 @@ export async function assessFix(a: Assessment, f: Finding | null, fix: Fix, befo
   if (fix.syntax_check.some((s) => !s.ok)) risk_flags.push("syntax check failed");
   // 6. Overall label, decided in code
   const drivingRows = coverage.filter((c) => c.driving);
-  const resolved = drivingRows.filter((c) => (c.tag === "COMPUTED" && c.after === "Contradicted") || (c.tag === "CITATION-VERIFIED" && (c.after === "Contradicted" || (c.before === "Unknown" && c.after === "Observed" && false))));
+  const resolved = drivingRows.filter((c) => (c.tag === "COMPUTED" && c.after === "Contradicted") || (c.tag === "CITATION-VERIFIED" && c.after === "Contradicted"));
   const anyVerifiedImprovement = resolved.length > 0;
   let label: FixAssessment["label"] = "not_supported";
   if (!drivingRows.length || !modelOk && !version_check) label = "not_assessable";

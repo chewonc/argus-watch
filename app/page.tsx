@@ -7,8 +7,8 @@ import { fmtTime, human } from "@/components/ui";
 import { env, hasAuth } from "@/lib/env";
 import { getDict, getLocale, tr } from "@/lib/i18n";
 import { computeLatency } from "@/lib/latency";
-import { FEEDS } from "@/lib/sources/rss";
-import { deriveSeverity } from "@/lib/severity";
+import { deriveSeverity, SEVERITY_ORDER } from "@/lib/severity";
+import { POLLERS } from "@/lib/poll";
 import { currentUser, visibleRepoKeys } from "@/lib/session";
 import { SYSTEM_USER, store } from "@/lib/store";
 
@@ -51,7 +51,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
   const shown = cards.filter((c) => filter === "all" ? true : filter === "needs_action" ? c.a.verdict !== "Not Affected" && !c.resolved : filter === "new" ? !c.read && c.a.verdict !== "Not Affected" : filter === "resolved" ? c.resolved : c.a.verdict === "Not Affected");
   const lat = await computeLatency(assessmentsAll, findings);
   const lastDelivery = log.find((l) => l.kind === "webhook" && /security_advisory/.test(l.detail))?.at ?? null;
-  const health = repos.map((r) => { const k = store.repoKey(r); const open = cards.filter((c) => c.a.repo === k && c.a.verdict !== "Not Affected" && !c.resolved); const sys = !mine.some((m) => m.repo_key === k); return { k, r, open: open.length, worst: open[0]?.sev.level, sys }; });
+  const health = repos.map((r) => { const k = store.repoKey(r); const open = cards.filter((c) => c.a.repo === k && c.a.verdict !== "Not Affected" && !c.resolved); const sys = !mine.some((m) => m.repo_key === k); const worst = open.map((c) => c.sev.level).sort((x, y) => SEVERITY_ORDER.indexOf(x) - SEVERITY_ORDER.indexOf(y))[0]; return { k, r, open: open.length, worst, sys }; });
 
   return (
     <div className="mx-auto max-w-[1480px] px-6 py-8 grid gap-10 lg:grid-cols-[1fr_340px]">
@@ -92,9 +92,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
           <h2 className="label mb-3">{d.coverage}</h2>
           <ul className="text-[13px] grid gap-2">
             <Row glyph="●" name="GitHub-reviewed advisories" cls={lastDelivery ? `push · last delivery ${fmtTime(lastDelivery)}` : "push · no live deliveries yet"} />
-            <Row glyph="◐" name="GitHub Advisory Database" cls="near-real-time · every 5 min" />
-            <Row glyph="◐" name={`${FEEDS.filter((f) => f.cadence === "fast").length} fast disclosure feeds`} cls="near-real-time · every 5 min" />
-            <Row glyph="○" name={`CISA KEV · ${FEEDS.filter((f) => f.cadence === "slow").length} research feeds`} cls="periodic · 10 min / hourly" />
+            {POLLERS.map((p) => <Row key={p.id} glyph={p.cls === "near_realtime" ? "◐" : "○"} name={p.name} cls={`${p.cls.replace("_", "-")} · every ${p.interval_min} min nominal`} />)}
             <Row glyph="⊘" name="X, LinkedIn, Threads, Reddit" cls="not accessible" />
           </ul>
           <Link href="/sources" className="text-[12px] mt-2 inline-block">Measured intervals and latency →</Link>

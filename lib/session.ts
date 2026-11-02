@@ -17,8 +17,24 @@ export async function githubUserToken(): Promise<string | null> {
   } catch { return null; }
 }
 
+/** Local development only: `AW_DEV_USER=<login>` signs in a stub user so the signed-in UI can be exercised without GitHub
+ *  OAuth credentials. Honoured only outside production AND only when real sign-in is not configured; never on Vercel. */
+export const devUserLogin = () => (process.env.NODE_ENV !== "production" && !hasAuth() && process.env.AW_DEV_USER) || null;
+async function devUser(login: string): Promise<User> {
+  const uid = `dev:${login}`;
+  let u = await store.getUser(uid);
+  if (!u) {
+    u = { id: uid, login, name: `${login} (local dev stub)`, email: null, avatar: null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" } };
+    await store.putUser(u);
+    await store.log({ kind: "auth", source: "dev", detail: `dev stub user ${login} (AW_DEV_USER; not available in production)` });
+  }
+  return u;
+}
+
 /** Resolve the signed-in user; creates the User record on first sight. */
 export async function currentUser(): Promise<User | null> {
+  const dev = devUserLogin();
+  if (dev) return devUser(dev);
   if (!hasAuth()) return null;
   const s = await auth.api.getSession({ headers: await headers() });
   if (!s?.user) return null;

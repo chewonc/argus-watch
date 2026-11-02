@@ -248,6 +248,12 @@ export const store = {
     const ids = [...new Set(await kv.lrange<string>(K.notif(uid), 0, n - 1))];
     return (await kv.mget<Notification>(ids.map(K.notifi))).filter((x): x is Notification => !!x);
   },
+  /** Recent notifications across all users (for latency L5/L6); bounded to keep the status route cheap. */
+  async listAllNotifications(perUser = 30, maxUsers = 50): Promise<Notification[]> {
+    const uids = (await kv.smembers(K.users)).slice(0, maxUsers);
+    const lists = await Promise.all(uids.map((u) => store.listNotifications(u, perUser)));
+    return lists.flat();
+  },
   unreadCount: (uid: string) => kv.scard(K.unread(uid)),
   unreadIds: (uid: string) => kv.smembers(K.unread(uid)),
   async markNotificationRead(uid: string, nid: string) {

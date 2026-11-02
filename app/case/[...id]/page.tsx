@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { codeToHtml } from "shiki";
 import { ActControls } from "@/components/act";
-import { SeverityChip, firstSentence, location, suggestedFix } from "@/components/alerts";
+import { SeverityChip, firstSentence, lineAnchor, location, suggestedFix } from "@/components/alerts";
 import { FixPreview } from "@/components/fix-preview";
 import { MarkRead } from "@/components/mark-read";
 import { OpenIn } from "@/components/open-in";
@@ -58,7 +58,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
     const lines = new Set([...a.locations.filter((l) => l.file === file).map((l) => l.line), ...a.conditions.flatMap((c) => c.evidence.filter((e) => e.file === file && e.line).map((e) => e.line!))]);
     const lang = /\.(ts|tsx)$/.test(file) ? "tsx" : /\.(js|mjs|cjs|jsx)$/.test(file) ? "javascript" : /\.json$/.test(file) ? "json" : /\.ya?ml$/.test(file) ? "yaml" : /Dockerfile$/.test(file) ? "dockerfile" : /\.py$/.test(file) ? "python" : "text";
     const html = text ? await codeToHtml(text.split("\n").slice(0, 400).join("\n"), { lang, themes: { light: "github-light", dark: "github-dark" }, defaultColor: false,
-      transformers: [{ line(node, line) { node.properties.class = `line${lines.has(line) ? " hit" : ""}`; node.properties.id = `${file}:${line}`; } }] }) : "<pre>(file not readable at this commit)</pre>";
+      transformers: [{ line(node, line) { node.properties.class = `line${lines.has(line) ? " hit" : ""}`; node.properties.id = lineAnchor(file, line); } }] }) : "<pre>(file not readable at this commit)</pre>";
     return { file, html };
   }));
 
@@ -78,11 +78,11 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
             <div className="grid sm:grid-cols-2 gap-3 text-[13px]">
               <div><div className="label">{d.problem}</div>{T.problem}</div>
               <div><div className="label">{d.suggested_fix}</div>{fix ?? <span className="text-ink2">{d.no_fix}</span>}</div>
-              <div><div className="label">{d.where}</div>{loc ? <a href={`#${loc.file}:${loc.from}`} className="mono">{loc.file}:{loc.from}{loc.to !== loc.from ? `–${loc.to}` : ""}</a> : <span className="text-ink2">{d.no_location}</span>}</div>
+              <div><div className="label">{d.where}</div>{loc ? <a href={`#${lineAnchor(loc.file, loc.from)}`} className="mono">{loc.file}:{loc.from}{loc.to !== loc.from ? `–${loc.to}` : ""}</a> : <span className="text-ink2">{d.no_location}</span>}</div>
               <div><div className="label">{d.what_if_approve}</div>{d.approve_explainer}</div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {loc && <a href={`#${loc.file}:${loc.from}`} className="btn-ghost no-underline">{d.view_code}</a>}
+              {loc && <a href={`#${lineAnchor(loc.file, loc.from)}`} className="btn-ghost no-underline">{d.view_code}</a>}
               {a.verdict !== "Not Affected" && <a href="#fix" className="btn no-underline">{latestFix?.status === "pr_created" ? d.view_pr : d.preview_fix}</a>}
               <OpenIn t={{ repo: repoOnly, sha: a.sha, file: loc?.file ?? null, line: loc?.from ?? null, localRoot: ur?.local_root ?? null, caseUrl: `/case/${a.id.split("/").map(encodeURIComponent).join("/")}`, briefUrl, ids: f?.ids.join(", ") || a.finding_id }} />
               <a href={briefUrl} className="btn-ghost no-underline">{d.generate_prompt}</a>
@@ -108,7 +108,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
         <Stage n="3" title="Code & environment">
           {a.locations.length === 0 && <p className="text-[13px] text-ink2">No relevant code located. This does not show the code is safe.</p>}
           <ul className="grid gap-1 text-[13px]">
-            {a.locations.map((l, i) => <li key={i}><a href={`#${l.file}:${l.line}`} className="mono">{l.file.split("/").slice(-2).join("/")}:{l.line}</a> <a href={gh(l.file, l.line)} target="_blank" rel="noreferrer" className="mono text-[11px] ml-1" title="Open on GitHub at this commit">↗ GitHub</a> <span className="text-ink2">{locWhy[i]}</span></li>)}
+            {a.locations.map((l, i) => <li key={i}><a href={`#${lineAnchor(l.file, l.line)}`} className="mono">{l.file.split("/").slice(-2).join("/")}:{l.line}</a> <a href={gh(l.file, l.line)} target="_blank" rel="noreferrer" className="mono text-[11px] ml-1" title="Open on GitHub at this commit">↗ GitHub</a> <span className="text-ink2">{locWhy[i]}</span></li>)}
           </ul>
         </Stage>
 
@@ -121,7 +121,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
                   <div className="text-[14px]">{condT[ci].text}</div>
                   <div className="text-[12px] text-ink2 mt-1">{c.role === "required" ? "required condition" : `missing protection · ${c.mitigation_kind}`}{c.computed ? " · computed in code" : ""}</div>
                   <div className="text-[12px] mt-1">{condT[ci].reasoning}</div>
-                  {c.evidence.length > 0 && <div className="mono text-[12px] mt-1">{c.evidence.map((e, i) => <span key={i} className="mr-3"><a href={`#${e.file}:${e.line}`}>{e.file.split("/").slice(-2).join("/")}{e.line ? `:${e.line}` : ""}</a> <a href={gh(e.file, e.line)} target="_blank" rel="noreferrer" className="text-[11px]" title="Open on GitHub at this commit">↗</a></span>)}</div>}
+                  {c.evidence.length > 0 && <div className="mono text-[12px] mt-1">{c.evidence.map((e, i) => <span key={i} className="mr-3"><a href={e.line ? `#${lineAnchor(e.file, e.line)}` : `#file-${e.file.replace(/[^A-Za-z0-9._-]/g, "_")}`}>{e.file.split("/").slice(-2).join("/")}{e.line ? `:${e.line}` : ""}</a> <a href={gh(e.file, e.line)} target="_blank" rel="noreferrer" className="text-[11px]" title="Open on GitHub at this commit">↗</a></span>)}</div>}
                   {c.state === "Unknown" && <div className="text-[12px] text-ink2 mt-1">Missing evidence: nothing in the inspected files establishes this.</div>}
                 </div>
               </li>
@@ -158,10 +158,10 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
 
       <aside className="grid gap-6 content-start lg:sticky lg:top-6 lg:max-h-[calc(100vh-48px)] lg:overflow-auto">
         <h2 className="label">Source · read-only at {a.sha.slice(0, 7)}</h2>
-        {sources.length > 1 && <nav className="mono text-[11px] flex flex-wrap gap-2">{sources.map((s) => <a key={s.file} href={`#file:${s.file}`}>{s.file.split("/").pop()}</a>)}</nav>}
+        {sources.length > 1 && <nav className="mono text-[11px] flex flex-wrap gap-2">{sources.map((s) => <a key={s.file} href={`#file-${s.file.replace(/[^A-Za-z0-9._-]/g, "_")}`}>{s.file.split("/").pop()}</a>)}</nav>}
         {sources.map((s) => (
           <div key={s.file} className="border hair rounded-[6px] bg-raised overflow-hidden">
-            <div id={`file:${s.file}`} className="mono text-[12px] px-3 py-2 border-b hair flex justify-between gap-2"><span className="truncate">{s.file}</span><a href={gh(s.file)} target="_blank" rel="noreferrer" className="shrink-0" title="Open on GitHub at this commit">↗ GitHub</a></div>
+            <div id={`file-${s.file.replace(/[^A-Za-z0-9._-]/g, "_")}`} className="mono text-[12px] px-3 py-2 border-b hair flex justify-between gap-2"><span className="truncate">{s.file}</span><a href={gh(s.file)} target="_blank" rel="noreferrer" className="shrink-0" title="Open on GitHub at this commit">↗ GitHub</a></div>
             <div className="code mono text-[12px] overflow-auto py-2" dangerouslySetInnerHTML={{ __html: s.html }} />
           </div>
         ))}

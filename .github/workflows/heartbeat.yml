@@ -1,5 +1,6 @@
 # Backup scheduler: re-runs any poll that QStash has not run on time.
 # GitHub Actions schedules are best-effort (min 5 min; may be delayed/dropped under load; disabled after 60 days of inactivity).
+# Requires repository secrets APP_URL and ADMIN_TOKEN; the job FAILS loudly when they are missing so the gap is visible.
 name: heartbeat
 on:
   schedule:
@@ -14,5 +15,8 @@ jobs:
           APP_URL: ${{ secrets.APP_URL }}
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
         run: |
-          if [ -z "$APP_URL" ] || [ -z "$ADMIN_TOKEN" ]; then echo "secrets not set; skipping"; exit 0; fi
-          curl -sS -X POST "$APP_URL/api/admin" -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" -d '{"op":"heartbeat"}'
+          if [ -z "$APP_URL" ] || [ -z "$ADMIN_TOKEN" ]; then
+            echo "::error::Repository secrets APP_URL and ADMIN_TOKEN are not set; the heartbeat cannot reach the app (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          curl -sS --fail-with-body -X POST "$APP_URL/api/admin" -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" -d '{"op":"heartbeat"}'

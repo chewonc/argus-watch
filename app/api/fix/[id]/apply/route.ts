@@ -13,7 +13,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const fix = await store.getFix((await ctx.params).id);
   if (!fix) return Response.json({ error: "not found" }, { status: 404 });
   if (fix.user_id !== user.id) return Response.json({ error: "only the user who drafted this fix can approve it" }, { status: 403 });
-  if (fix.status !== "drafted") return Response.json({ error: `fix is ${fix.status}` , fix }, { status: 409 });
+  // A failed apply (e.g. the App's write permission not yet accepted → 403) may be retried without re-drafting.
+  if (fix.status !== "drafted" && fix.status !== "failed") return Response.json({ error: `fix is ${fix.status}` , fix }, { status: 409 });
   const body = (await req.json().catch(() => ({}))) as { reviewed?: boolean };
   if (!body.reviewed) return Response.json({ error: "approval requires confirming that the diff was reviewed" }, { status: 400 });
   if (await isSystemRepo(fix.repo_key)) return Response.json({ error: "shared demo repositories cannot receive pull requests" }, { status: 403 });

@@ -23,6 +23,8 @@ export async function enqueueProcess(findingId: string, opts: { replayed?: boole
     return { mode: "deferred" as const };
   }
   const client = new Client({ token: env.QSTASH_TOKEN, ...(env.QSTASH_URL ? { baseUrl: env.QSTASH_URL } : {}) });
-  const res = await client.publishJSON({ url, body, retries: 3, deduplicationId: `${findingId}-${opts.replayed ? "replay" : "live"}-${Date.now().toString(36)}`.replace(/[^A-Za-z0-9_.-]/g, "-") });
+  // Dedup window: the same finding re-enqueued within the same 10-minute bucket is one QStash message (not one per source hit).
+  const bucket = Math.floor(Date.now() / 600e3).toString(36);
+  const res = await client.publishJSON({ url, body, retries: 3, deduplicationId: `${findingId}-${opts.replayed ? "replay" : "live"}-${bucket}`.replace(/[^A-Za-z0-9_.-]/g, "-") });
   return { mode: "qstash" as const, messageId: res.messageId };
 }

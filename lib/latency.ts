@@ -18,6 +18,13 @@ export const stat = (xs: number[]): Stat => {
 };
 const d = (a: string | null | undefined, b: string | null | undefined) => (a && b ? Math.max(0, (Date.parse(b) - Date.parse(a)) / 1000) : null);
 
+/** The publication instant that latency is measured from: for a GHSA `updated` delivery it is the update time. */
+export function publishedForLatency(it: Pick<Item, "source" | "published_at" | "raw">): string {
+  const raw = (it.raw ?? {}) as { action?: string; updated_at?: string };
+  if ((it.source === "ghsa" || it.source === "ghadv") && raw.updated_at && (raw.action === "updated" || it.source === "ghadv") && raw.updated_at > (it.published_at ?? "")) return raw.updated_at;
+  return it.published_at ?? "";
+}
+
 export type Latency = {
   L1_source: Record<string, Stat & { class: string }>;
   L2_extract: Stat; L3_assess: Stat; L4_alert: Stat; L5_push: Stat; L6_receipt: Stat;
@@ -25,11 +32,14 @@ export type Latency = {
   note: string;
 };
 
-/** `firstOk` = per-source first successful poll time; items published before it are backlog. */
-export async function computeLatency(assessments: Assessment[], findings: Finding[], notifications: { notified_at: string; pushed_at?: string | null; received_at?: string | null; published_at?: string | null }[] = []): Promise<Latency> {
+/** `firstOk` = per-source first successful poll time; items published before it are backlog.
+ *  For the push source the reference is the first live webhook delivery (`ghsaFirstDelivery`), and an `updated`
+ *  delivery of an older advisory is measured from the advisory's `updated_at`, which is what GitHub actually pushed. */
+export async function computeLatency(assessments: Assessment[], findings: Finding[], notifications: { notified_at: string; pushed_at?: string | null; received_at?: string | null; published_at?: string | null }[] = [], ghsaFirstDelivery: string | null = null): Promise<Latency> {
   const ids = ["ghadv", "rss", "rss-slow", "kev"];
   const states = await Promise.all(ids.map((id) => store.getPollState<PollState>(id)));
-  const firstOk: Record<string, string | null> = { ghsa: null };
+  const ghsaState = await store.getPollState<{ first_ok?: string | null }>("ghsa");
+  const firstOk: Record<string, string | null> = { ghsa: ghsaState?.first_ok ?? ghsaFirstDelivery };
   ids.forEach((id, i) => (firstOk[id] = states[i]?.first_ok ?? null));
   const liveFindings = findings.filter((f) => f.status !== "error");
   const items = (await Promise.all(liveFindings.flatMap((f) => f.items).map((i) => store.getItem(i)))).filter((x): x is Item => !!x);
@@ -38,10 +48,11 @@ export async function computeLatency(assessments: Assessment[], findings: Findin
     if (!it.published_at || it.id.length !== 24) continue;
     const key = it.source === "rss" ? ((it.raw as { cadence?: string } | undefined)?.cadence === "slow" ? "rss-slow" : "rss") : it.source;
     if (key === "manual") continue;
-    const fo = key === "ghsa" ? null : firstOk[key];
-    if (fo && it.published_at < fo) continue; // backlog
-    if (fo === null && key !== "ghsa") continue; // source never polled successfully
-    const x = d(it.published_at, it.discovered_at); if (x != null) (L1[key] ??= []).push(x);
+    const fo = firstOk[key] ?? null;
+    if (fo === null) continue; // source never polled successfully / no live delivery yet
+    const published = publishedForLatency(it);
+    if (published < fo) continue; // backlog
+    const x = d(published, it.discovered_at); if (x != null) (L1[key] ??= []).push(x);
   }
   const cls: Record<string, string> = { ghsa: "push", ghadv: "near_realtime", rss: "near_realtime", kev: "periodic", "rss-slow": "periodic" };
   const live = assessments.filter((a) => !a.replayed);
@@ -51,7 +62,7 @@ export async function computeLatency(assessments: Assessment[], findings: Findin
   const L4 = live.map((a) => d(a.timestamps.processed_at, a.timestamps.notified_at)).filter((x): x is number => x != null);
   const L5 = notifications.map((n) => d(n.notified_at, n.pushed_at)).filter((x): x is number => x != null);
   const L6 = notifications.map((n) => d(n.pushed_at, n.received_at)).filter((x): x is number => x != null);
-  const backlogFree = (a: Assessment) => { const f = byF.get(a.finding_id); const src = f?.sources[0]; const fo = src ? firstOk[src] : null; return a.timestamps.published_at && (!fo || a.timestamps.published_at >= fo) && (src === "ghsa" || fo); };
+  const backlogFree = (a: Assessment) => { const f = byF.get(a.finding_id); const src = f?.sources[0]; const fo = src ? firstOk[src] ?? null : null; return !!a.timestamps.published_at && !!fo && a.timestamps.published_at >= fo; };
   const totA = live.filter(backlogFree).map((a) => d(a.timestamps.published_at, a.timestamps.notified_at ?? a.timestamps.processed_at)).filter((x): x is number => x != null);
   const totR = notifications.map((n) => d(n.published_at, n.received_at)).filter((x): x is number => x != null);
   return {

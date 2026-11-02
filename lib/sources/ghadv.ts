@@ -14,8 +14,9 @@ export type GHAdvisory = {
 const GH = "https://api.github.com";
 const hdr = () => ({ Accept: "application/vnd.github+json", "User-Agent": "ArgusWatch/0.1", "X-GitHub-Api-Version": "2022-11-28", ...(env.GITHUB_TOKEN ? { Authorization: `Bearer ${env.GITHUB_TOKEN}` } : {}) });
 
-/** Reviewed advisories updated since `sinceISO` (inclusive), newest first. One page of 100 is enough at a 5-minute cadence. */
-export async function fetchAdvisories(sinceISO: string | null, etag?: string | null): Promise<{ advisories: GHAdvisory[]; etag: string | null; not_modified: boolean }> {
+/** Reviewed advisories updated since `sinceISO` (inclusive), newest first. Pages of 100, up to 3 pages (a backlog after an
+ *  outage longer than one interval is otherwise silently truncated); the conditional GET applies to the first page only. */
+export async function fetchAdvisories(sinceISO: string | null, etag?: string | null, maxPages = 3): Promise<{ advisories: GHAdvisory[]; etag: string | null; not_modified: boolean }> {
   const q = new URLSearchParams({ type: "reviewed", sort: "updated", direction: "desc", per_page: "100" });
   if (sinceISO) q.set("updated", `>=${sinceISO.slice(0, 19)}Z`.replace("ZZ", "Z"));
   const headers: Record<string, string> = hdr();
@@ -23,7 +24,15 @@ export async function fetchAdvisories(sinceISO: string | null, etag?: string | n
   const r = await fetch(`${GH}/advisories?${q}`, { headers, signal: AbortSignal.timeout(20000) });
   if (r.status === 304) return { advisories: [], etag: etag ?? null, not_modified: true };
   if (!r.ok) throw new Error(`GitHub advisories ${r.status}`);
-  return { advisories: (await r.json()) as GHAdvisory[], etag: r.headers.get("etag"), not_modified: false };
+  const advisories = (await r.json()) as GHAdvisory[];
+  let next = r.headers.get("link")?.match(/<([^>]+)>;\s*rel="next"/)?.[1] ?? null;
+  for (let page = 2; next && page <= maxPages && advisories.length >= 100 * (page - 1); page++) {
+    const rn = await fetch(next, { headers: hdr(), signal: AbortSignal.timeout(20000) });
+    if (!rn.ok) break;
+    advisories.push(...((await rn.json()) as GHAdvisory[]));
+    next = rn.headers.get("link")?.match(/<([^>]+)>;\s*rel="next"/)?.[1] ?? null;
+  }
+  return { advisories, etag: r.headers.get("etag"), not_modified: false };
 }
 
 export function itemFromAdvisory(a: GHAdvisory, discovered_at: string): Item {

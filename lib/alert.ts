@@ -16,8 +16,11 @@ export async function sendAlert(a: Assessment): Promise<Assessment> {
   if (env.ALERT_WEBHOOK_URL) {
     const isDiscord = /discord(app)?\.com\/api\/webhooks/.test(env.ALERT_WEBHOOK_URL);
     const body = isDiscord ? { content: text.slice(0, 1900) } : { text };
-    const r = await fetch(env.ALERT_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    delivered = r.ok ? (isDiscord ? "discord+inbox" : "slack+inbox") : `inbox (webhook ${r.status})`;
+    // A chat-webhook outage must never fail the assessment itself (the inbox record is the source of truth).
+    try {
+      const r = await fetch(env.ALERT_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(8000) });
+      delivered = r.ok ? (isDiscord ? "discord+inbox" : "slack+inbox") : `inbox (webhook ${r.status})`;
+    } catch (e) { delivered = `inbox (webhook error: ${String(e).slice(0, 60)})`; }
   }
   const notified = { ...a, timestamps: { ...a.timestamps, notified_at: new Date().toISOString() } };
   await store.putAssessment(notified);

@@ -27,6 +27,9 @@ export async function POST(req: Request) {
   if (event === "security_advisory") {
     const item = itemFromGHSA(payload as Parameters<typeof itemFromGHSA>[0], discovered_at);
     await store.log({ kind: "webhook", source: "github", detail: `security_advisory.${String(payload.action)} ${item.ids[0] ?? ""} ${item.title.slice(0, 60)}`, ref: delivery });
+    // Push-source state: the first live delivery is the latency reference (anything published before it is backlog).
+    const gs = (await store.getPollState<{ first_ok: string | null; deliveries: number; last_ok: string | null }>("ghsa")) ?? { first_ok: null, deliveries: 0, last_ok: null };
+    await store.setPollState("ghsa", { ...gs, first_ok: gs.first_ok ?? discovered_at, deliveries: gs.deliveries + 1, last_ok: discovered_at });
     const { finding, queued, created } = await ingest(item);
     return Response.json({ ok: true, finding: finding.id, queued, created, discovered_at });
   }

@@ -46,10 +46,12 @@ async function pollFeeds(feeds: Feed[], now: string, firstRun: boolean): Promise
       for (const e of r.entries.slice(0, 40)) {
         const g = sha8(e.guid);
         if (s.guids.includes(g)) continue;
-        s.guids.unshift(g); s.guids = s.guids.slice(0, 200);
+        const remember = () => { s.guids.unshift(g); s.guids = s.guids.slice(0, 200); };
         // first run per feed: only items from the last 2 days (no backlog floods, and backlog never counts as latency)
-        if ((fresh || firstRun) && e.published && Date.parse(e.published) < Date.now() - 2 * 86400e3) continue;
-        const res = await ingest(itemFromEntry(f, e, now)); ingested++; if (res.created) created++;
+        if ((fresh || firstRun) && e.published && Date.parse(e.published) < Date.now() - 2 * 86400e3) { remember(); continue; }
+        // The guid is remembered only after a successful ingest, so a transient store/queue failure retries next poll.
+        try { const res = await ingest(itemFromEntry(f, e, now)); ingested++; if (res.created) created++; remember(); }
+        catch (err) { errors.push(`${f.id} ingest: ${String(err).slice(0, 80)}`); }
       }
       s.first_ok ??= now;
     } catch (e) { errors.push(`${f.id}: ${String(e).slice(0, 80)}`); }
@@ -75,7 +77,9 @@ export async function runSource(id: string): Promise<{ ok: boolean; source: stri
         const cutoff = new Date(Date.now() - 3 * 86400e3).toISOString().slice(0, 10);
         for (const it of items.filter((i) => st.cursor || i.published_at!.slice(0, 10) >= cutoff)) {
           if (!(await store.markSeen("kev", it.id))) continue;
-          const res = await ingest(it); ingested++; if (res.created) created++;
+          // One failing item must not abort the whole source run (the item is logged; the cursor still advances).
+          try { const res = await ingest(it); ingested++; if (res.created) created++; }
+          catch (err) { await store.log({ kind: "error", source: "kev", detail: `ingest failed for ${it.ids[0] ?? it.id}: ${String(err).slice(0, 160)}`, ref: it.id }); }
         }
         st.cursor = r.kev!.vulnerabilities.reduce((m, v) => (v.dateAdded > m ? v.dateAdded : m), st.cursor ?? "");
       }
@@ -90,7 +94,8 @@ export async function runSource(id: string): Promise<{ ok: boolean; source: stri
         for (const a of fresh.reverse()) {
           const it = itemFromAdvisory(a, now);
           if (!(await store.markSeen("ghadv", it.id))) continue;
-          const res = await ingest(it); ingested++; if (res.created) created++;
+          try { const res = await ingest(it); ingested++; if (res.created) created++; }
+          catch (err) { await store.log({ kind: "error", source: "ghadv", detail: `ingest failed for ${a.ghsa_id}: ${String(err).slice(0, 160)}`, ref: it.id }); }
         }
         st.cursor = r.advisories.reduce((m, a) => (a.updated_at > m ? a.updated_at : m), st.cursor ?? floor);
       }
@@ -111,8 +116,12 @@ export async function runSource(id: string): Promise<{ ok: boolean; source: stri
   return { ok: !st.last_error, source: id, ingested, created, ms, state: st, note };
 }
 
-/** The 5-minute tick: run each poller whose interval has elapsed (with 1 minute of slack for scheduler jitter). */
-export async function tick(force = false): Promise<{ ran: string[]; skipped: string[]; results: Awaited<ReturnType<typeof runSource>>[] }> {
+export type TickState = { last_run: string; ran: string[]; forced?: boolean; scheduled_runs?: number; last_scheduled?: string | null };
+
+/** The 5-minute tick: run each poller whose interval has elapsed (with 1 minute of slack for scheduler jitter).
+ *  `scheduled` marks a run that came from the QStash tick schedule itself (not a forced call, not a legacy schedule hit),
+ *  so /api/status can say whether that schedule has ever fired. */
+export async function tick(force = false, scheduled = false): Promise<{ ran: string[]; skipped: string[]; results: Awaited<ReturnType<typeof runSource>>[] }> {
   const ran: string[] = [], skipped: string[] = [], results: Awaited<ReturnType<typeof runSource>>[] = [];
   for (const p of POLLERS) {
     const st = await store.getPollState<PollState>(p.id);
@@ -121,6 +130,8 @@ export async function tick(force = false): Promise<{ ran: string[]; skipped: str
     ran.push(p.id);
     results.push(await runSource(p.id));
   }
-  await store.setPollState("tick", { last_run: new Date().toISOString(), ran });
+  const prev = (await store.getPollState<TickState>("tick")) ?? null;
+  const now = new Date().toISOString();
+  await store.setPollState("tick", { last_run: now, ran, forced: force, scheduled_runs: (prev?.scheduled_runs ?? 0) + (scheduled ? 1 : 0), last_scheduled: scheduled ? now : prev?.last_scheduled ?? null });
   return { ran, skipped, results };
 }

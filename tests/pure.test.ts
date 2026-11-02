@@ -97,3 +97,29 @@ test("isProseFile: README claims are not code evidence", async () => {
   assert.equal(isProseFile("README.md"), true); assert.equal(isProseFile("docs/notes.txt"), true);
   assert.equal(isProseFile("middleware.ts"), false); assert.equal(isProseFile("Dockerfile"), false); assert.equal(isProseFile(null), false);
 });
+
+// ---- added Nov 2: Hacker News (Algolia) mapping, latency reference instant, code-pane anchors --------------------
+import { entryFromHNHit } from "../lib/sources/rss";
+import { publishedForLatency } from "../lib/latency";
+import { lineAnchor } from "../components/alerts";
+import { SEVERITY_ORDER } from "../lib/severity";
+
+test("entryFromHNHit: Algolia story hit maps to a feed entry; HN item link when the story has no url", () => {
+  const e = entryFromHNHit({ objectID: "123", title: "CVE-2026-1 in <b>foo</b>", url: null, author: "pg", created_at: "2026-11-01T22:52:30.000Z", created_at_i: 1793573550, story_text: "<p>details</p>" });
+  assert.equal(e.title, "CVE-2026-1 in foo"); assert.equal(e.link, "https://news.ycombinator.com/item?id=123"); assert.equal(e.guid, "hn:123");
+  assert.equal(e.published, "2026-11-01T22:52:30.000Z"); assert.equal(e.summary, "details");
+  assert.equal(entryFromHNHit({ objectID: "9", title: "t", url: "https://x.test/a", author: null, created_at: "2026-01-01T00:00:00Z", created_at_i: 1 }).link, "https://x.test/a");
+});
+test("publishedForLatency: GHSA 'updated' delivery is measured from updated_at, 'published' from published_at", () => {
+  assert.equal(publishedForLatency({ source: "ghsa", published_at: "2024-01-01T00:00:00Z", raw: { action: "updated", updated_at: "2026-11-01T10:00:00Z" } }), "2026-11-01T10:00:00Z");
+  assert.equal(publishedForLatency({ source: "ghsa", published_at: "2026-11-01T09:00:00Z", raw: { action: "published", updated_at: "2026-11-01T09:00:01Z" } }), "2026-11-01T09:00:00Z");
+  assert.equal(publishedForLatency({ source: "rss", published_at: "2026-11-01T09:00:00Z", raw: {} }), "2026-11-01T09:00:00Z");
+});
+test("lineAnchor: nested paths produce a stable id usable in href and element id", () => {
+  assert.equal(lineAnchor("src/routes/users.ts", 7), "L-src_routes_users.ts-7");
+  assert.match(lineAnchor("app/[slug]/page.tsx", 12), /^L-[A-Za-z0-9._-]+-12$/);
+});
+test("worst severity is the highest-ranked level, not the newest alert", () => {
+  const worst = (["low", "critical", "moderate"] as const).slice().sort((x, y) => SEVERITY_ORDER.indexOf(x) - SEVERITY_ORDER.indexOf(y))[0];
+  assert.equal(worst, "critical");
+});

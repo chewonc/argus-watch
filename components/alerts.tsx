@@ -24,6 +24,8 @@ export function location(a: Assessment): { file: string; from: number; to: numbe
   return { file, from: Math.min(...lines), to: Math.max(...lines) };
 }
 export const firstSentence = (s: string) => (s.match(/^.*?[.!?](\s|$)/)?.[0] ?? s).trim();
+/** Anchor id for a source line in the case page's code pane. Used on both ends so nested paths resolve. */
+export const lineAnchor = (file: string, line: number) => `L-${file.replace(/[^A-Za-z0-9._-]/g, "_")}-${line}`;
 export function suggestedFix(a: Assessment): string | null {
   const observed = new Set(a.conditions.filter((c) => c.state === "Observed" || c.state === "Inferred").map((c) => c.id));
   const recs = [...a.recommendations].sort((x, y) => Number(y.condition_ids.some((id) => observed.has(id))) - Number(x.condition_ids.some((id) => observed.has(id))));
@@ -63,14 +65,14 @@ export function AlertCard({ c, repo, d }: { c: CardData; repo: string; d: Dict }
       </div>
       <div>
         <Link href={c.caseHref} className="text-[16px] font-medium no-underline">{c.tx?.title ?? f?.title ?? a.finding_id}</Link>
-        <div className="mono text-[12px] text-ink2 mt-1">{ids} · {repo}@{a.sha.slice(0, 7)} · {loc ? <a href={`${c.caseHref}#${encodeURIComponent(loc.file)}:${loc.from}`}>{loc.file}:{loc.from}{loc.to !== loc.from ? `–${loc.to}` : ""}</a> : <span title={d.no_location}>{d.no_location}</span>}</div>
+        <div className="mono text-[12px] text-ink2 mt-1">{ids} · {repo}@{a.sha.slice(0, 7)} · {loc ? <a href={`${c.caseHref}#${lineAnchor(loc.file, loc.from)}`}>{loc.file}:{loc.from}{loc.to !== loc.from ? `–${loc.to}` : ""}</a> : <span title={d.no_location}>{d.no_location}</span>}</div>
       </div>
       <div className="grid sm:grid-cols-2 gap-3 text-[13px]">
         <div><div className="label">{d.problem}</div>{problem}</div>
         <div><div className="label">{d.suggested_fix}</div>{fix ?? <span className="text-ink2">{d.no_fix}</span>}</div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={`${c.caseHref}${loc ? `#${encodeURIComponent(loc.file)}:${loc.from}` : ""}`} className="btn-ghost no-underline">{d.view_code}</Link>
+        <Link href={`${c.caseHref}${loc ? `#${lineAnchor(loc.file, loc.from)}` : ""}`} className="btn-ghost no-underline">{d.view_code}</Link>
         {a.verdict !== "Not Affected" && <Link href={`${c.caseHref}#fix`} className="btn-ghost no-underline">{c.fixState === "pr_created" ? d.view_pr : d.preview_fix}</Link>}
         {a.verdict !== "Not Affected" && <Link href={`${c.caseHref}#fix`} className={`btn no-underline ${c.allowPr ? "" : "opacity-50"}`} title={c.allowPr ? "Opens the approval dialog on the case page" : "Enable draft pull requests for this repository on the Repos page first"}>{d.apply_fix}</Link>}
         <OpenIn t={{ repo: a.repo.split("/").slice(0, 2).join("/"), sha: a.sha, file: loc?.file ?? null, line: loc?.from ?? null, localRoot: c.localRoot, caseUrl: c.caseHref, briefUrl, ids }} />
