@@ -93,7 +93,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
         <h1 className="text-[26px] sm:text-[30px] font-semibold tracking-[-0.02em] leading-tight">{T.title}</h1>
         {where.kind === "file" || where.kind === "package"
           ? <div className="mono text-[13px] text-ink2 break-all">{where.kind === "file" && loc ? `${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}` : where.text}</div>
-          : <div className="text-[14px] text-ink2">{verified ? where.text : severeUnverified ? d.could_be_serious : d.not_confirmed_long.replace("{tech}", tech)}</div>}
+          : <div className="text-[14px] text-ink2">{verified ? where.text : severeUnverified ? d.could_be_serious : loc && a.verdict !== "Not Affected" ? d.not_confirmed_code_found.replace("{where}", `${loc.file.split("/").pop()}:${loc.from}`) : d.not_confirmed_long.replace("{tech}", tech)}</div>}
         {a.agent && <p className="text-[13px] text-ink2">{a.agent.status === "confirmed" ? "Confirmed" : a.agent.status === "not_affected" ? "Marked not affected" : "Fix proposed"} by your AI agent on {new Date(a.agent.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Argus checked the lines it cited{a.verdict !== "Affected" && a.agent.status === "confirmed" ? "; Argus's own analysis had not confirmed this" : ""}.</p>}
       </div>
 

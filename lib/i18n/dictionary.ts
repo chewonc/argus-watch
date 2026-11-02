@@ -36,6 +36,7 @@ export const en = {
   empty_resolved_title: "Nothing resolved yet", empty_resolved_body: "Alerts you fix or that are fixed by a pull request will show up here.",
   whats_wrong: "What's wrong?", how_to_fix: "How to fix it", open_in_github: "Open file in GitHub", back_to_alerts: "Alerts",
   not_confirmed_long: "Not yet confirmed in your project. We saw this in security news about {tech}, but couldn't find affected code in your repository.",
+  not_confirmed_code_found: "Not yet confirmed in your project. Related code was found at {where}, but the evidence so far does not establish that this issue applies.",
   could_be_serious: "Could be serious, but not yet confirmed in your project.",
   read_only_footer: "Argus Watch only reads your code. Nothing in your repository changes without your approval.",
 } as const;

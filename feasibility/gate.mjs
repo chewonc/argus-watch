@@ -139,7 +139,11 @@ for (const [id, lab] of Object.entries(labels)) {
         const bad = m.evidence_file && !citationOk(dir, m.evidence_file, m.evidence_line, null);
         const noEv = (m.state === "Observed" || m.state === "Contradicted") && !m.evidence_file;
         const prose = m.state !== "Unknown" && /\.(md|mdx|markdown|txt|rst|adoc)$/i.test(m.evidence_file ?? ""); // a README claim is not code evidence (argus-watch/lib/analyze.ts isProseFile)
-        return { ...c, state: bad || noEv || prose ? "Unknown" : m.state };
+        if (bad || noEv || prose) return { ...c, state: "Unknown" };
+        // A cited line that is only a comment cannot prove or disprove a condition (argus-watch/lib/analyze.ts isCommentLine / commentCap)
+        const cited = m.evidence_file ? (fs.readFileSync(path.join(dir, m.evidence_file), "utf8").split("\n")[m.evidence_line - 1] ?? "") : "";
+        const comment = /^\s*(\/\/|#(?!!)|\/\*|\*|<!--|--\s)/.test(cited) && !/\*\/\s*\S/.test(cited);
+        return { ...c, state: comment && m.state === "Observed" ? "Inferred" : comment && m.state === "Contradicted" ? "Unknown" : m.state };
       });
       const condHits = ids.filter((cid) => states.find((s) => s.id === cid).state === lab.conditions[cid]).length;
       for (const cid of ids) { const k = `${lab.conditions[cid]}->${states.find((s) => s.id === cid).state}`; confusion[k] = (confusion[k] ?? 0) + 1; }

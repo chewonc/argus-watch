@@ -123,3 +123,10 @@ test("worst severity is the highest-ranked level, not the newest alert", () => {
   const worst = (["low", "critical", "moderate"] as const).slice().sort((x, y) => SEVERITY_ORDER.indexOf(x) - SEVERITY_ORDER.indexOf(y))[0];
   assert.equal(worst, "critical");
 });
+
+test("isCommentLine / commentCap: a code comment is not proof", async () => {
+  const { isCommentLine, commentCap } = await import("../lib/analyze");
+  assert.equal(isCommentLine("  // token covers every private repo"), true); assert.equal(isCommentLine("# scope: repo"), true); assert.equal(isCommentLine(" * fine-grained token"), true);
+  assert.equal(isCommentLine("#!/usr/bin/env node"), false); assert.equal(isCommentLine("const x = 1; // note"), false); assert.equal(isCommentLine("/* a */ run()"), false); assert.equal(isCommentLine(null), false);
+  assert.equal(commentCap("Observed"), "Inferred"); assert.equal(commentCap("Contradicted"), "Unknown"); assert.equal(commentCap("Inferred"), "Inferred");
+});

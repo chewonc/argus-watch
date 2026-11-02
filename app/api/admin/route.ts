@@ -5,6 +5,7 @@ import { ingest, processFinding } from "@/lib/pipeline";
 import { refreshRepo } from "@/lib/repo";
 import { WatchedRepo } from "@/lib/schema";
 import { itemFromGHSA } from "@/lib/sources/ghsa";
+import { FEEDS, itemFromEntry } from "@/lib/sources/rss";
 import { SYSTEM_USER, store } from "@/lib/store";
 import { enqueueProcess } from "@/lib/queue";
 import { sha } from "@/lib/dedup";
@@ -62,6 +63,21 @@ export async function POST(req: Request) {
       const { finding } = await ingest(item, { enqueue: false });
       await processFinding(finding.id, { replayed: true });
       return Response.json({ ok: true, finding: finding.id, replayed: true, ms: Date.now() - t0 });
+    }
+    case "replay_feed_entry": {
+      // body: { feed, url, title, published?, summary? }: one real article that a monitored feed published before polling
+      // could see it. It enters as that feed's item (short summary, so the pipeline fetches the page itself) and runs the
+      // SAME pipeline; it is labelled a replay and never counts as a live delivery.
+      const feed = FEEDS.find((x) => x.id === body.feed);
+      if (!feed || typeof body.url !== "string" || typeof body.title !== "string") return Response.json({ ok: false, error: "feed (known id), url and title are required" }, { status: 400 });
+      const entry = { title: body.title, link: body.url, author: null, published: typeof body.published === "string" ? body.published : null, summary: typeof body.summary === "string" ? body.summary : "", guid: body.url };
+      const item = itemFromEntry(feed, entry, new Date().toISOString());
+      item.id = sha(`replay:${item.id}`);
+      await store.log({ kind: "replay", source: "admin", detail: `replaying ${feed.id}: ${body.title.slice(0, 60)}`, ref: item.id });
+      const { finding } = await ingest(item, { enqueue: false });
+      await processFinding(finding.id, { replayed: true });
+      const f = await store.getFinding(finding.id);
+      return Response.json({ ok: true, finding: finding.id, status: f?.status, relevant_repos: f?.relevant_repos, replayed: true, ms: Date.now() - t0 });
     }
     case "requeue_stuck": {
       // Re-queue findings left in "new" or "error" (e.g. after a queue outage). Same pipeline; not replays.

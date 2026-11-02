@@ -81,6 +81,10 @@ Condition confusion, run 2 (label → app state): Observed→Observed 27, Observ
 
 Limitations: one run per case at temperature 0 (RUNS=3 would show variance); 16 cases across 5 npm advisories, all with lockfiles; no Python or non-npm ecosystems; labels written by the same project.
 
+## Run 3 (Nov 2 2026): comment-evidence rule
+
+After the MCP toxic-flow validation (`docs/VALIDATION_MCP_TOXIC_FLOW.md`) showed a control repo cleared partly by a code comment, a rule was added to the app and harness: when the only cited evidence is a comment line, Observed becomes Inferred and Contradicted becomes Unknown. Full rerun: gate **PASS**; rule verdict 15/16 (was 16/16), FNA 0/10, condition accuracy 0.82, localization 15/16, invented 0, injection 2/2. The new miss is `adv_feature_absent`: the model cited the comment `middleware.ts:4` instead of the code at `:7`, so the rule kept it at Unclear rather than Not Affected. This is conservative by design; the label is unchanged.
+
 ## Metrics
 
 All metrics are computed per run from the model's JSON output against `labels.json`. Each case may be run several times (`RUNS=n`); report per-run rows and the aggregate.
