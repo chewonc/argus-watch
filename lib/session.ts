@@ -16,7 +16,8 @@ export async function githubUserToken(): Promise<string | null> {
 /** Same, with the failure reason kept (never the token itself) for /api/auth/whoami and the auth log. */
 export async function githubUserTokenDiag(): Promise<{ token: string | null; error: string | null }> {
   try {
-    const r = await auth.api.getAccessToken({ body: { providerId: "github", useAccountCookie: true } as never, headers: await headers() });
+    // Better Auth 1.7 stateless mode: the account-cookie selection is a strict object; passing providerId with it is rejected.
+    const r = await auth.api.getAccessToken({ body: { useAccountCookie: true } as never, headers: await headers() });
     const token = (r as { accessToken?: string } | null)?.accessToken ?? null;
     return { token, error: token ? null : "getAccessToken returned no accessToken (account cookie missing or not bound to this session)" };
   } catch (e) { return { token: null, error: `getAccessToken threw: ${String((e as Error).message ?? e).slice(0, 160)}` }; }
