@@ -1,0 +1,6 @@
+.next
+.next-*
+.data
+node_modules
+feasibility/out
+.env*

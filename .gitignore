@@ -40,3 +40,6 @@ out/
 yarn-debug.log*
 yarn-error.log*
 .data/
+
+.vercel
+.env*
