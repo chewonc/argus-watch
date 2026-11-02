@@ -16,14 +16,15 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
   const [err, setErr] = useState<string | null>(null);
   const [reviewed, setReviewed] = useState(false);
   const dlg = useRef<HTMLDialogElement>(null);
+  const autoAct = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("act") === "1";
 
+  // When arriving via dashboard "Apply fix" (?act=1): auto-draft if no fix exists, then auto-open dialog once drafted.
   useEffect(() => {
-    if (fix?.status === "drafted" && allowPr && !isDemoRepo) {
-      if (new URLSearchParams(window.location.search).get("act") === "1") {
-        dlg.current?.showModal();
-      }
-    }
-  }, [fix, allowPr, isDemoRepo]);
+    if (!autoAct) return;
+    if (!fix) { draft(); return; }
+    if (fix.status === "drafted" && allowPr && !isDemoRepo) dlg.current?.showModal();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fix?.status]);
 
   async function draft(force = false) {
     setBusy("draft"); setErr(null);
