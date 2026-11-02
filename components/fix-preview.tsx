@@ -2,7 +2,7 @@
 // Fix preview: draft → diff (additions as ghost text) → status ladder + static assessment → explicit approval dialog
 // → draft PR link + the repository's own CI readout (shown separately, never as proof the vulnerability is fixed).
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Fix } from "@/lib/schema";
 
 type Labels = { proposed_fix: string; draft_fix: string; drafting: string; re_draft: string; approve: string; not_verified: string };
@@ -16,6 +16,14 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
   const [err, setErr] = useState<string | null>(null);
   const [reviewed, setReviewed] = useState(false);
   const dlg = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    if (fix?.status === "drafted" && allowPr && !isDemoRepo) {
+      if (new URLSearchParams(window.location.search).get("act") === "1") {
+        dlg.current?.showModal();
+      }
+    }
+  }, [fix, allowPr, isDemoRepo]);
 
   async function draft(force = false) {
     setBusy("draft"); setErr(null);
