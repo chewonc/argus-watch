@@ -42,13 +42,17 @@ export async function assessFix(a: Assessment, f: Finding | null, fix: Fix, befo
     }
   }
   // 3. Model re-assessment of the non-computed conditions on the patched text (citations verified against the patched text)
-  const afterFiles = fix.files.map((x) => ({ path: x.path, text: x.after }));
+  // The re-assessment sees the whole cited context: patched text for changed files, the original text for every other
+  // cited file. Showing only the changed files made the model "lose" conditions whose evidence lives elsewhere
+  // (e.g. the middleware check when only package.json was bumped) and report them Unknown.
+  const changed = new Set(fix.files.map((x) => x.path));
+  const afterFiles = [...fix.files.map((x) => ({ path: x.path, text: x.after })), ...[...before.entries()].filter(([p]) => !changed.has(p)).map(([path, text]) => ({ path, text }))];
   const nonComputed = a.conditions.filter((c) => !c.computed);
   let after = new Map<string, { state: ConditionResult["state"]; verified: boolean; file: string | null; line: number | null; reasoning: string }>();
   let modelOk = false;
-  if (nonComputed.length && afterFiles.length) {
+  if (nonComputed.length && fix.files.length) {
     try {
-      const r = await modelConditionStates(afterFiles, `${f?.claim?.summary ?? ""}\nThe following files have been MODIFIED by a proposed patch; assess each condition against the modified text as shown.`, nonComputed.map(({ id, text }) => ({ id, text })), `${fix.repo}@${a.sha.slice(0, 7)} (patched)`);
+      const r = await modelConditionStates(afterFiles, `${f?.claim?.summary ?? ""}\nA proposed patch MODIFIED these files: ${[...changed].join(", ")}. The other files are unchanged and shown for context. Assess each condition against the text as shown.`, nonComputed.map(({ id, text }) => ({ id, text })), `${fix.repo}@${a.sha.slice(0, 7)} (patched)`);
       after = new Map(r.states.map((s) => [s.id, { state: s.state, verified: s.verified, file: s.file, line: s.line, reasoning: s.reasoning }]));
       modelOk = true;
     } catch { modelOk = false; }

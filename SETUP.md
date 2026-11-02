@@ -41,6 +41,18 @@ Create `.env.local` at the project root (gitignored). On Vercel, add the same na
 5. **Backup heartbeat:** `.github/workflows/heartbeat.yml` calls `/api/admin` `{"op":"heartbeat"}` every 15 minutes and runs the tick if QStash has not run it for 10 minutes. Add repository secrets `APP_URL` and `ADMIN_TOKEN`.
 6. **After deploying the identity layer:** run `{"op":"migrate_system"}` once so repositories registered earlier stay visible (as demo repos).
 
+### 2.1 Checklist to unblock the end-to-end journey (status Nov 2 2026: none of these is configured on the deployment)
+
+The production landing page shows "Sign-in is not configured on this deployment yet" and `POST /api/auth/sign-in/social` answers 503 until step C is done. Nothing in steps 1–2 and 7 of the user journey (sign in, connect a repository, open a draft PR) can be exercised by anyone before then.
+
+A. **GitHub App → OAuth client (for sign-in).** On the App's settings page (github.com/settings/apps/<slug>): under "Identifying and authorizing users" set Callback URL `https://argus-watch-three.vercel.app/api/auth/callback/github`; tick **Expire user authorization tokens** off or on (both work); leave "Request user authorization (OAuth) during installation" **off**. Click **Generate a new client secret**; copy the **Client ID** and the secret.
+B. **GitHub App → private key, permissions, events.** Under "Private keys" click **Generate a private key** (downloads a `.pem`). Under "Permissions & events": Repository → Metadata Read, Contents **Read and write**, Pull requests **Read and write**, Checks Read; Account → Email addresses Read; Subscribe to events: Security advisory, Push, Installation, Installation repositories. Save. GitHub then asks every existing installation (your account) to **accept the new permissions**: open github.com/settings/installations → Argus Watch → "Review request" and accept. Set Setup URL `https://argus-watch-three.vercel.app/api/github/setup` with **Redirect on update** ticked.
+C. **Vercel → Project → Settings → Environment Variables (Production)** add: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` (from A); `GITHUB_APP_ID` (the numeric "App ID" on the App page), `GITHUB_APP_SLUG` (the URL slug), `GITHUB_APP_PRIVATE_KEY` (paste the whole `.pem`; Vercel keeps newlines, or escape them as `\n`); `BETTER_AUTH_SECRET` (`openssl rand -base64 32`); `DEMO_SHARED_REPOS=1`. Then **Redeploy** (Deployments → ⋯ → Redeploy) because env changes are not applied to the running build.
+D. **Verify:** open the site: the landing page shows **Sign in with GitHub**; sign in; **Repos → Connect GitHub** installs the App on a repository you own; tick it, **Watch selected**; packages > 0 appear. Enable **Allow draft pull requests** for that repository.
+E. **Produce an alert on your repository** (one of): wait for a matching live advisory; or, for a demo, add `"next": "14.2.10"` to a `package.json` + lockfile in that repository and replay GHSA-f82v (section 4). Then on the case page: **Draft fix** → diff → **Approve & open draft PR…** → the draft PR link and the "Repository CI" panel appear.
+F. **QStash schedule** (section 2 step 4) and **heartbeat secrets** (step 5). `/api/status` → `infra.scheduler.tick_schedule_detected` becomes `true` after the first delivery from the schedule; until then the legacy `rss`/`kev` schedules also run every other due poller.
+G. Optional for the demo: `ALERT_WEBHOOK_URL` (Slack/Discord), `GOOGLE_TRANSLATE_API_KEY`, VAPID keys (section 1).
+
 ## 3. Register demo repositories (admin API; users use the Repos page instead)
 
 ```bash

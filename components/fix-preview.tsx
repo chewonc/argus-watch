@@ -100,6 +100,7 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
               <li>If the cited files changed on {defaultBranch} since the analysis, nothing is written and you are asked to re-run the analysis.</li>
             </ul>
             <label className="flex items-center gap-2"><input type="checkbox" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} /> I reviewed the diff and the assessment above.</label>
+            {err && <p className="text-[13px]" role="alert" style={{ color: "var(--contradicted)" }}>{err}</p>}
             <div className="flex gap-2 justify-end">
               <button type="button" className="btn-ghost" onClick={() => dlg.current?.close()}>Cancel</button>
               <button type="submit" className="btn" disabled={!reviewed || busy === "apply"}>{busy === "apply" ? "Opening draft PR…" : "Approve and open draft PR"}</button>

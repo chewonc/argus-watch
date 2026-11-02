@@ -25,9 +25,14 @@ export async function POST(req: Request) {
       try { r = await refreshRepo(w); }
       catch (e) { return Response.json({ ok: false, error: `cannot read ${w.repo}@${w.default_branch}: ${String(e).slice(0, 200)}. Check the repo name, branch, and that GITHUB_TOKEN can read it.` }, { status: 400 }); }
       await store.putRepo(r);
-      // Admin-registered repos belong to the reserved "system" user (demo mode shows them to every signed-in user).
-      await store.addUserRepo({ user_id: SYSTEM_USER, repo_key: store.repoKey(r), installation_id: null, allow_pr: false, local_root: null, added_at: new Date().toISOString() });
-      return Response.json({ ok: true, repo: store.repoKey(r), sha: r.sha, packages: r.packages.length, tech_tags: r.tech_tags });
+      // Admin-registered repos belong to the reserved "system" user (demo mode shows them to every signed-in user),
+      // unless `user_id` names an existing user: then the repo is linked to that user (optionally with allow_pr), which is
+      // how an operator can hand a repository to a specific account without the App flow. Writes still require an
+      // App installation at apply time, so allow_pr here never bypasses that check.
+      const uid = typeof body.user_id === "string" && body.user_id && body.user_id !== SYSTEM_USER ? body.user_id : SYSTEM_USER;
+      if (uid !== SYSTEM_USER && !(await store.getUser(uid))) return Response.json({ ok: false, error: `unknown user ${uid}` }, { status: 404 });
+      await store.addUserRepo({ user_id: uid, repo_key: store.repoKey(r), installation_id: null, allow_pr: uid !== SYSTEM_USER && body.allow_pr === true, local_root: null, added_at: new Date().toISOString() });
+      return Response.json({ ok: true, repo: store.repoKey(r), sha: r.sha, packages: r.packages.length, tech_tags: r.tech_tags, user_id: uid });
     }
     case "migrate_system": {
       // One-time: link every existing watched repo to the system user so it stays visible after the identity layer.
