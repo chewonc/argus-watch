@@ -11,3 +11,19 @@ export async function saveSettings(formData: FormData) {
   await store.putUser({ ...user, settings: { ...user.settings, inapp: formData.get("inapp") === "on", webhook_url: webhook } });
   revalidatePath("/settings");
 }
+
+/** Create a personal agent token (returned once; only its hash is stored). */
+export async function createAgentTokenAction(label: string): Promise<string> {
+  const user = await requireUser("/settings");
+  const { createAgentToken } = await import("@/lib/agent-token");
+  const t = await createAgentToken(user.id, label);
+  revalidatePath("/settings");
+  return t;
+}
+
+export async function revokeAgentTokenAction(formData: FormData) {
+  const user = await requireUser("/settings");
+  const { revokeAgentToken } = await import("@/lib/agent-token");
+  await revokeAgentToken(user.id, String(formData.get("hash") ?? ""));
+  revalidatePath("/settings");
+}

@@ -6,7 +6,7 @@ import type { Assessment, Finding, Item } from "./schema";
 export type Provenance = "ADVISORY-STATED" | "REPO-INFERRED" | "SPECULATIVE";
 
 const SECRET_RE = /(-----BEGIN [A-Z ]*PRIVATE KEY|AKIA[0-9A-Z]{12,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|xox[abp]-[A-Za-z0-9-]{10,}|bearer\s+[A-Za-z0-9._-]{16,}|(api[_-]?key|secret|token|password|passwd)\s*[:=]\s*["\x27]?[A-Za-z0-9\/_+.=-]{8,})/i;
-const redact = (s: string) => s.split("\n").map((l) => (SECRET_RE.test(l) ? "[line withheld: looks like a credential]" : l)).join("\n");
+export const redact = (s: string) => s.split("\n").map((l) => (SECRET_RE.test(l) ? "[line withheld: looks like a credential]" : l)).join("\n");
 
 export const permalink = (repoFull: string, sha: string, file: string, line?: number | null, end?: number | null) => {
   const [owner, name] = repoFull.split("/");

@@ -68,7 +68,13 @@ export async function modelConditionStates(files: { path: string; text: string }
   return { states, locations, recommendations: r.out.recommendations, unverified: r.out.unverified, dropped, model: r.model };
 }
 
-export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, opts: { replayed?: boolean; items?: Item[] } = {}): Promise<Assessment> {
+/**
+ * Stages 3-6 for one (finding, repo). Hosted model use is skipped when it cannot change the outcome or the budget
+ * is spent: "deterministic" = a package advisory with no code conditions (decided by the version check in code);
+ * "capped" = the repository's users are over their monthly hosted budget, so code conditions stay Unknown and the
+ * verdict can only be Unclear ("Possible issue") or Not Affected, never a confirmed vulnerability.
+ */
+export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, opts: { replayed?: boolean; items?: Item[]; budget?: boolean } = {}): Promise<Assessment> {
   const sha = repo.sha!;
   const tier: Tier = finding.tier;
   const pkgNames = claim.packages.map((p) => p.name);
@@ -95,7 +101,13 @@ export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, 
   const condsIn = claim.conditions.map(({ id, text }) => ({ id, text }));
   let modelOut: { locations: { file: string; line: number; quoted_text: string; why: string }[]; conditions: { id: string; state: ConditionResult["state"]; evidence_file: string | null; evidence_line: number | null; reasoning: string }[]; unverified: string[]; recommendations: { text: string; condition_ids: string[] }[] };
   let model = "none";
-  if (condsIn.length || files.length) {
+  const deterministic = condsIn.length === 0 && claim.packages.length > 0;
+  const hosted: Assessment["hosted"] = deterministic ? "deterministic" : opts.budget === false ? "capped" : "model";
+  if (hosted !== "model") {
+    const bad = claim.packages.filter((p) => computed.some((c) => c.id === `version_${p.name}` && c.state !== "Contradicted"));
+    modelOut = { locations: [], conditions: [], recommendations: bad.map((p) => ({ text: `Upgrade ${p.name} to a version outside the affected range${p.affected_ranges.length ? ` (${p.affected_ranges.join(" | ")})` : ""}.`, condition_ids: [`version_${p.name}`] })),
+      unverified: hosted === "capped" && condsIn.length ? ["Code conditions were not analysed by Argus this month (hosted analysis budget reached). Verify with your AI agent, or wait for the next month."] : [] };
+  } else if (condsIn.length || files.length) {
     const r = await sparkJSON<typeof modelOut>({
       system: SYSTEM, name: "assessment",
       user: `REPORT (untrusted):\n${claim.summary}\n\nCONDITIONS:\n${JSON.stringify(condsIn, null, 2)}\n\nREPOSITORY ${repo.repo}@${sha.slice(0, 7)} (untrusted, numbered):\n${listing || "(no candidate files located)"}`,
@@ -132,7 +144,7 @@ export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, 
     unverified: [...new Set(modelOut.unverified), ...(dropped.length ? [`${dropped.length} citation(s) failed verification and were dropped: ${dropped.join(", ")}`] : [])],
     recommendations: modelOut.recommendations,
     timestamps: { published_at: finding.published_at, discovered_at: finding.discovered_at, processed_at, notified_at: null },
-    model, replayed: !!opts.replayed,
+    model, replayed: !!opts.replayed, hosted,
   };
 }
 

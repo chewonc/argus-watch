@@ -5,11 +5,12 @@ import { READ_ONLY, UNTRUSTED, sparkJSON } from "./spark";
 
 const CLAIM_SCHEMA = {
   type: "object", additionalProperties: false,
-  required: ["actionable", "claim_type", "summary", "packages", "tech_tags", "conditions", "not_actionable_reason"],
+  required: ["actionable", "claim_type", "summary", "plain_title", "packages", "tech_tags", "conditions", "not_actionable_reason"],
   properties: {
     actionable: { type: "boolean" },
     claim_type: { type: "string", enum: ["dependency_vulnerability", "framework_misconfiguration", "ai_agent_tool_use", "prompt_injection", "supply_chain", "other"] },
     summary: { type: "string" },
+    plain_title: { type: "string" },
     packages: { type: "array", items: { type: "object", additionalProperties: false, required: ["ecosystem", "name", "affected_ranges"],
       properties: { ecosystem: { type: "string" }, name: { type: "string" }, affected_ranges: { type: "array", items: { type: "string" } } } } },
     tech_tags: { type: "array", items: { type: "string" } },
@@ -25,6 +26,7 @@ ${UNTRUSTED}
 Task: turn a security report into a testable claim about software systems.
 - actionable=false (with not_actionable_reason) when the text names no specific software component, mechanism or precondition that could be checked in a repository or its configuration (e.g. general commentary, policy news, a paper with no concrete affected software).
 - packages: concrete package coordinates only when the text states them (ecosystem lowercased: npm, pypi, go, maven, cargo, rubygems, nuget). affected_ranges as written in the text, or [] if not stated.
+- plain_title: at most 8 everyday words saying what could go wrong for an affected project, for a non-technical reader (e.g. "Attackers could run code on your server", "Your login tokens could be forged"). No product names unless essential, no IDs, no jargon, no claim that any specific project is affected.
 - tech_tags: lowercase technologies the issue concerns (e.g. "next.js", "express", "react-server-components", "mcp", "openai-agents-sdk", "langchain", "docker", "github-actions", "jwt").
 - conditions: each a statement that must be TRUE for a system to be affected (attack-enabling form).
   role="required" if the report says the issue only applies when it holds.

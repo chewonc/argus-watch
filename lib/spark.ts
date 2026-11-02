@@ -1,5 +1,12 @@
 // Meta Model API client (OpenAI-compatible). Structured output only. Never logs the key.
 import { env } from "./env";
+import { kv } from "./store";
+
+const month = () => new Date().toISOString().slice(0, 7);
+/** Hosted inference usage for cost accounting: calls and tokens per call name per month (see lib/usage.ts). */
+async function countUsage(name: string, tokens: number) {
+  try { await kv.incr(`usage:${month()}:${name}:calls`); if (tokens > 0) await kv.set(`usage:${month()}:${name}:tokens`, ((await kv.get<number>(`usage:${month()}:${name}:tokens`)) ?? 0) + tokens); } catch { /* accounting must never break analysis */ }
+}
 
 export class SparkError extends Error {}
 
@@ -30,6 +37,7 @@ export async function sparkJSON<T>(opts: {
     throw new SparkError(`Meta API ${res.status}: ${txt}`);
   }
   const body = await res.json();
+  await countUsage(opts.name, Number(body?.usage?.total_tokens ?? 0));
   const content = body?.choices?.[0]?.message?.content;
   if (typeof content !== "string") throw new SparkError("Meta API returned no content");
   return { out: JSON.parse(content) as T, ms: Date.now() - t0, model: env.META_MODEL };

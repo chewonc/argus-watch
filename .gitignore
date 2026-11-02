@@ -27,6 +27,7 @@
 .vercel/
 .yarn/*
 /.next/
+/.next-*/
 /.pnp
 /build
 /coverage

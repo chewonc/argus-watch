@@ -25,18 +25,15 @@ export const fmtTime = (iso: string | null) => (iso ? new Date(iso).toISOString(
 export const secs = (a: string | null, b: string | null) => (a && b ? Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 1000)) : null);
 export const human = (s: number | null) => (s == null ? "—" : s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)}m` : s < 172800 ? `${Math.round(s / 3600)}h` : `${Math.round(s / 86400)}d`);
 
+const fmtDay = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }) : "Unknown");
+
+/** Dates of an assessment, one per line; exact UTC time on hover. */
 export function Timeline({ a }: { a: Assessment }) {
   const t = a.timestamps;
-  const steps: [string, string | null][] = [["published", t.published_at], ["discovered", t.discovered_at], ["processed", t.processed_at], ["notified", t.notified_at]];
+  const steps: [string, string | null][] = [["Published", t.published_at], ["Discovered", t.discovered_at], ["Processed", t.processed_at], ["Notified", t.notified_at]];
   return (
-    <div className="tl mono text-[12px]">
-      {steps.map(([k, v], i) => (
-        <div key={k}>
-          <div className="label">{k}</div>
-          <div>{fmtTime(v)}</div>
-          {i > 0 && <div className="text-ink2">+{human(secs(steps[i - 1][1], v))}</div>}
-        </div>
-      ))}
-    </div>
+    <dl className="grid grid-cols-[110px_1fr] gap-y-1 text-[13px]">
+      {steps.map(([k, v]) => <div key={k} className="contents"><dt className="text-ink2">{k}</dt><dd title={v ? fmtTime(v) : undefined}>{fmtDay(v)}</dd></div>)}
+    </dl>
   );
 }

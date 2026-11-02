@@ -9,6 +9,7 @@ import { enqueueProcess } from "./queue";
 import { refreshRepo } from "./repo";
 import type { Finding, Item, WatchedRepo } from "./schema";
 import { store } from "./store";
+import { chargeHosted, hostedBudgetLeft } from "./usage";
 
 /** Stage 1 entry for every source. Returns whether a (new or changed) finding was queued. */
 export async function ingest(item: Item, opts: { enqueue?: boolean; replayed?: boolean } = {}): Promise<{ finding: Finding; queued: boolean; created: boolean }> {
@@ -81,7 +82,9 @@ export async function processFinding(id: string, opts: { replayed?: boolean } = 
     const runOne = async (r: WatchedRepo) => {
       const aid = `${f.id}:${r.repo}${r.subdir ? "/" + r.subdir : ""}:${r.sha!.slice(0, 12)}:${f.claim_version}`;
       if (!opts.replayed && (await store.getAssessment(aid))) return;
-      let a = await assess(f, f.claim!, r, { replayed: opts.replayed, items });
+      const key = store.repoKey(r);
+      let a = await assess(f, f.claim!, r, { replayed: opts.replayed, items, budget: await hostedBudgetLeft(key) });
+      if (a.hosted === "model" && a.model !== "none") await chargeHosted(key);
       if (a.verdict === "Affected" || a.verdict === "Unclear") a = await sendAlert(a); else await store.putAssessment(a);
       await notifyAssessment(a, f, items).catch((e) => store.log({ kind: "error", source: "notify", detail: String(e).slice(0, 200), ref: a.id }));
     };

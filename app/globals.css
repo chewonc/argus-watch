@@ -7,7 +7,14 @@
   --ink: #1a1917;
   --ink-2: #5b5751;
   --line: #e4dfd5;
-  --accent: #2b4acb;
+  --accent: #b4452b;
+  --ink-3: #8a847a;
+  --sunken: #efece5;
+  --sev-critical: #b42318;
+  --sev-high: #c2410c;
+  --sev-moderate: #a15c07;
+  --sev-low: #6b6760;
+  --possible: #5f6b7a;
   --observed: #1f6b4a;
   --inferred: #8a5a00;
   --unknown: #5e5a54;
@@ -23,7 +30,14 @@
     --ink: #edeae3;
     --ink-2: #a8a196;
     --line: #2a2825;
-    --accent: #8ea2ff;
+    --accent: #e0684a;
+    --ink-3: #7a746b;
+    --sunken: #181715;
+    --sev-critical: #f2826e;
+    --sev-high: #f39a5c;
+    --sev-moderate: #e6b450;
+    --sev-low: #a39c91;
+    --possible: #a3afbf;
     --observed: #5fb58a;
     --inferred: #e0a63e;
     --unknown: #a39c91;
@@ -52,7 +66,9 @@ body { font-family: var(--font-geist-sans), Inter, system-ui, sans-serif; font-s
 .mono { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 13px; }
 .label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
 .hair { border-color: var(--line); }
-a { color: var(--accent); }
+a { color: inherit; text-decoration-color: var(--line); text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
 
 /* Evidence chips: square, glyph + word, never colour alone */
 .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 2px; border: 1px solid currentColor; line-height: 1.4; white-space: nowrap; }
@@ -77,7 +93,7 @@ a { color: var(--accent); }
 .code pre { white-space: pre; margin: 0; }
 .code .line { display: inline-block; min-width: 100%; padding: 0 12px; box-sizing: border-box; }
 .code .line::before { counter-increment: line; content: counter(line); display: inline-block; width: 3ch; margin-right: 16px; text-align: right; color: var(--ink-2); opacity: 0.6; }
-.code .line.hit { background: color-mix(in oklab, var(--accent) 12%, transparent); }
+.code .line.hit { background: color-mix(in oklab, var(--sev-moderate) 14%, transparent); }
 .shiki { background: transparent !important; }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -88,13 +104,30 @@ a { color: var(--accent); }
 }
 
 /* Buttons, badges, severity chips, diff lines (added Nov 1) */
-.btn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 5px 12px; border-radius: 4px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; text-decoration: none; }
-.btn:hover { opacity: .9; }
-.btn[disabled] { opacity: .45; cursor: not-allowed; }
-.btn-ghost { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 5px 10px; border-radius: 4px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; text-decoration: none; }
-.btn-ghost:hover { border-color: var(--ink-2); }
-.btn-danger { border-color: var(--affected); background: var(--affected); }
-.badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--affected); color: #fff; font-size: 11px; font-weight: 600; text-align: center; line-height: 18px; }
+.btn, .btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; font-size: 13px; font-weight: 500; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink); cursor: pointer; text-decoration: none; transition: border-color .12s, background .12s; }
+.btn:hover, .btn-ghost:hover { border-color: var(--ink-2); background: var(--sunken); }
+.btn:active, .btn-ghost:active { background: color-mix(in oklab, var(--sunken) 70%, var(--line)); }
+.btn[disabled], .btn-ghost[disabled] { opacity: .45; cursor: not-allowed; }
+.btn { font-weight: 600; border-color: color-mix(in oklab, var(--ink-2) 45%, var(--line)); }
+.btn-ghost { background: transparent; }
+.btn-danger { color: var(--sev-critical); border-color: color-mix(in oklab, var(--sev-critical) 40%, var(--line)); }
+/* One status per alert: glyph + word, never colour alone */
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; line-height: 20px; padding: 0 8px; border-radius: 999px; background: color-mix(in oklab, currentColor 10%, transparent); white-space: nowrap; }
+.tone-sev-critical { color: var(--sev-critical); } .tone-sev-high { color: var(--sev-high); } .tone-sev-moderate { color: var(--sev-moderate); }
+.tone-sev-low { color: var(--sev-low); } .tone-possible { color: var(--possible); } .tone-ok { color: var(--not-affected); } .tone-muted { color: var(--ink-2); }
+.tone-warn { color: var(--sev-moderate); } .tone-bad { color: var(--sev-critical); }
+.seg { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-raised); }
+.seg a { padding: 4px 12px; border-radius: 6px; font-size: 13px; color: var(--ink-2); text-decoration: none; }
+.seg a:hover { color: var(--ink); }
+.seg a[aria-current="page"] { background: var(--sunken); color: var(--ink); font-weight: 600; }
+.menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 220px; z-index: 30; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+.menu [role="menuitem"] { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; font-size: 13px; color: var(--ink); text-decoration: none; background: none; border: 0; cursor: pointer; }
+.menu [role="menuitem"]:hover, .menu [role="menuitem"]:focus-visible { background: var(--sunken); outline: none; }
+details.disclose > summary { cursor: pointer; list-style: none; font-size: 13px; font-weight: 500; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
+details.disclose > summary::-webkit-details-marker { display: none; }
+details.disclose > summary::before { content: "▸"; transition: transform .12s; }
+details.disclose[open] > summary::before { transform: rotate(90deg); }
+.badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; text-align: center; line-height: 18px; }
 .chip-sev-critical { color: var(--affected); }
 .chip-sev-high { color: var(--contradicted); }
 .chip-sev-moderate { color: var(--unclear); }
@@ -105,6 +138,6 @@ a { color: var(--accent); }
 .diff .dl .ln { color: var(--ink-2); text-align: right; padding-right: 8px; user-select: none; }
 .diff .diff-add { color: var(--observed); background: color-mix(in srgb, var(--observed) 8%, transparent); font-style: italic; border-left: 2px dashed var(--observed); }
 .diff .diff-del { color: var(--contradicted); background: color-mix(in srgb, var(--contradicted) 8%, transparent); text-decoration: line-through; opacity: .75; }
-.diff .diff-hunk { color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.diff .diff-hunk { color: var(--ink-2); background: var(--sunken); }
 dialog.modal { border: 1px solid var(--line); border-radius: 6px; background: var(--bg-raised); color: var(--ink); max-width: 560px; padding: 20px; }
 dialog.modal::backdrop { background: rgba(0,0,0,.35); }

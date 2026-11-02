@@ -1,12 +1,12 @@
 // English source strings for the UI. Other languages are produced by Google Cloud Translation at request time
 // (lib/i18n/translate.ts) and cached; the English text is the key, so a changed string is re-translated automatically.
 export const en = {
-  nav_watch: "Watch", nav_repos: "Repos", nav_sources: "Sources", nav_alerts: "Alerts", nav_settings: "Settings", sign_in: "Sign in with GitHub", sign_out: "Sign out", sign_in_not_configured: "sign-in not configured",
+  nav_watch: "Watch", nav_repos: "Repositories", nav_monitoring: "Monitoring status", nav_activity: "Activity log", nav_sources: "Sources", nav_alerts: "Alerts", nav_settings: "Settings", sign_in: "Sign in with GitHub", sign_out: "Sign out", sign_in_not_configured: "sign-in not configured",
   headline: "What touched your code.",
   tagline: "Advisories and research signals checked against your watched repositories, continuously, read-only. Absence of alerts is evidence from inspected files only, never proof of safety.",
   repositories: "Repositories", no_repos: "No repositories watched yet.", connect_link: "Connect GitHub and pick repositories →", needs_attention: "need attention", no_issues: "no issues found in inspected files", demo: "demo",
   needs_action: "needs action", critical: "critical", high: "high", moderate: "moderate", low: "low", new_unread: "new (unread)", resolved: "resolved / fix proposed", not_affected: "not affected",
-  alerts: "Alerts", filter_needs_action: "needs action", filter_new: "new", filter_all: "all", filter_resolved: "resolved", filter_not_affected: "not affected",
+  alerts: "Alerts", filter_needs_action: "needs action", filter_new: "new", filter_resolved_old: "resolved", filter_not_affected: "not affected",
   no_alerts: "No alerts yet. Alerts appear here automatically when a discovered finding matches a watched repository.", nothing_in_filter: "Nothing in this filter.",
   problem: "Problem", suggested_fix: "Suggested fix", where: "Where", what_if_approve: "What happens if you approve a fix", approve_explainer: "A draft pull request on a new branch; nothing is merged and the default branch is untouched. Changes are syntax-checked only, never executed.",
   no_fix: "No concrete fix produced; see missing evidence.", no_location: "exact location not available: no source line could be cited",
@@ -28,7 +28,16 @@ export const en = {
   notif_empty: "Nothing yet. You are notified when a finding matches one of your repositories with an Affected or Unclear verdict, when a verdict or severity changes, and when a draft PR is opened.",
   detected: "detected", unread: "unread",
   sources_title: "Sources and coverage", sources_intro: "Each source is labelled by how it is actually monitored. Intervals and publication→discovery latency are measured from logged runs and stored timestamps, not assumed. One scheduler tick runs every {n} minutes; each source runs on its own interval.",
-  read_only_footer: "Read-only analysis. Argus Watch does not run, reproduce, or test any vulnerability. Evidence-supported impact prediction is not experimentally confirmed exploitability. Repository changes happen only as draft pull requests you explicitly approve.",
+  // Redesign (Nov 2026): plain-language dashboard, finding page and empty states
+  filter_all: "All", filter_urgent: "Urgent", filter_resolved: "Resolved", view: "View", fix: "Fix", manage: "Manage",
+  no_repos_short: "Connect a repository to start monitoring.", nothing_needs_you: "Nothing needs your attention right now.", one_needs_you: "1 thing needs your attention.", n_need_you: "{n} things need your attention.",
+  empty_connect_title: "Connect your first repository", empty_connect_body: "Argus Watch checks new security threats against your code and tells you when something affects it.",
+  empty_clear_title: "Nothing needs your attention", empty_clear_body: "No new threat matches your code right now. This isn't a guarantee there are no problems; we'll alert you as soon as something new matches.",
+  empty_resolved_title: "Nothing resolved yet", empty_resolved_body: "Alerts you fix or that are fixed by a pull request will show up here.",
+  whats_wrong: "What's wrong?", how_to_fix: "How to fix it", open_in_github: "Open file in GitHub", back_to_alerts: "Alerts",
+  not_confirmed_long: "Not yet confirmed in your project. We saw this in security news about {tech}, but couldn't find affected code in your repository.",
+  could_be_serious: "Could be serious, but not yet confirmed in your project.",
+  read_only_footer: "Argus Watch only reads your code. Nothing in your repository changes without your approval.",
 } as const;
 export type Key = keyof typeof en;
 export type Dict = Record<Key, string>;

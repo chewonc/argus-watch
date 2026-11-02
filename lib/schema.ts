@@ -51,6 +51,7 @@ export const Claim = z.object({
     "other",
   ]),
   summary: z.string(),
+  plain_title: z.string().optional(), // <= 8 everyday words for non-experts; absent on claims extracted before Nov 2026
   packages: z.array(z.object({ ecosystem: z.string(), name: z.string(), affected_ranges: z.array(z.string()) })),
   tech_tags: z.array(z.string()), // e.g. "next.js", "express", "mcp", "openai-sdk"
   conditions: z.array(ConditionDef),
@@ -138,6 +139,17 @@ export const Assessment = z.object({
   model: z.string(),
   replayed: z.boolean().default(false),
   severity: Severity.optional(), // computed in lib/severity.ts for new assessments; derived at render time for older ones
+  hosted: z.enum(["model", "deterministic", "capped"]).optional(), // how the hosted analysis ran (cost control); absent = model (older records)
+  // Result reported by the user's own AI agent over MCP. Every cited line was re-read at `sha` and matched before it was stored;
+  // the server verdict above is never overwritten.
+  agent: z.object({
+    status: z.enum(["confirmed", "not_affected", "fix_proposed"]),
+    summary: z.string(),
+    evidence: z.array(z.object({ file: z.string(), line: z.number().int(), quote: z.string() })),
+    pr_url: z.string().nullable(),
+    client: z.string().nullable(),
+    at: z.string(),
+  }).optional(),
 });
 export type Assessment = z.infer<typeof Assessment>;
 

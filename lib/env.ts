@@ -20,6 +20,10 @@ export const env = {
   GITHUB_APP_ID: process.env.GITHUB_APP_ID ?? "",
   GITHUB_APP_PRIVATE_KEY: (process.env.GITHUB_APP_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
   GITHUB_APP_SLUG: process.env.GITHUB_APP_SLUG ?? "",
+  // Web "Fix" (server-drafted patch -> draft PR) stays hidden until an end-to-end run on a real repo has succeeded.
+  FIX_ENABLED: process.env.FIX_ENABLED === "1",
+  // Hosted per-repo analyses per user per calendar month before findings stay "Possible issue" for the user's own agent.
+  HOSTED_ANALYSIS_CAP: Number(process.env.HOSTED_ANALYSIS_CAP ?? 20),
   DEMO_SHARED_REPOS: process.env.DEMO_SHARED_REPOS === "1", // show admin-registered ("system") repos to every signed-in user
   // Translation + push
   GOOGLE_TRANSLATE_API_KEY: process.env.GOOGLE_TRANSLATE_API_KEY ?? "",

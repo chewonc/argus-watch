@@ -15,9 +15,9 @@ export function LanguageSwitcher({ current, languages }: { current: string; lang
   }, [current, router]);
   const list = languages.some((l) => l.code === current) ? languages : [{ code: current, name: current }, ...languages];
   return (
-    <label className="flex items-center gap-1 text-[12px]" aria-busy={pending}>
+    <label className="flex items-center gap-1 text-[14px]" aria-busy={pending}>
       <span className="sr-only">Language</span>
-      <select value={value} onChange={(e) => { const code = e.target.value; setValue(code); try { localStorage.setItem("aw_locale", code); } catch { /* ignore */ } start(async () => { await setLocale(code); router.refresh(); }); }} className="border hair rounded-[4px] px-1 py-0.5 bg-transparent max-w-[140px]" disabled={pending}>
+      <select value={value} onChange={(e) => { const code = e.target.value; setValue(code); try { localStorage.setItem("aw_locale", code); } catch { /* ignore */ } start(async () => { await setLocale(code); router.refresh(); }); }} className="border hair rounded-[6px] px-2 h-9 bg-transparent text-[14px] max-w-[260px]" disabled={pending}>
         {list.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
       </select>
     </label>

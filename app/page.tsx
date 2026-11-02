@@ -1,148 +1,117 @@
-// Watch dashboard. Signed out: what this is and the sign-in. Signed in: per-repo status, counts by severity,
-// actionable alert cards (newest first), coverage and watched repos in the aside.
+// Alerts dashboard. Answers only: do I need to do anything, which issues, which repository is watched.
+// Signed out: one sentence, a sample alert, sign in. Technical monitoring detail lives on /monitoring.
 import Link from "next/link";
-import { AlertCard, Counts, firstSentence, suggestedFix, type CardData } from "@/components/alerts";
-import { SignInButton } from "@/components/sign-in-button";
-import { fmtTime, human } from "@/components/ui";
-import { env, hasAuth } from "@/lib/env";
+import { AlertCard, type CardData } from "@/components/alerts";
+import { Landing } from "@/components/landing";
+import { env, hasAuth, hasGitHubApp } from "@/lib/env";
+import { canFix } from "@/lib/fixgate";
+import { installationPermissions } from "@/lib/github-app";
 import { getDict, getLocale, tr } from "@/lib/i18n";
-import { computeLatency } from "@/lib/latency";
-import { deriveSeverity, SEVERITY_ORDER } from "@/lib/severity";
-import { POLLERS } from "@/lib/poll";
+import { caseHref, discoveredAt, location, plainTitle, repoStatus, statusOf, whereLine } from "@/lib/labels";
+import { deriveSeverity } from "@/lib/severity";
 import { currentUser, visibleRepoKeys } from "@/lib/session";
-import { SYSTEM_USER, store } from "@/lib/store";
+import { store } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
-const FILTERS = ["needs_action", "new", "all", "resolved", "not_affected"] as const;
+const FILTERS = ["all", "urgent", "resolved"] as const;
+type Filter = (typeof FILTERS)[number];
+// Older links (?f=needs_action etc.) keep working.
+const LEGACY: Record<string, Filter> = { needs_action: "urgent", new: "all", not_affected: "all" };
 
 export default async function Watch({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const user = await currentUser();
   const sp = await searchParams;
   const locale = await getLocale();
   const d = await getDict(locale);
-  if (!user) return <Landing signin={sp.signin === "1"} next={sp.next} />;
+  if (!user) return <Landing signin={sp.signin === "1"} next={sp.next} authReady={hasAuth()} />;
 
   const keys = await visibleRepoKeys(user.id);
-  const [assessmentsAll, findings, log, reposAll, readSet, resolvedSet, mine] = await Promise.all([
-    store.listAssessments(400), store.listFindings(), store.recentLog(60), store.listRepos(), store.readSet(user.id), store.resolvedSet(user.id), store.listUserRepos(user.id),
+  const [assessmentsAll, findings, reposAll, resolvedSet, mine] = await Promise.all([
+    store.listAssessments(400), store.listFindings(), store.listRepos(), store.resolvedSet(user.id), store.listUserRepos(user.id),
   ]);
   const repos = reposAll.filter((r) => keys.has(store.repoKey(r)));
   const fmap = new Map(findings.map((f) => [f.id, f]));
+  const rmap = new Map(repos.map((r) => [store.repoKey(r), r]));
   // latest assessment per (finding, repo): re-assessments supersede older ones
   const latest = new Map<string, (typeof assessmentsAll)[number]>();
   for (const a of assessmentsAll) { if (!keys.has(a.repo)) continue; const k = `${a.finding_id}|${a.repo}`; if (!latest.has(k) || latest.get(k)!.timestamps.processed_at < a.timestamps.processed_at) latest.set(k, a); }
-  const read = new Set(readSet), resolved = new Set(resolvedSet);
-  const fixStates = new Map<string, CardData["fixState"]>();
+  const resolved = new Set(resolvedSet);
+  const fixStates = new Map<string, "none" | "pr_created" | "failed" | "drafted">();
   await Promise.all([...latest.values()].filter((a) => a.verdict !== "Not Affected").map(async (a) => { const fx = await store.listFixes(a.id); fixStates.set(a.id, fx.some((x) => x.status === "pr_created") ? "pr_created" : fx.some((x) => x.status === "drafted" || x.status === "approved") ? "drafted" : fx.some((x) => x.status === "failed") ? "failed" : "none"); }));
-  const cards: CardData[] = [...latest.values()].sort((x, y) => y.timestamps.processed_at.localeCompare(x.timestamps.processed_at)).map((a) => {
-    const f = fmap.get(a.finding_id) ?? null;
-    const ur = mine.find((m) => m.repo_key === a.repo);
-    return { a, f, sev: a.severity ?? deriveSeverity(a, []), read: read.has(a.id), resolved: resolved.has(a.id) || fixStates.get(a.id) === "pr_created", fixState: fixStates.get(a.id) ?? "none", allowPr: !!ur?.allow_pr, localRoot: ur?.local_root ?? null, caseHref: `/case/${a.id.split("/").map(encodeURIComponent).join("/")}` };
-  });
-  // Dynamic text translation (bounded; cached per string per locale). Identifiers and package names are protected.
-  if (locale !== "en") {
-    const keep = [...new Set(cards.flatMap((c) => c.f?.claim?.packages.map((p) => p.name) ?? []))];
-    const top = cards.slice(0, 26);
-    const src = top.flatMap((c) => [c.f?.title ?? c.a.finding_id, c.f?.claim?.summary ? firstSentence(c.f.claim.summary) : c.a.verdict_qualifier, suggestedFix(c.a) ?? ""]);
-    const out = await tr(locale, src, keep);
-    top.forEach((c, i) => { c.tx = { title: out[i * 3], problem: out[i * 3 + 1], fix: out[i * 3 + 2] || undefined }; });
+  // Write permission is only looked up when web Fix is switched on (one cached-per-request call per installation).
+  const perms = new Map<number, boolean>();
+  if (env.FIX_ENABLED && hasGitHubApp()) for (const id of new Set(mine.map((m) => m.installation_id).filter((x): x is number => !!x))) {
+    perms.set(id, await installationPermissions(id).then((p) => p.contents === "write" && p.pull_requests === "write").catch(() => false));
   }
-  const filter = (FILTERS as readonly string[]).includes(sp.f ?? "") ? (sp.f as (typeof FILTERS)[number]) : "needs_action";
-  const shown = cards.filter((c) => filter === "all" ? true : filter === "needs_action" ? c.a.verdict !== "Not Affected" && !c.resolved : filter === "new" ? !c.read && c.a.verdict !== "Not Affected" : filter === "resolved" ? c.resolved : c.a.verdict === "Not Affected");
-  const lat = await computeLatency(assessmentsAll, findings);
-  const lastDelivery = log.find((l) => l.kind === "webhook" && /security_advisory/.test(l.detail))?.at ?? null;
-  const health = repos.map((r) => { const k = store.repoKey(r); const open = cards.filter((c) => c.a.repo === k && c.a.verdict !== "Not Affected" && !c.resolved); const sys = !mine.some((m) => m.repo_key === k); const worst = open.map((c) => c.sev.level).sort((x, y) => SEVERITY_ORDER.indexOf(x) - SEVERITY_ORDER.indexOf(y))[0]; return { k, r, open: open.length, worst, sys }; });
+
+  const cards: CardData[] = [...latest.values()].sort((x, y) => discoveredAt(y).localeCompare(discoveredAt(x))).map((a) => {
+    const f = fmap.get(a.finding_id) ?? null;
+    const r = rmap.get(a.repo);
+    const ur = mine.find((m) => m.repo_key === a.repo);
+    const sev = a.severity ?? deriveSeverity(a, []);
+    const fs = fixStates.get(a.id) ?? "none";
+    const loc = location(a);
+    const status = statusOf(a, sev, { resolved: resolved.has(a.id), prOpen: fs === "pr_created" });
+    const fix = status.kind !== "fix_ready" && status.kind !== "resolved" && canFix(a, { allowPr: !!ur?.allow_pr, isDemo: !ur, hasInstallation: !!ur?.installation_id, writePermission: ur?.installation_id ? perms.get(ur.installation_id) ?? null : null, loc, priorFailed: fs === "failed" });
+    return { a, f, sev, status, title: plainTitle(a, f, loc, r?.tech_tags, r?.packages.map((p) => p.name)), where: whereLine(a, loc), fix, caseHref: caseHref(a.id) };
+  });
+  if (locale !== "en") {
+    const top = cards.slice(0, 40);
+    const out = await tr(locale, top.map((c) => c.title), [...new Set(cards.flatMap((c) => c.f?.claim?.packages.map((p) => p.name) ?? []))]);
+    top.forEach((c, i) => { c.title = out[i] || c.title; });
+  }
+  const filter: Filter = (FILTERS as readonly string[]).includes(sp.f ?? "") ? (sp.f as Filter) : LEGACY[sp.f ?? ""] ?? "all";
+  const isOpen = (c: CardData) => c.status.kind !== "not_affected" && c.status.kind !== "resolved" && c.status.kind !== "fix_ready";
+  const relevant = cards.filter((c) => c.status.kind !== "not_affected");
+  const shown = filter === "urgent" ? relevant.filter(isOpen) : filter === "resolved" ? relevant.filter((c) => !isOpen(c)) : relevant;
+  const openCount = relevant.filter(isOpen).length;
+  // One line per GitHub repository (fixture subfolders of the same repository collapse into it); worst status wins.
+  const RANK = { bad: 0, warn: 1, ok: 2 } as const;
+  const byRepo = new Map<string, ReturnType<typeof repoStatus>>();
+  for (const r of repos) { const k = store.repoKey(r); const ur = mine.find((m) => m.repo_key === k); const st = repoStatus(r, { connected: !ur || !!ur.installation_id || !hasGitHubApp() }); const prev = byRepo.get(r.repo); if (!prev || RANK[st.tone] < RANK[prev.tone]) byRepo.set(r.repo, st); }
+  const repoLines = [...byRepo.entries()].map(([k, s]) => ({ k, s }));
 
   return (
-    <div className="mx-auto max-w-[1480px] px-6 py-8 grid gap-10 lg:grid-cols-[1fr_340px]">
-      <section className="grid gap-8 content-start">
-        <div>
-          <h1 className="serif text-[40px] leading-tight">{d.headline}</h1>
-          <p className="text-ink2 mt-1">{d.tagline}</p>
+    <div className="mx-auto max-w-[1080px] px-4 sm:px-6 py-8 sm:py-10 grid gap-6">
+      <header className="grid gap-3">
+        <div className="grid gap-1">
+          <h1 className="text-[28px] font-semibold tracking-[-0.02em] leading-tight">{d.nav_alerts}</h1>
+          <p className="text-[15px] text-ink2" aria-live="polite">{repos.length === 0 ? d.no_repos_short : openCount === 0 ? d.nothing_needs_you : openCount === 1 ? d.one_needs_you : d.n_need_you.replace("{n}", String(openCount))}</p>
         </div>
-
-        <div>
-          <h2 className="label mb-3">{d.repositories}</h2>
-          {health.length === 0 && <p className="text-[13px]">{d.no_repos} <Link href="/repos">{d.connect_link}</Link></p>}
-          <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {health.map((h) => (
-              <li key={h.k} className="border hair rounded-[6px] p-3 text-[13px]">
-                <div className="mono truncate">{h.k}{h.sys && <span className="label ml-2">{d.demo}</span>}</div>
-                <div className={h.open ? `chip-sev-${h.worst ?? "moderate"}` : "text-ink2"}>{h.open ? `${h.open} ${d.needs_attention}` : d.no_issues}</div>
-                <div className="mono text-[11px] text-ink2">@{h.r.sha?.slice(0, 7) ?? "?"} · {h.r.packages.length} pkgs · synced {h.r.refreshed_at ? fmtTime(h.r.refreshed_at) : "never"}</div>
-              </li>
-            ))}
+        {repoLines.length > 0 && (
+          <ul className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px]" aria-label={d.repositories}>
+            {repoLines.slice(0, 3).map(({ k, s }) => <li key={k} className="flex items-center gap-2"><span className="font-medium">{k}</span><span className={`tone-${s.tone}`}><span aria-hidden className="text-[9px] align-[1px]">{s.glyph}</span> {s.label}</span></li>)}
+            {repoLines.length > 3 && <li className="text-ink2">+{repoLines.length - 3} more</li>}
+            <li><Link href="/repos" className="text-ink2 hover:text-ink underline">{d.manage}</Link></li>
           </ul>
-        </div>
+        )}
+      </header>
 
-        <Counts cards={cards} d={d} />
-
-        <div>
-          <div className="flex flex-wrap items-baseline justify-between gap-3 mb-3">
-            <h2 className="label">{d.alerts}</h2>
-            <nav className="flex gap-3 text-[12px]">{FILTERS.map((f) => <Link key={f} href={`/?f=${f}`} className={f === filter ? "font-semibold" : ""}>{d[`filter_${f}` as keyof typeof d]}</Link>)}</nav>
-          </div>
-          {shown.length === 0 && <p className="text-ink2 text-[13px]">{cards.length === 0 ? d.no_alerts : d.nothing_in_filter}</p>}
-          <ul className="grid gap-4">{shown.map((c) => <AlertCard key={c.a.id} c={c} repo={c.a.repo} d={d} />)}</ul>
-        </div>
-      </section>
-
-      <aside className="grid gap-8 content-start">
-        <div>
-          <h2 className="label mb-3">{d.coverage}</h2>
-          <ul className="text-[13px] grid gap-2">
-            <Row glyph="●" name="GitHub-reviewed advisories" cls={lastDelivery ? `push · last delivery ${fmtTime(lastDelivery)}` : "push · no live deliveries yet"} />
-            {POLLERS.map((p) => <Row key={p.id} glyph={p.cls === "near_realtime" ? "◐" : "○"} name={p.name} cls={`${p.cls.replace("_", "-")} · every ${p.interval_min} min nominal`} />)}
-            <Row glyph="⊘" name="X, LinkedIn, Threads, Reddit" cls="not accessible" />
-          </ul>
-          <Link href="/sources" className="text-[12px] mt-2 inline-block">Measured intervals and latency →</Link>
-        </div>
-        <div>
-          <h2 className="label mb-3">{d.latency}</h2>
-          <div className="text-[13px]">publish → alert: {lat.total_publish_to_alert.n ? <span className="mono">{human(lat.total_publish_to_alert.median_s)} median · p90 {human(lat.total_publish_to_alert.p90_s)} · n={lat.total_publish_to_alert.n}</span> : <span className="text-ink2">no live alerts measured yet</span>}</div>
-          <div className="text-[13px]">alert → push received: {lat.L6_receipt.n ? <span className="mono">{human(lat.L6_receipt.median_s)} · n={lat.L6_receipt.n}</span> : <span className="text-ink2">no push receipts yet</span>}</div>
-        </div>
-        <div>
-          <h2 className="label mb-3">{d.watched}</h2>
-          <ul className="text-[13px] grid gap-1">
-            {repos.map((r) => <li key={store.repoKey(r)} className="flex justify-between gap-2"><span className="truncate">{store.repoKey(r)}</span><span className="mono text-ink2 shrink-0">{r.packages.length} pkgs</span></li>)}
-          </ul>
-          <Link href="/repos" className="text-[12px] mt-2 inline-block">{d.manage_repos}</Link>
-          {env.DEMO_SHARED_REPOS && keys.size > 0 && (await store.listUserRepoKeys(SYSTEM_USER)).length > 0 && <p className="mono text-[11px] text-ink2 mt-2">demo repositories are shared with every signed-in user</p>}
-        </div>
-        <details>
-          <summary className="label cursor-pointer">{d.live_log}</summary>
-          <ul className="mono text-[11px] grid gap-1 max-h-[360px] overflow-auto mt-2">
-            {log.map((l, i) => <li key={i} className="flex gap-2"><span className="text-ink2 shrink-0">{l.at.slice(11, 19)}</span><span className="shrink-0 w-[62px]">{l.kind}</span><span className="truncate" title={l.detail}>{l.detail}</span></li>)}
-          </ul>
-        </details>
-      </aside>
+      {repos.length === 0 ? (
+        <Empty title={d.empty_connect_title} body={d.empty_connect_body} action={<Link href="/repos" className="btn">{d.connect_github}</Link>} />
+      ) : (
+        <>
+          <nav className="seg w-fit" aria-label="Filter alerts">
+            {FILTERS.map((f) => <Link key={f} href={f === "all" ? "/" : `/?f=${f}`} aria-current={f === filter ? "page" : undefined}>{d[`filter_${f}` as keyof typeof d]}</Link>)}
+          </nav>
+          {shown.length === 0 ? (
+            filter === "resolved" ? <Empty title={d.empty_resolved_title} body={d.empty_resolved_body} />
+              : <Empty title={d.empty_clear_title} body={d.empty_clear_body} />
+          ) : (
+            <ul className="border hair rounded-[10px] bg-raised overflow-hidden">{shown.map((c) => <AlertCard key={c.a.id} c={c} labels={{ view: d.view, fix: d.fix }} />)}</ul>
+          )}
+        </>
+      )}
     </div>
   );
 }
 
-function Landing({ signin, next }: { signin: boolean; next?: string }) {
+function Empty({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) {
   return (
-    <div className="mx-auto max-w-[860px] px-6 py-16 grid gap-8">
-      <div>
-        <h1 className="serif text-[44px] leading-tight">What touched your code.</h1>
-        <p className="text-[16px] mt-3">Argus Watch watches security advisories and research disclosures continuously, checks each one against the repositories you connect, and tells you exactly where and why your code is affected, with a proposed fix you can review and open as a draft pull request.</p>
-      </div>
-      <ul className="grid sm:grid-cols-3 gap-4 text-[13px]">
-        <li className="border hair rounded-[6px] p-4"><div className="label mb-1">Discover</div>GitHub advisories (push), GitHub Advisory DB and disclosure feeds (every 5 min), CISA KEV and research feeds (periodic).</li>
-        <li className="border hair rounded-[6px] p-4"><div className="label mb-1">Locate and explain</div>Lockfile versions computed in code; conditions assessed with cited lines; verdicts decided by a fixed rule, never by the model alone.</li>
-        <li className="border hair rounded-[6px] p-4"><div className="label mb-1">Fix, with your approval</div>Diff preview, a static remediation assessment, then a draft PR on a new branch. Nothing is merged and no repository code is ever executed here.</li>
-      </ul>
-      <div className="border hair rounded-[6px] p-5 grid gap-3">
-        {signin && <p className="text-[13px]" style={{ color: "var(--inferred)" }}>Sign in to continue{next ? ` to ${next}` : ""}.</p>}
-        <p className="text-[13px]">Sign in with GitHub, then connect the Argus Watch GitHub App to the repositories you want monitored. Read-only by default; write permission is used only for draft pull requests you explicitly approve per repository and per fix.</p>
-        {hasAuth() ? <SignInButton next={next ?? "/"} /> : <p className="text-[13px] text-ink2">Sign-in is not configured on this deployment yet.</p>}
-        <p className="text-[12px] text-ink2">See <Link href="/sources">Sources</Link> for what is monitored and how often, with measured intervals.</p>
-      </div>
+    <div className="border hair rounded-[10px] bg-raised px-6 py-12 grid justify-items-center text-center gap-2">
+      <div className="text-[15px] font-semibold">{title}</div>
+      <p className="text-[14px] text-ink2 max-w-[440px]">{body}</p>
+      {action && <div className="mt-3">{action}</div>}
     </div>
   );
-}
-
-function Row({ glyph, name, cls }: { glyph: string; name: string; cls: string }) {
-  return <li className="flex gap-2"><span aria-hidden className="w-4">{glyph}</span><span className="flex-1">{name}<span className="block mono text-[11px] text-ink2">{cls}</span></span></li>;
 }

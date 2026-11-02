@@ -21,9 +21,9 @@ export default async function Sources() {
     return { ...p, measured: st?.intervals_ms?.length ? `${(median(st.intervals_ms)! / 60e3).toFixed(1)} min (n=${st.intervals_ms.length})` : "not yet measured", runs: st?.runs ?? 0, lastOk: st?.last_ok ?? null, err: st?.last_error, l1: l1(p.id) };
   });
   return (
-    <div className="mx-auto max-w-[1100px] px-6 py-8 grid gap-10">
+    <div className="mx-auto max-w-[1080px] px-4 sm:px-6 py-8 sm:py-10 grid gap-10">
       <div>
-        <h1 className="serif text-[36px]">{d.sources_title}</h1>
+        <h1 className="text-[28px] font-semibold tracking-[-0.02em]">{d.sources_title}</h1>
         <p className="text-ink2">{d.sources_intro.replace("{n}", String(TICK_MIN))}</p>
       </div>
       <section>
