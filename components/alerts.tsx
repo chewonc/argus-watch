@@ -73,8 +73,7 @@ export function AlertCard({ c, repo, d }: { c: CardData; repo: string; d: Dict }
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Link href={`${c.caseHref}${loc ? `#${lineAnchor(loc.file, loc.from)}` : ""}`} className="btn-ghost no-underline">{d.view_code}</Link>
-        {a.verdict !== "Not Affected" && <Link href={`${c.caseHref}#fix`} className="btn-ghost no-underline">{c.fixState === "pr_created" ? d.view_pr : d.preview_fix}</Link>}
-        {a.verdict !== "Not Affected" && <Link href={`${c.caseHref}?act=1#fix`} className={`btn no-underline ${c.allowPr ? "" : "opacity-50"}`} title={c.allowPr ? "Opens the approval dialog on the case page" : "Enable draft pull requests for this repository on the Repos page first"}>{d.apply_fix}</Link>}
+        {a.verdict !== "Not Affected" && <Link href={`${c.caseHref}${c.fixState === "pr_created" ? "#fix" : "?act=1#fix"}`} className={`btn no-underline ${c.allowPr || c.fixState === "pr_created" ? "" : "opacity-50"}`} title={c.allowPr || c.fixState === "pr_created" ? undefined : "Enable draft pull requests for this repository on the Repos page first"}>{c.fixState === "pr_created" ? d.view_pr : d.apply_fix}</Link>}
         <OpenIn t={{ repo: a.repo.split("/").slice(0, 2).join("/"), sha: a.sha, file: loc?.file ?? null, line: loc?.from ?? null, localRoot: c.localRoot, caseUrl: c.caseHref, briefUrl, ids }} />
         <a href={briefUrl} className="btn-ghost no-underline">{d.generate_prompt}</a>
       </div>
