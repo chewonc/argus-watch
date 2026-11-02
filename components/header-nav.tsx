@@ -11,13 +11,13 @@ export type HeaderLabels = { alerts: string; repos: string; monitoring: string; 
 
 export function HeaderNav({ user, authReady, labels }: { user: HeaderUser; authReady: boolean; labels: HeaderLabels }) {
   const path = usePathname();
-  const active = path === "/" || path.startsWith("/case");
+  const active = path.startsWith("/alerts") || path.startsWith("/case");
   return (
     <nav className="flex items-center gap-4 text-[13px]">
-      {user && <Link href="/" aria-current={active ? "page" : undefined} className={`no-underline ${active ? "font-semibold" : "text-ink2 hover:text-ink"}`}>{labels.alerts}</Link>}
+      {user && <Link href="/alerts" aria-current={active ? "page" : undefined} className={`no-underline ${active ? "font-semibold" : "text-ink2 hover:text-ink"}`}>{labels.alerts}</Link>}
       {user && <NotificationBell label={labels.notifications} />}
       {user ? <AccountMenu user={user} labels={labels} /> : authReady ? (
-        <button type="button" className="btn" onClick={() => signInWithGitHub(path === "/" ? "/" : path)}>{labels.signIn}</button>
+        <button type="button" className="btn" onClick={() => signInWithGitHub(path === "/" ? "/alerts" : path)}>{labels.signIn}</button>
       ) : (
         <span className="text-ink2 text-[12px]" title="Set BETTER_AUTH_SECRET, GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET">{labels.notConfigured}</span>
       )}

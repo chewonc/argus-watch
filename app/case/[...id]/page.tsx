@@ -83,7 +83,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
     <div className="mx-auto max-w-[760px] px-4 sm:px-6 py-8 sm:py-10 grid gap-8">
       <MarkRead assessmentId={a.id} />
       <div className="grid gap-3">
-        <Link href="/" className="text-[13px] text-ink2 no-underline hover:text-ink w-fit">← {d.back_to_alerts}</Link>
+        <Link href="/alerts" className="text-[13px] text-ink2 no-underline hover:text-ink w-fit">← {d.back_to_alerts}</Link>
         <div><StatusPill s={status} /></div>
         <h1 className="text-[26px] sm:text-[30px] font-semibold tracking-[-0.02em] leading-tight">{T.title}</h1>
         {where.kind === "file" || where.kind === "package"

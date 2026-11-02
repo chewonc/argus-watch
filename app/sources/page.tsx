@@ -10,7 +10,8 @@ import { getDict, getLocale } from "@/lib/i18n";
 const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : null);
 const CLASS_LABEL = { push: "● push (event-driven)", near_realtime: "◐ near-real-time (polled every 5 min)", periodic: "○ periodic (polled at the source's own cadence)" } as const;
 
-export default async function Sources() {
+/** Source coverage body. `embedded` drops the page container and title (used inside Monitoring status → Advanced diagnostics). */
+export async function SourceCoverage({ embedded = false }: { embedded?: boolean }) {
   const [states, log, findings, assessments] = await Promise.all([Promise.all(POLLERS.map((p) => store.getPollState<PollState>(p.id))), store.recentLog(500), store.listFindings(), store.listAssessments(200)]);
   const lat = await computeLatency(assessments, findings);
   const d = await getDict(await getLocale());
@@ -21,11 +22,13 @@ export default async function Sources() {
     return { ...p, measured: st?.intervals_ms?.length ? `${(median(st.intervals_ms)! / 60e3).toFixed(1)} min (n=${st.intervals_ms.length})` : "not yet measured", runs: st?.runs ?? 0, lastOk: st?.last_ok ?? null, err: st?.last_error, l1: l1(p.id) };
   });
   return (
-    <div className="mx-auto max-w-[1080px] px-4 sm:px-6 py-8 sm:py-10 grid gap-10">
-      <div>
-        <h1 className="text-[28px] font-semibold tracking-[-0.02em]">{d.sources_title}</h1>
-        <p className="text-ink2">{d.sources_intro.replace("{n}", String(TICK_MIN))}</p>
-      </div>
+    <div className={embedded ? "grid gap-8 min-w-0 [overflow-wrap:anywhere]" : "mx-auto max-w-[1080px] px-4 sm:px-6 py-8 sm:py-10 grid gap-10 min-w-0 [overflow-wrap:anywhere]"}>
+      {embedded ? <p className="text-[13px] text-ink2">{d.sources_intro.replace("{n}", String(TICK_MIN))}</p> : (
+        <div>
+          <h1 className="text-[28px] font-semibold tracking-[-0.02em]">{d.sources_title}</h1>
+          <p className="text-ink2">{d.sources_intro.replace("{n}", String(TICK_MIN))}</p>
+        </div>
+      )}
       <section>
         <h2 className="label mb-3">{CLASS_LABEL.push}</h2>
         <div className="border hair rounded-[6px] p-4 text-[13px]">
@@ -81,4 +84,8 @@ export default async function Sources() {
       </section>
     </div>
   );
+}
+
+export default function Sources() {
+  return <SourceCoverage />;
 }

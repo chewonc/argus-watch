@@ -44,7 +44,7 @@ export async function addRepos(formData: FormData) {
   }
   forgetInstallations();
   await store.log({ kind: "auth", source: "repos", detail: `${user.login} watches ${picked.length - errors.length} repo(s) via installation ${instId}${errors.length ? `; errors: ${errors.join("; ")}` : ""}`.slice(0, 300) });
-  revalidatePath("/repos"); revalidatePath("/");
+  revalidatePath("/repos"); revalidatePath("/alerts");
   redirect(errors.length ? `/repos?error=${encodeURIComponent(errors.join(" | ").slice(0, 300))}` : "/repos?added=1");
 }
 
@@ -54,7 +54,7 @@ export async function removeRepo(formData: FormData) {
   const r = await store.removeUserRepo(user.id, key);
   forgetInstallations();
   await store.log({ kind: "auth", source: "repos", detail: `${user.login} stopped watching ${key}${r.repo_removed ? " (last watcher; repo dropped)" : ""}` });
-  revalidatePath("/repos"); revalidatePath("/");
+  revalidatePath("/repos"); revalidatePath("/alerts");
 }
 
 /** Explicit per-repo opt-in for draft pull requests. Never available for shared demo repos. */
@@ -67,7 +67,7 @@ export async function setAllowPr(formData: FormData) {
   if ((await store.repoUsers(key)).includes(SYSTEM_USER)) redirect("/repos?error=demo_repo_no_pr");
   await store.addUserRepo({ ...ur, allow_pr: on });
   await store.log({ kind: "auth", source: "repos", detail: `${user.login} ${on ? "enabled" : "disabled"} draft PRs for ${key}` });
-  revalidatePath("/repos"); revalidatePath("/");
+  revalidatePath("/repos"); revalidatePath("/alerts");
 }
 
 export async function setLocalRoot(formData: FormData) {
@@ -88,6 +88,6 @@ export async function rescan(formData: FormData) {
   if (!w) redirect("/repos?error=not_watched");
   try { const r = await refreshRepo({ ...w, refreshed_at: null }); await store.putRepo(r); }
   catch (e) { redirect(`/repos?error=${encodeURIComponent(`rescan ${key}: ${String(e).slice(0, 120)}`)}`); }
-  revalidatePath("/repos"); revalidatePath("/");
+  revalidatePath("/repos"); revalidatePath("/alerts");
   redirect("/repos?rescanned=1");
 }

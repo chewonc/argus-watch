@@ -108,7 +108,7 @@ export default async function Repos({ searchParams }: { searchParams: Promise<Re
               </li>); })}
           </ul>
         )}
-        {watching.length > 0 && <p className="text-[13px] text-ink2">Alerts appear on the <Link href="/">Alerts</Link> page.</p>}
+        {watching.length > 0 && <p className="text-[13px] text-ink2">Alerts appear on the <Link href="/alerts">Alerts</Link> page.</p>}
       </Step>
     </div>
   );
