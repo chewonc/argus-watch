@@ -2,7 +2,7 @@
 
 Evaluation dataset for the Argus Watch read-only impact agent (doc 11, sections H and I.1). It contains 16 labelled cases: 12 ordinary cases (5 Affected, 4 Not Affected, 3 Unclear) over five real public advisories, plus 4 adversarial cases.
 
-**Status: run twice on Nov 1 2026; see Results below.** The numbers in `out/` are from the earlier 3-case gate run and do not cover the new cases. Results exist only after the owner runs the command in the "Running" section.
+**Status: run twice on Nov 1 2026 over all 16 cases; see Results below.** `out/summary.json` (gitignored) holds run 2.
 
 Everything here is static text. No fixture is executable as an application, no fixture contains exploit or proof-of-concept code, and the harness reads fixture files as text only.
 

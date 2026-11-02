@@ -14,6 +14,20 @@ export const en = {
   coverage: "Coverage", latency: "Latency (live, backlog excluded)", watched: "Watched", manage_repos: "Manage repositories →", live_log: "Live log",
   full_analysis: "Full analysis", proposed_fix: "Proposed fix", draft_fix: "Draft fix", drafting: "Drafting… (model call, ~30–90 s)", re_draft: "Re-draft", approve_open_pr: "Approve & open draft PR…",
   not_verified: "Security remediation: not verified", notifications: "Notifications", mark_all_read: "Mark all read", settings: "Settings", language: "Language",
+  // Repos / Settings / Notifications / Sources pages (added Nov 2)
+  repos_title: "Repositories", repos_intro: "Connect the Argus Watch GitHub App, choose what to monitor, and decide per repository whether draft pull requests may be opened.",
+  step_connect: "1 · Connect GitHub", step_choose: "2 · Choose repositories", step_watched: "3 · Watched", connect_github: "Connect GitHub", add_installation: "Add another installation",
+  app_not_configured: "The GitHub App is not configured on this deployment (GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, GITHUB_APP_SLUG). Only admin-registered demo repositories are available.",
+  access_title: "What is accessed, and why", nothing_watched: "Nothing watched yet.", rescan: "Rescan", allow_pr: "Allow draft pull requests", save: "Save", remove: "Remove",
+  local_root_placeholder: "local checkout path for IDE links", demo_shared: "demo · shared · read-only", alerts_appear: "Alerts for these repositories appear on",
+  pr_enabled_note: "Draft PRs enabled: a fix still needs your explicit approval each time, and the App installation must have Contents and Pull requests write permission.",
+  settings_title: "Settings", signed_in_as: "Signed in as", inapp_label: "In-app notifications and header badge", webhook_label: "Slack or Discord incoming webhook (optional; stored server-side and shown masked)",
+  browser_push: "Browser push", devices_subscribed: "device(s) subscribed.", email: "Email", planned_not_available: "Planned; not available in this version.", account: "Account",
+  account_text: "Sign-in uses GitHub. Repository access is granted only through the GitHub App installations you connect on Repos; revoke it there or on GitHub (Settings → Applications).",
+  notif_intro: "unread · one entry per finding and repository; a changed verdict or severity updates the entry instead of adding another.", preferences: "Preferences →",
+  notif_empty: "Nothing yet. You are notified when a finding matches one of your repositories with an Affected or Unclear verdict, when a verdict or severity changes, and when a draft PR is opened.",
+  detected: "detected", unread: "unread",
+  sources_title: "Sources and coverage", sources_intro: "Each source is labelled by how it is actually monitored. Intervals and publication→discovery latency are measured from logged runs and stored timestamps, not assumed. One scheduler tick runs every {n} minutes; each source runs on its own interval.",
   read_only_footer: "Read-only analysis. Argus Watch does not run, reproduce, or test any vulnerability. Evidence-supported impact prediction is not experimentally confirmed exploitability. Repository changes happen only as draft pull requests you explicitly approve.",
 } as const;
 export type Key = keyof typeof en;

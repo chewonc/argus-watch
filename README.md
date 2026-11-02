@@ -23,21 +23,24 @@ Discover → Verify → Locate → Explain → Preview → Approve → Fix → V
 
 Alongside: per-user notifications (in-app badge, browser push with receipt measurement, Slack/Discord webhook), one notification per finding and repository that is updated in place when a verdict or severity changes, and a language selector covering every language supported by Google Cloud Translation (identifiers, paths, versions and code are never translated).
 
-## Verified status (Nov 1 2026)
+## Verified status (Nov 2 2026, 04:10 UTC)
 
-| Area | Status |
+Legend: **live** = observed on the deployment; **local** = exercised in a browser against the real pipeline (model calls, real GitHub reads) with a local-only stub sign-in; **blocked** = cannot be exercised by anyone until the owner configures credentials.
+
+| Journey step | Status |
 |---|---|
-| Multi-source ingestion (GHSA webhook, GitHub Advisory DB, KEV, 21 feeds), dedup, tiers, claim extraction, repo matching, condition assessment with citation verification, strict verdict rule | Implemented; exercised live on the deployment and by replay (AT-2) |
-| Single 5-minute scheduler with per-source intervals, conditional GET, batched seen-document, per-stage latency (L1–L6) | Implemented; polled locally; latency figures appear only after live runs accumulate |
-| GitHub sign-in (Better Auth, stateless), GitHub App installation flow, repository picker, per-repo draft-PR opt-in | Implemented; **not yet exercised end-to-end** (needs the App's OAuth client and private key configured on the deployment) |
-| Dashboard: per-repo status, counts by severity / new / unread / resolved, actionable alert cards, Open-in menu, case page at-a-glance | Implemented |
-| Fix drafting, diff preview, syntax check, static remediation assessment, approval dialog, draft PR, CI readout | Implemented; drafting exercised locally (the model correctly declined when no manifest was editable); PR creation **not yet exercised** (needs App write permission accepted) |
-| Notifications: in-app records with dedup, badge, inbox, settings, per-user webhook, Web Push with receipt ack | Implemented; push **not yet exercised** (needs VAPID keys on the deployment) |
-| Multilingual UI (Google Cloud Translation, all languages, cached, identifiers protected, in-place switch) | Implemented; **not yet exercised** (needs `GOOGLE_TRANSLATE_API_KEY`) |
-| Unit tests (20) for verdict rule, version ranges, lockfiles, dedup, prefilter, severity, masking, hunks, syntax check, store | Passing locally; CI workflow added |
-| Evaluation set 12 + 4 adversarial (AT-4) | **Run Nov 1:** rule verdict 16/16, false Not Affected 0/10, invented references 0, condition-state accuracy 0.82, injection checks 2/2, gate PASS (after adding the prose-evidence downgrade a first run exposed). Details and limitations in `feasibility/EVAL.md` |
-| AT-1 live advisory delivery, AT-3 24 h unattended run | AT-1: first live `security_advisory` delivery logged Nov 1 09:33 UTC (no watched-repo match yet). AT-3: pending on the tick schedule; see `/api/status` `unattended_24h` |
-| Email notifications, X/LinkedIn/Threads/Reddit sources, VS Code extension, JetBrains | Planned or excluded (see docs) |
+| Discover: GHSA webhook, GitHub Advisory DB, KEV, 21 feeds (Hacker News via the Algolia API since Nov 2), dedup, tiers, claim extraction | **live**: 2 live GHSA deliveries; all four pollers run on the QStash tick schedule (confirmed by schedule-id deliveries, measured 5 / 5 / 10 / 60 min); publish→discover median 224 s for the push source (n=2), 685 s for fast feeds (n=9), backlog excluded |
+| Sign in with GitHub | **blocked**: the deployment has no `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `BETTER_AUTH_SECRET`; the landing page says so and the sign-in route answers 503. Code path implemented (Better Auth, stateless) but never run against GitHub. See `SETUP.md` §2.1 |
+| Connect a repository (App installation, picker, watch) | **blocked** on the same credentials; the Repos page, per-repo draft-PR opt-in, rescan and remove render and work **local** |
+| Analyze the codebase and alert | **live** for admin-registered repos (replay chain c1 Affected / c2 Not Affected / c3 Unclear); **local**: Next.js and jsonwebtoken advisories replayed in 53 s and 43 s, cards show severity, verdict, repo@sha, `file:line`, problem and fix; the file link lands on the highlighted line |
+| Preview the fix (diff, syntax check, static assessment, status ladder) | **local**: c1 → `package.json` next 14.2.10→14.2.25, assessment *supported*; c4 → two hunks in `src/auth.ts` (fail-closed key, HS256 allowlist), *partially supported*; ladder always ends "Security remediation: not verified" |
+| Approve → draft PR → CI readout | **blocked**: the approval dialog works **local** and the apply route refuses with a clear message when no App installation exists; branch + commit + draft PR + check-runs code is implemented but has **never created a real pull request** |
+| Notifications (in-app, badge, settings), per-user webhook | **local**; Web Push **blocked** (no VAPID keys on the deployment) |
+| Multilingual UI | dictionary + switcher shipped; translation calls **blocked** (no `GOOGLE_TRANSLATE_API_KEY`); Repos/Settings/Sources/Notifications pages are English-only |
+| Unit tests (25) | passing locally and in CI |
+| Evaluation set 12 + 4 adversarial (AT-4) | run Nov 1: rule verdict 16/16, false Not Affected 0/10, invented references 0, condition-state accuracy 0.82, injection checks 2/2, gate PASS (`feasibility/EVAL.md`) |
+| AT-3 24 h unattended run | window started Nov 2 ~04:05 UTC when the tick schedule first delivered; `/api/status.unattended_24h` reports the ratio |
+| Email, X/LinkedIn/Threads/Reddit, VS Code extension, JetBrains | planned or excluded (see docs) |
 
 Measured latency and coverage are published at `/api/status` and on the Sources page; they are computed from stored timestamps over live items only, with first-run backlog excluded, and they read "not yet measured" until data exists.
 

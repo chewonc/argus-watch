@@ -91,3 +91,5 @@ npm run typecheck && npm run lint
 ```
 
 Set at least `META_API_KEY`, `GITHUB_TOKEN`, `ADMIN_TOKEN` in `.env.local`; add the sign-in and App variables to try onboarding locally (GitHub callback URLs must then point at `http://localhost:3000`). Trigger the scheduler with `curl -X POST "localhost:3000/api/poll/tick?force=1" -H "authorization: Bearer $ADMIN_TOKEN"`.
+
+**Signed-in UI without OAuth credentials (local only):** `AW_DEV_USER=<login>` in `.env.local` signs in a stub user `dev:<login>`. It is honoured only when `NODE_ENV` is not `production` **and** none of the sign-in variables is set, so it can never activate on Vercel. With `DEMO_SHARED_REPOS=1` the stub sees admin-registered repos; `{"op":"watch","repo":"owner/name","subdir":"…","user_id":"dev:<login>","allow_pr":true}` links a repository to the stub so the approval dialog can be exercised (the apply is still refused without an App installation).

@@ -5,6 +5,7 @@ import { POLLERS, TICK_MIN, type PollState } from "@/lib/poll";
 import { FEEDS } from "@/lib/sources/rss";
 import { store } from "@/lib/store";
 import { fmtTime, human } from "@/components/ui";
+import { getDict, getLocale } from "@/lib/i18n";
 
 const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : null);
 const CLASS_LABEL = { push: "● push (event-driven)", near_realtime: "◐ near-real-time (polled every 5 min)", periodic: "○ periodic (polled at the source's own cadence)" } as const;
@@ -12,6 +13,7 @@ const CLASS_LABEL = { push: "● push (event-driven)", near_realtime: "◐ near-
 export default async function Sources() {
   const [states, log, findings, assessments] = await Promise.all([Promise.all(POLLERS.map((p) => store.getPollState<PollState>(p.id))), store.recentLog(500), store.listFindings(), store.listAssessments(200)]);
   const lat = await computeLatency(assessments, findings);
+  const d = await getDict(await getLocale());
   const deliveries = log.filter((l) => l.kind === "webhook" && /security_advisory/.test(l.detail));
   const l1 = (id: string) => { const s = lat.L1_source[id]; return s?.n ? `${human(s.median_s)} median (n=${s.n})` : "not yet measured"; };
   const rows = POLLERS.map((p, i) => {
@@ -21,8 +23,8 @@ export default async function Sources() {
   return (
     <div className="mx-auto max-w-[1100px] px-6 py-8 grid gap-10">
       <div>
-        <h1 className="serif text-[36px]">Sources and coverage</h1>
-        <p className="text-ink2">Each source is labelled by how it is actually monitored. Intervals and publication→discovery latency are measured from logged runs and stored timestamps, not assumed. One scheduler tick runs every {TICK_MIN} minutes; each source runs on its own interval.</p>
+        <h1 className="serif text-[36px]">{d.sources_title}</h1>
+        <p className="text-ink2">{d.sources_intro.replace("{n}", String(TICK_MIN))}</p>
       </div>
       <section>
         <h2 className="label mb-3">{CLASS_LABEL.push}</h2>

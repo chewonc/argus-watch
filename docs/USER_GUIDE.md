@@ -25,7 +25,7 @@ The **Watch** page shows, per repository, how many alerts need attention; counts
 
 ## 5. Inspect the affected code — available
 
-Click **View code** or the file:line link. The case page opens with the cited lines highlighted in a read-only source pane at the assessed commit, with a GitHub permalink for each line. **Open in…** offers GitHub, VS Code and Cursor (after you enter your local checkout path once), and a Claude Code deep link that prefills a prompt. If no line could be cited, the card says "exact location not available" instead of guessing.
+Click **View code** or the file:line link. The case page opens with the cited lines highlighted in a read-only source pane at the assessed commit, with a GitHub permalink for each line. **Open in…** offers GitHub, VS Code and Cursor (after you enter your local checkout path once), and a Claude Code link that prefills a prompt (the `claude-cli://` scheme is not registered by every Claude Code install; the copy-command fallback always works). If no line could be cited, the card says "exact location not available" instead of guessing.
 
 ## 6. Preview suggested changes — available
 
