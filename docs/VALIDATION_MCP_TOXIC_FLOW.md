@@ -1,8 +1,8 @@
 # End-to-end validation: a CVE-free AI security finding → evidence-backed repository alert
 
-Date: Nov 2 2026. Runs by Claude Code on the owner's machine with the owner's Meta Model API key.
+Date: Nov 2 2026 (local runs) and Nov 3 2026 (production run, §6b). Runs by Claude Code with the owner's Meta Model API key.
 
-**What kind of result this is.** **Local**: the production pipeline code (`lib/pipeline.ts`, `lib/extract.ts`, `lib/analyze.ts`, `lib/verdict.ts`) ran in a local `next dev` server against the **real Meta Model API (`muse-spark-1.3`)** and **real GitHub reads** of a public repository, with a local file store and the local dev sign-in stub. It is **not a live production delivery**: the article was fed in with the admin `replay_feed_entry` operation and is labelled a replay in the store and the UI. No model output, file, line or verdict was written by hand.
+**What kind of result this is.** Sections 4–6 are **local**: the production pipeline code (`lib/pipeline.ts`, `lib/extract.ts`, `lib/analyze.ts`, `lib/verdict.ts`) ran in a local `next dev` server against the **real Meta Model API (`muse-spark-1.3`)** and **real GitHub reads** of a public repository, with a local file store and the local dev sign-in stub. It is **not a live production delivery**: the article was fed in with the admin `replay_feed_entry` operation and is labelled a replay in the store and the UI. No model output, file, line or verdict was written by hand. Section 6b repeats the run **on production**.
 
 ## 1. The research article (input)
 
@@ -106,8 +106,26 @@ Full 16-case harness (`feasibility/gate.mjs`, comment rule mirrored), Nov 2 2026
 
 The one new verdict miss is caused by the new rule. In `adv_feature_absent`, Spark's only evidence that auth is not in middleware was the comment `middleware.ts:4` ("Authorization is NOT performed here") rather than the code at `:7`. The rule turned that Contradicted into Unknown, so the verdict became Unclear instead of Not Affected. This is a conservative miss (it can never produce a false "safe"), and it is exactly the case the rule targets: a comment is allowed to suggest, not to clear. The rule was kept and the expected label was not changed.
 
+## 6b. Production run (Nov 3 2026, owner-approved)
+
+Same article, same replay op, on **argus-watch-three.vercel.app** (production store, production Muse Spark key), against the two repos at **`4d831d7`**. The test files there are byte-identical to `0fec9f7`; `git diff` is empty. Production had no cached claim, so **Muse Spark extracted the article again** independently, producing 5 conditions with different ids from the local run. End-to-end 84 s. Read back through the production MCP endpoint (`get_finding`) as the owner's account.
+
+| Condition (production extraction) | c13 affected | c14 control |
+|---|---|---|
+| mcp-client-connected (required) | **Observed** `:16` (`await mcp.connect(transport)`) | **Observed** `:18` |
+| public-issue-access (required) | Inferred `:1` (comment) | Inferred `:1` (comment) |
+| private-repo-access (required) | Inferred `:9` (comment; capped) | **Unknown** `:11` (comment; Contradicted capped) |
+| malicious-issue-injection (required) | Inferred `:36` | Inferred `:29` |
+| granular-repo-limits-missing (mitigation) | Inferred `:18` | **Contradicted** `:41` (code: refuses other repos) |
+| Rule verdict | **Unclear** (tier cap: single unconfirmed source) | **Not Affected** (Contradicted: granular-repo-limits-missing) |
+| UI status | "Possible issue", listed in the owner's alerts | "You're not affected", no alert |
+
+Agreement with the local run: same verdicts, same deciding line for the control (`:41`), comment-only evidence capped in both repos, no invented citations. Differences come from the model running again: one more condition (MCP client connected, split out); the issue-reading condition now cites the header comment `:1` instead of the task line `:25`. Neither run made write tools or auto-approval a separate condition, although production's recommendations name both ("remove write … tools, and require explicit human approval").
+
+Not checked on production: the case page itself in a browser, because the in-app browser is not signed in and I don't sign in with the owner's account. The alert list and the full assessment were read through the production API as the owner.
+
 ## 7. Limitations
-- **Local, replayed run**, not a live production alert. Running the same op on production needs the production `ADMIN_TOKEN` (owner-only).
+- Replayed, not polled: the article is older than the feed's polling window, so it entered through `replay_feed_entry` (labelled a replay). Production ran it with the production store, key and pipeline.
 - One article, one vulnerable/control pair, single runs at temperature 0. Not a statistical evaluation.
 - Token scope is not knowable from code; both repos state it in a comment, which is now treated as weak evidence only.
 - Extraction missed two of five article conditions (write tools, auto-approval). The vulnerable repo is still flagged through the other conditions, but an agent with *only* those two flaws could be missed.
