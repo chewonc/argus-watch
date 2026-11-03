@@ -17,7 +17,7 @@ export function Landing({ signin, next, authReady, signedIn = false }: { signin:
     <div className="mx-auto max-w-[1080px] px-4 sm:px-6">
       <section className="grid lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-16 items-center py-14 sm:py-20">
         <div className="grid gap-6">
-          <div className="inline-flex items-start gap-2 text-[13px] text-ink2"><span aria-hidden className="relative flex w-2 h-2 shrink-0 mt-[6px]"><span className="absolute inset-0 rounded-full bg-[var(--not-affected)] opacity-60 pulse" /><span className="relative w-2 h-2 rounded-full bg-[var(--not-affected)]" /></span><span>AI threats evolve every day.<br />Your defenses should keep up.</span></div>
+          <div className="inline-flex items-start gap-2 text-[13px] text-ink2"><span aria-hidden className="relative flex w-2 h-2 shrink-0 mt-[6px]"><span className="absolute inset-0 rounded-full bg-[var(--not-affected)] opacity-60 pulse" /><span className="relative w-2 h-2 rounded-full bg-[var(--not-affected)]" /></span><span>AI threats evolve every day. Your defenses should keep up.</span></div>
           <h1 className="text-[40px] sm:text-[52px] font-semibold tracking-[-0.035em] leading-[1.04]">Know when new security threats affect your code, and fix them.</h1>
           <p className="text-[17px] leading-relaxed text-ink2 max-w-[520px]">Argus Watch connects emerging vulnerabilities and attacks to the exact lines in your repositories, so you hear about what matters to you, not everything on the internet.</p>
           {signin && <p className="text-[14px] tone-warn">Sign in to continue{next ? ` to ${next}` : ""}.</p>}
