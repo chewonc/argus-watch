@@ -153,7 +153,8 @@ export async function verifyFinding(f: Finding, items: Item[], text: string, ver
     ...publishers.map((p) => ({ kind: "publisher" as const, text: `reported by ${p}`, url: items.find((i) => hostOf(i.url) === p)?.url ?? null })),
   ];
   const model: Verification["model"] = { used: false, suggested: null, searches: 0, queries: [], discarded_urls: 0, tokens: 0, ms: 0, error: null, name: null };
-  let primary: string[] = [], independent: string[] = [], contradictions: { source_url: string; detail: string }[] = [];
+  let primary: string[] = [], independent: string[] = [];
+  const contradictions: { source_url: string; detail: string }[] = [];
   // Official-source findings are verified by definition; spend the search only on reports that need it.
   if (opts.useModel && !officialSource) {
     try {

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { codeToHtml } from "shiki";
 import { StatusPill, firstSentence, lineAnchor, suggestedFix } from "@/components/alerts";
 import { FixPreview } from "@/components/fix-preview";
+import { CredibilityChip, CredibilityPanel } from "@/components/credibility";
 import { AskAgent } from "@/components/ask-agent";
 import { MarkRead } from "@/components/mark-read";
 import { listAgentTokens } from "@/lib/agent-token";
@@ -89,7 +90,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
       <MarkRead assessmentId={a.id} />
       <div className="grid gap-3">
         <Link href="/alerts" className="text-[13px] text-ink2 no-underline hover:text-ink w-fit">← {d.back_to_alerts}</Link>
-        <div><StatusPill s={status} /></div>
+        <div className="flex flex-wrap items-center gap-2"><StatusPill s={status} /><CredibilityChip c={f?.credibility} /></div>
         <h1 className="text-[26px] sm:text-[30px] font-semibold tracking-[-0.02em] leading-tight">{T.title}</h1>
         {where.kind === "file" || where.kind === "package"
           ? <div className="mono text-[13px] text-ink2 break-all">{where.kind === "file" && loc ? `${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}` : where.text}</div>
@@ -105,6 +106,8 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
           {T.fix && <section className="grid gap-1.5"><h2 className="text-[15px] font-semibold">{d.how_to_fix}</h2><p className="text-[15px] leading-relaxed">{T.fix}</p></section>}
         </div>
       )}
+
+      <div className="border-t hair pt-5"><CredibilityPanel c={f?.credibility} /></div>
 
       {(ghUrl || prFix?.pr_url) && (
         <div className="flex flex-wrap items-center gap-2">

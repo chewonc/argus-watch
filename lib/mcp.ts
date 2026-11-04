@@ -68,7 +68,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_finding",
-    description: "Full detail of one alert: what is wrong, where, the conditions that must hold for the repository to be affected (with Argus's evidence state for each), and recommended fixes. Use this before analysing the code.",
+    description: "Full detail of one alert: what is wrong, where, how credible the threat report is (verified / corroborated / unverified / disputed / likely_false, with registry and primary-source evidence), the conditions that must hold for the repository to be affected (with Argus's evidence state for each), and recommended fixes. Use this before analysing the code.",
     inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
     annotations: { title: "Get alert detail", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     async run(args, { uid }) {
@@ -86,6 +86,7 @@ export const TOOLS: Tool[] = [
         untrusted_recommendations: a.recommendations.map((r) => ({ text: clean(r.text, 600), condition_ids: r.condition_ids })),
         untrusted_advisory_summary: clean(f?.claim?.summary, 3000),
         advisory_ids: f?.ids ?? [],
+        report_credibility: f?.credibility ? { label: f.credibility.label, reason: clean(f.credibility.reason, 400), note: "Credibility of the threat report itself (is the threat real?), separate from server_verdict (does it affect this repo?).", evidence: f.credibility.evidence.filter((e) => e.kind !== "note").slice(0, 12).map((e) => ({ kind: e.kind, untrusted_text: clean(e.text, 300), url: e.url })) } : null,
         previous_agent_result: a.agent ?? null,
         next_steps: "Read the cited code (get_file_context or the local checkout). Decide whether every required condition holds in this repository. Then call report_result with exact quotes. Ask the user before changing, committing or pushing any code.",
       };
