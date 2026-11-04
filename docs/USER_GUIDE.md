@@ -1,54 +1,57 @@
 # Argus Watch user guide
 
-Only features marked **available** work in the current version. Everything marked *planned* is not implemented yet.
+Features marked **available** work in the current version. **Needs setup** means it works once the deployment owner configures it (see `SETUP.md`). *Planned* is not implemented.
 
-## 1. Create an account / sign in — available (GitHub only)
+## 1. Sign in — available (GitHub)
 
-There is no separate account. Open the site and click **Sign in with GitHub**. GitHub asks you to authorise the Argus Watch App to read your public profile and email; that is all sign-in needs. Google sign-in is *planned*.
+Open the site and click **Sign in with GitHub**. GitHub asks you to authorise the Argus Watch App to read your public profile and email. Google sign-in is *planned*.
 
-## 2. Connect a GitHub repository — available
+## 2. Connect a repository — available
 
-1. Open **Repos** (header). Click **Connect GitHub**.
-2. GitHub shows the App installation page. Choose the account and either all repositories or selected ones. Private repositories are supported.
-3. GitHub returns you to Argus Watch. The installation is accepted only if GitHub confirms it belongs to your signed-in account.
-4. In **2 · Choose repositories**, tick the repositories to monitor and click **Watch selected**. Argus Watch reads the lockfiles at the current commit and lists the packages it found.
+1. Open **Repositories** from the account menu and click **Connect GitHub**.
+2. On GitHub, choose the account and either all or selected repositories (private repositories work).
+3. Back in Argus Watch, tick the repositories to monitor and click **Start monitoring**.
+4. Argus reads the lockfiles at the current commit and immediately checks the last 30 days of threats that match your dependencies. The confirmation says how many it is checking; results appear in **Alerts** within minutes.
 
-What is accessed and why, what is stored, and how to revoke are explained on the Repos page. Uninstalling the App on GitHub (Settings → Applications) revokes everything.
+The Repositories page explains what is read, stored and written, and how to revoke access. **Stop monitoring** removes a repository; uninstalling the App on GitHub revokes everything.
 
-## 3. Start monitoring — available (automatic)
+## 3. Monitoring — available (automatic)
 
-Monitoring starts as soon as a repository is watched. New advisories and disclosures are matched against your packages and technology tags continuously; a push to the default branch refreshes the package list via webhook; **Rescan** does it now. The **Sources** page shows every source, how it is monitored, and measured intervals.
+New advisories, CVEs, research papers and security news are checked continuously against your packages and stack. **Sources** shows every source, how often it really runs, and why some sources (X, LinkedIn, Threads, Reddit) are not used.
 
-## 4. View security alerts — available
+Every report that could affect a watched repository is **fact-checked** first. On the alert page, *Is this threat real?* shows the label (Verified, Corroborated, Unverified, Disputed, Likely false), the registry records, primary sources, independent reports, copies and contradictions that decided it. This is about the report, not about your code.
 
-The **Watch** page shows, per repository, how many alerts need attention; counts by severity (stated by the advisory, or marked *estimated*), new, unread and resolved; and one card per alert with the problem in one line, the suggested fix in one line, the affected file and lines, and actions. Filters: needs action, new, all, resolved, not affected. "No issues found in inspected files" is evidence from what was inspected, never proof of safety.
+## 4. Alerts and notifications — available
+
+- **Alerts** lists one card per threat and repository: a status (Serious, Important, Moderate, Minor, Possible issue), a plain title, the file and line when confirmed, and the report's credibility.
+- The bell in the header counts unread notifications. **Notifications** lists them with unread and confirmed issues first, then by severity and time; *time* order is available with `?sort=time`. A changed verdict or severity updates the entry instead of adding another.
+- Settings: in-app notifications, a personal Slack or Discord webhook, and browser push (needs setup: VAPID keys). Email is *planned*.
 
 ## 5. Inspect the affected code — available
 
-Click **View code** or the file:line link. The case page opens with the cited lines highlighted in a read-only source pane at the assessed commit, with a GitHub permalink for each line. **Open in…** offers GitHub, VS Code and Cursor (after you enter your local checkout path once), and a Claude Code link that prefills a prompt (the `claude-cli://` scheme is not registered by every Claude Code install; the copy-command fallback always works). If no line could be cited, the card says "exact location not available" instead of guessing.
+The alert page shows what is wrong, how to fix it, **Open file in GitHub** at the exact lines, and under *Technical details* the conditions with their evidence, the highlighted source at the assessed commit, and *How this was analysed* (including the files Meta Muse Spark explored).
 
-## 6. Preview suggested changes — available
+## 6. What happens if you don't fix this? — available
 
-On the case page, **Draft fix** asks the model for a minimal change to the cited files (and the manifest when the advisory names a package upgrade). You see a diff (additions shown as ghost text), the hunks that could not be applied and why, a syntax check result, and the **static remediation assessment**: which conditions the patch touches, what changed after re-assessing the patched text (with citations verified), a computed version check, risk flags, the model's own judgement (marked as an assumption), what is still uncertain, and what verification is required. The status ladder always ends with **Security remediation: not verified**: nothing is executed here.
+Click **Simulate user impact**. You get a short walkthrough, drawn as screens of your own app, of what someone using it could experience. Each step is labelled *Shown in your code*, *Inferred from your code* or *Hypothetical*, with links to the lines. When a fix exists, switch to **With fix** to see where the chain is expected to stop and what is still uncertain. The data is synthetic and nothing is executed. If your code shows no user-facing path, it says so instead of inventing one.
 
-## 7. Approve a fix — available (requires opt-in)
+## 7. Fix it — needs setup
 
-On **Repos**, enable **Allow draft pull requests** for the repository. Then on the case page click **Approve & open draft PR…**. The dialog states the repository, base branch, new branch name, files, that a *draft* PR will be opened, that nothing is merged and the default branch is untouched, and the assessment label. Tick "I reviewed the diff" and approve. Shared demo repositories never receive pull requests.
+1. Click **Fix** on an alert. A preview diff, a syntax check and a static remediation assessment appear.
+2. Enable changes for the repository on the Repositories page (one time).
+3. Choose **Fix & create PR** (recommended) or **Fix & push**. The dialog states exactly which files may change, which tests will run, and what happens on failure. Tick the review box and authorize.
+4. Meta Muse Code edits a fresh copy of the repository in an isolated runner, your tests run there, and the progress ladder shows each step with timestamps and links. On success you get the pull request link; in push mode Argus merges it only after your repository's checks pass and branch protection allows it, otherwise the PR stays open for review.
 
-## 8. Commit or create a pull request — available (draft PR only)
+Passing tests do not prove the vulnerability is gone; the page always says so.
 
-Approval creates one commit on a new branch `argus/fix-…` and opens a draft pull request with the full explanation and the "not verified" statement in its body. If the cited files changed on the default branch since the analysis, nothing is written and you are asked to re-run the analysis. The repository's own CI results appear in a separate panel ("Repository CI") with a note that CI does not verify that the vulnerability is fixed. Merging is always your action on GitHub. Direct commits to the default branch and automatic merges are not offered by design.
+## 8. Use your own coding agent (MCP) — available
 
-## 9. Use a coding assistant instead — available
+**Settings → Connect AI agent** creates a personal token and shows the configuration for **Meta Muse Code**, Claude Code, Codex or any MCP client. The agent can list alerts, read the evidence and cited code, and report its own result with exact quotes; it never changes Argus's verdict. Each alert page has a copyable request for your agent.
 
-**Generate fix prompt** downloads `REMEDIATION.md`, a provenance-tagged brief for Meta Muse Code, Claude Code, Codex or any agent, with the untrusted advisory text fenced as data. The case page shows the terminal commands.
+## 9. Language — available
 
-## 10. Notifications and language — available
+Use the 🌐 selector in the header. Korean is built in; other languages are translated by Meta Muse Spark and cached. Code, file paths, package names, versions and advisory ids are never translated. The choice is remembered.
 
-- **Alerts** (header badge) counts unread notifications; the **Notifications** page lists them, newest and unread first, one entry per finding and repository. A changed verdict or severity updates the entry and marks it unread again; the same report from several sources never notifies twice.
-- **Settings**: in-app notifications on/off, a personal Slack or Discord webhook, and **browser push** (enable per device; the browser asks for permission once; on iOS add the site to the Home Screen first). Email notifications are *planned*.
-- **Language**: the selector in the header lists every language supported by Google Cloud Translation. Switching re-renders the current page in place: your open alert, filters and unsaved dialog state stay. Code, file paths, package names, versions and advisory ids are never translated. If the deployment has no translation key, only English is offered.
+## Not available in this version
 
-## Not available in this version (planned)
-
-Google sign-in; email notifications; a VS Code extension or JetBrains plugin that applies the change locally (deep links only); X, LinkedIn, Threads and Reddit as sources; re-assessment of open alerts on every push; execution-based validation of any kind (never planned: Argus Watch does not run repository code).
+Google sign-in; email notifications; IDE plugins (links and MCP only); X, LinkedIn, Threads and Reddit as sources.
