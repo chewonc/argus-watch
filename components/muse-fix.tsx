@@ -41,7 +41,8 @@ export function MuseFix({ fix: initial, onChange, labels = MUSE_EN, autoOpen = f
     } catch (e) { setErr(String((e as Error).message)); } finally { setBusy(false); }
   }
 
-  const canStart = ["drafted", "failed", "validation_failed"].includes(fix.status) && fix.files.length > 0 || fix.status === "validation_failed";
+  const stale = fix.status === "queued" && Date.now() - Date.parse(fix.runner?.dispatched_at ?? fix.approved_at ?? fix.created_at) > 20 * 60e3; // eslint-disable-line react-hooks/purity
+  const canStart = (["drafted", "failed", "validation_failed"].includes(fix.status) && fix.files.length > 0) || fix.status === "validation_failed" || stale;
   // Arriving from "Fix now" (?act=1): open the authorization dialog in PR mode once. Nothing runs until the user ticks
   // "I reviewed…" and authorizes.
   const opened = useRef(false);

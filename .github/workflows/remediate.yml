@@ -37,3 +37,16 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           MUSE_APPROVAL_FLAGS: ${{ vars.MUSE_APPROVAL_FLAGS || '' }}
         run: node scripts/remediate/run.mjs
+      - name: Report setup failure to Argus
+        if: failure()
+        env:
+          ARGUS_URL: ${{ vars.ARGUS_URL || 'https://argus-watch-three.vercel.app' }}
+          ARGUS_RUNNER_SECRET: ${{ secrets.ARGUS_RUNNER_SECRET }}
+          FIX_ID: ${{ inputs.fix_id }}
+          NONCE: ${{ inputs.nonce }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        # If the runner script already reported its own failure the nonce is spent and this returns 401, which is fine.
+        run: |
+          curl -s -X POST "$ARGUS_URL/api/fix/$FIX_ID/runner/result?nonce=$NONCE" \
+            -H "content-type: application/json" -H "x-argus-runner-secret: $ARGUS_RUNNER_SECRET" \
+            -d "{\"ok\":false,\"error\":\"runner setup failed before Muse Code ran; see $RUN_URL\",\"run_url\":\"$RUN_URL\"}" || true
