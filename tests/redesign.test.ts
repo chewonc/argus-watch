@@ -130,8 +130,8 @@ test("hosted model calls: measured per path (model vs deterministic vs capped)",
     const a3 = await assess(F(codeClaim), codeClaim, repo, { budget: false });
     assert.equal(a3.hosted, "capped"); assert.equal(a3.verdict, "Unclear"); // still alerts, as "Possible issue"
     assert.equal(statusOf(a3, sev("critical"), { resolved: false, prOpen: false }).label, "Possible issue");
-    assert.equal(afterModel, 1);
-    assert.equal(calls, 1, "deterministic and capped paths make no hosted model call");
+    assert.ok(afterModel >= 1 && afterModel <= 2, "model path: assessment (+ one agentic investigation round)");
+    assert.equal(calls, afterModel, "deterministic and capped paths make no hosted model call");
     const used = await kv.get<number>(`usage:${new Date().toISOString().slice(0, 7)}:assessment:calls`);
     assert.ok((used ?? 0) >= 1);
   } finally { globalThis.fetch = orig; }

@@ -1,7 +1,8 @@
 // Stages 3–5 for one (finding, repo): locate, assess conditions with cited evidence, verify citations.
 // Port of feasibility/gate.mjs + extract.mjs with the version condition computed in code.
 import type { Assessment, Claim, ConditionDef, ConditionResult, Finding, Item, Tier, WatchedRepo } from "./schema";
-import { candidateFiles, versionInRanges } from "./repo";
+import { candidateFiles, readFile, versionInRanges } from "./repo";
+import { investigate } from "./investigate";
 import { deriveSeverity } from "./severity";
 import { READ_ONLY, UNTRUSTED, sparkJSON } from "./spark";
 import { decide, qualifier } from "./verdict";
@@ -85,6 +86,18 @@ export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, 
   const tier: Tier = finding.tier;
   const pkgNames = claim.packages.map((p) => p.name);
   const files = await candidateFiles(repo.repo, sha, pkgNames, claim.tech_tags, repo.subdir);
+  // Agentic discovery (Muse Spark tool calling): add the files that decide the conditions to the listing.
+  let investigation: Assessment["investigation"] = null;
+  const willModel = !(claim.conditions.length === 0 && claim.packages.length > 0) && opts.budget !== false;
+  if (willModel && claim.conditions.length && process.env.AW_AGENTIC !== "0") {
+    try {
+      const inv = await investigate(repo, sha, claim, files.map((f) => f.path));
+      if (inv) {
+        for (const p of inv.added) { const t = await readFile(repo.repo, sha, p).catch(() => null); if (t) files.push({ path: p, text: t.slice(0, 40000) }); }
+        investigation = { added: inv.added, steps: inv.trace.length, tools: inv.trace.map((t) => `${t.tool}(${String(t.args.pattern ?? t.args.path ?? t.args.prefix ?? "").slice(0, 60)})`).slice(0, 20), rationale: inv.rationale, tokens: inv.tokens, ms: inv.ms, model: inv.model };
+      }
+    } catch (e) { investigation = { added: [], steps: 0, tools: [], rationale: `investigation failed: ${String(e).slice(0, 160)}`, tokens: 0, ms: 0, model: "none" }; }
+  }
   const fileMap = new Map(files.map((f) => [f.path, f.text.split("\n")]));
 
   // Version condition(s) computed in code
@@ -144,6 +157,7 @@ export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, 
   const processed_at = new Date().toISOString();
   const severity = deriveSeverity({ verdict: d.verdict, tier }, opts.items ?? []);
   return {
+    investigation,
     severity,
     id: `${finding.id}:${repo.repo}${repo.subdir ? "/" + repo.subdir : ""}:${sha.slice(0, 12)}:${finding.claim_version ?? "0"}`,
     finding_id: finding.id, repo: repo.subdir ? `${repo.repo}/${repo.subdir}` : repo.repo, sha, tier, dependency, locations, conditions: all,

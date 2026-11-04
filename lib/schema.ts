@@ -150,6 +150,7 @@ export const Assessment = z.object({
   model: z.string(),
   replayed: z.boolean().default(false),
   severity: Severity.optional(), // computed in lib/severity.ts for new assessments; derived at render time for older ones
+  investigation: z.object({ added: z.array(z.string()), steps: z.number(), tools: z.array(z.string()), rationale: z.string(), tokens: z.number(), ms: z.number(), model: z.string() }).nullable().optional(), // agentic file discovery (lib/investigate.ts)
   hosted: z.enum(["model", "deterministic", "capped"]).optional(), // how the hosted analysis ran (cost control); absent = model (older records)
   // Result reported by the user's own AI agent over MCP. Every cited line was re-read at `sha` and matched before it was stored;
   // the server verdict above is never overwritten.
