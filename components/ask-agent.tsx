@@ -1,13 +1,13 @@
 "use client";
-// "Fix or verify with your AI agent": one copyable request for the user's connected agent (Meta Muse Code, Claude Code, Codex, ...).
-// The agent reads this alert through the Argus connection, checks the user's checkout, and reports back. The request text
-// depends on the assessment: confirmed findings may get a proposed fix (nothing changes until the user approves);
-// unconfirmed ones get read-only verification only. The full request is hidden behind Preview; Copy always copies all of it.
-import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+// AI Agent tab of the Fix modal: one copyable request for the user's coding agent (Meta Muse Code, Claude Code, Codex, ...)
+// connected to Argus Watch over MCP. The agent reads the finding through the Argus MCP tools (list_findings, get_finding,
+// get_file_context), checks the user's checkout and reports back with report_result. The request text depends on the
+// assessment: confirmed findings may get a proposed fix (nothing changes until the user approves); unconfirmed ones get
+// read-only verification only. Setup (endpoint, token, per-agent commands) lives on Settings → Connect AI agent.
+import { useState } from "react";
 
-export type AskAgentLabels = { title: string; leadFix: string; leadVerify: string; copy: string; copied: string; preview: string };
-const DEFAULT: AskAgentLabels = { title: "Fix or verify with your AI agent", leadFix: "Your coding agent reads this finding through Argus, checks your copy of the code and proposes a fix. Nothing is changed until you approve it.", leadVerify: "Your coding agent reads this finding through Argus and checks whether it really affects your code. It does not change any code.", copy: "Copy instructions", copied: "Copied", preview: "Preview" };
+export type AskAgentLabels = { lead: string; copy: string; copied: string; setup: string; foot: string };
+const DEFAULT: AskAgentLabels = { lead: "Connect your coding agent to Argus Watch via MCP to read findings and the affected code, verify them in your repository, and report results or proposed fixes back.", copy: "Copy instructions", copied: "Copied", setup: "Set up MCP", foot: "Your agent works in your repository. No code changes without your approval." };
 
 export function agentPrompt(id: string, verified: boolean) {
   return verified
@@ -17,37 +17,20 @@ export function agentPrompt(id: string, verified: boolean) {
 
 export function AskAgent({ id, connected, verified, labels = DEFAULT }: { id: string; connected: boolean; verified: boolean; labels?: AskAgentLabels }) {
   const [copied, setCopied] = useState(false);
-  const [open, setOpen] = useState(false);
-  const pid = useId();
-  const copyBtn = useRef<HTMLButtonElement>(null);
   const prompt = agentPrompt(id, verified);
-  // Arriving from a "Verify" action (?verify=1): show the read-only request and put focus on Copy.
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("verify") !== "1") return;
-    const r = requestAnimationFrame(() => { setOpen(true); copyBtn.current?.closest("details")?.setAttribute("open", ""); copyBtn.current?.scrollIntoView({ block: "center" }); copyBtn.current?.focus({ preventScroll: true }); });
-    return () => cancelAnimationFrame(r);
-  }, []);
   return (
-    <section className="border hair rounded-[10px] bg-raised p-4 grid gap-2" aria-labelledby={`${pid}-h`}>
-      <h3 id={`${pid}-h`} className="text-[14px] font-semibold">{labels.title}</h3>
-      <p className="text-[13px] text-ink2">{verified ? labels.leadFix : labels.leadVerify}</p>
-      {connected ? (
-        <>
-          <div className="flex flex-wrap items-center gap-2">
-            <button ref={copyBtn} type="button" className="btn-ghost" onClick={() => navigator.clipboard.writeText(prompt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); }).catch(() => {})}>
-              {copied ? labels.copied : labels.copy}
-            </button>
-            <span className="sr-only" role="status" aria-live="polite">{copied ? labels.copied : ""}</span>
-            <button type="button" className="btn-ghost" aria-expanded={open} aria-controls={`${pid}-p`} onClick={() => setOpen((o) => !o)}>
-              {labels.preview} <span aria-hidden className={`inline-block transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
-            </button>
-          </div>
-          <pre id={`${pid}-p`} hidden={!open} className="mono text-[12px] whitespace-pre-wrap [overflow-wrap:anywhere] border hair rounded-[8px] bg-[var(--sunken)] p-3">{prompt}</pre>
-          <p className="text-[12px] text-ink2">Works with Meta Muse Code, Claude Code or Codex, opened in your copy of the repository.</p>
-        </>
-      ) : (
-        <p className="text-[13px] text-ink2"><Link href="/settings#connect-agent" className="text-ink underline">Connect an AI agent</Link> once to use it here.</p>
-      )}
-    </section>
+    <div className="grid gap-3 text-[13px]">
+      <p className="text-[14px]">{labels.lead}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className="btn" onClick={() => navigator.clipboard.writeText(prompt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); }).catch(() => {})}>
+          {copied ? labels.copied : labels.copy}
+        </button>
+        <span className="sr-only" role="status" aria-live="polite">{copied ? labels.copied : ""}</span>
+        {/* New tab, so the modal stays as it is here. */}
+        <a href="/settings#connect-agent" target="_blank" rel="noreferrer" className="btn-ghost no-underline">{labels.setup} <span aria-hidden>↗</span><span className="sr-only"> (opens in a new tab)</span></a>
+      </div>
+      {!connected && <p className="text-ink2">No agent is connected yet: set up MCP once, then paste the instructions into your agent.</p>}
+      <p className="text-ink2">{labels.foot}</p>
+    </div>
   );
 }
