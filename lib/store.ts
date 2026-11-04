@@ -293,6 +293,12 @@ export const store = {
   putAgentReport: (uid: string, assessmentId: string, r: NonNullable<Assessment["agent"]>) => kv.set(`agentreport:${uid}:${assessmentId}`, r),
   getAgentReports: (uid: string, assessmentIds: string[]) => (assessmentIds.length ? kv.mget<NonNullable<Assessment["agent"]>>(assessmentIds.map((id) => `agentreport:${uid}:${id}`)) : Promise.resolve([])),
 
+  // ---- user-submitted threat reports (app/api/threat-report): private, reviewed before any use ----
+  addThreatReport: (r: unknown) => kv.lpush("threat_reports", r),
+  listThreatReports: (n = 100) => kv.lrange<Record<string, unknown>>("threat_reports", 0, n - 1),
+  /** Fixed-window counter (returns the count after increment). */
+  bump: (k: string) => kv.incr(`rate:${k}`),
+
   // ---- access revalidation (lib/access.ts) ----
   getAccessChecked: (uid: string) => kv.get<string>(`access_checked:${uid}`),
   setAccessChecked: (uid: string, at: string) => kv.set(`access_checked:${uid}`, at),

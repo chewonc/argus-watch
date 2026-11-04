@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { CredibilityChip } from "./credibility";
 import { FindingActions, type ActionLabels } from "./finding-actions";
+import { SelectBox } from "./bulk-fix";
 import type { FindingAction } from "@/lib/actions";
 import { location as loc0, type Status } from "@/lib/labels";
 import type { Assessment, Finding, Severity } from "@/lib/schema";
@@ -26,7 +27,8 @@ export type CardData = { a: Assessment; f: Finding | null; sev: Severity; status
 
 export function AlertCard({ c, labels }: { c: CardData; labels: ActionLabels }) {
   return (
-    <li className="fade grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-4 sm:px-5 py-4 border-b hair last:border-0">
+    <li className="fade grid grid-cols-[auto_1fr_auto] items-start gap-x-3 sm:gap-x-4 gap-y-1 px-4 sm:px-5 py-4 border-b hair last:border-0">
+      <SelectBox id={c.a.id} label={c.title} />
       <div className="grid gap-1.5 min-w-0">
         <div className="flex flex-wrap items-center gap-2"><StatusPill s={c.status} /><CredibilityChip c={c.f?.credibility} compact /></div>
         <Link href={c.caseHref} className="text-[15px] font-semibold leading-snug no-underline hover:underline">{c.title}</Link>
@@ -34,7 +36,7 @@ export function AlertCard({ c, labels }: { c: CardData; labels: ActionLabels }) 
           {c.where.kind === "file" || c.where.kind === "package" ? <span aria-label="Affected file">{c.where.text}</span> : c.where.text}
         </div>
       </div>
-      <div className="max-sm:col-span-2 max-sm:mt-2">
+      <div className="max-sm:col-span-2 max-sm:col-start-2 max-sm:mt-2 self-center">
         <FindingActions act={c.act} labels={labels} secondary={{ href: c.caseHref, label: labels.details }} showNote={false} align="end" modalFor={c.a.id} />
       </div>
     </li>

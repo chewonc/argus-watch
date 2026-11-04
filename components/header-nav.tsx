@@ -28,7 +28,6 @@ export function HeaderNav({ user, authReady, labels, locale = "en", languages = 
   return (
     <div className="flex flex-1 items-center min-w-0 gap-6">
       <nav aria-label="Primary" className="max-sm:hidden flex items-center gap-6 text-[13px]">
-        <Link href="/repos" className="nav-link" aria-current={path.startsWith("/repos") ? "page" : undefined}>{labels.repos}</Link>
         <Link href="/alerts" className="nav-link" aria-current={isThreats(path) ? "page" : undefined}>{labels.threats}</Link>
       </nav>
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
@@ -87,14 +86,12 @@ function AccountMenu({ user, labels, locale, languages }: { user: NonNullable<He
       {open && view === "main" && (
         <div role="menu" aria-label="Account" className="menu">
           <div className="px-[10px] py-2 text-[12px] text-ink2 border-b hair mb-1">Signed in as <span className="text-ink font-medium">{user.login}</span></div>
+          <Item href="/settings" current={path.startsWith("/settings")}>{labels.settings}</Item>
           <div className="sm:hidden">
-            <Item href="/repos" current={path.startsWith("/repos")}>{labels.repos}</Item>
             <Item href="/alerts" current={isThreats(path)}>{labels.threats}</Item>
-            <div className="border-t hair my-1" />
           </div>
           <Item href="/monitoring" current={path.startsWith("/monitoring")}>{labels.monitoring}</Item>
           <Item href="/activity" current={path.startsWith("/activity")}>{labels.activity}</Item>
-          <Item href="/settings" current={path.startsWith("/settings")}>{labels.settings}</Item>
           {langs.length > 1 && (
             <button role="menuitem" tabIndex={-1} type="button" data-lang-item aria-haspopup="menu" onClick={openLang} className="!flex items-center justify-between gap-3">
               <span>{labels.language}</span>

@@ -9,6 +9,7 @@ import { languages } from "@/lib/i18n/translate";
 import { requireUser } from "@/lib/session";
 import { store } from "@/lib/store";
 import { REMEDIATION_MODES, modeOf } from "@/lib/remediation-mode";
+import { RepositoriesPanel } from "../repos/panel";
 import { createAgentTokenAction, revokeAgentTokenAction, saveDemoPrefs, saveRemediationMode, saveSettings } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +28,9 @@ function More({ label = "Learn more", children }: { label?: string; children: Re
   return <details className="disclose text-[13px] text-ink2"><summary>{label}</summary><div className="mt-2">{children}</div></details>;
 }
 
-export default async function Settings() {
+export default async function Settings({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const user = await requireUser("/settings");
+  const sp = await searchParams;
   const locale = await getLocale();
   const [d, langs, subs, tokens] = await Promise.all([getDict(locale), languages(locale), store.listPush(user.id), listAgentTokens(user.id)]);
   const masked = user.settings.webhook_url ? `${user.settings.webhook_url.slice(0, 28)}…` : "";
@@ -37,6 +39,10 @@ export default async function Settings() {
     <div className="mx-auto max-w-[860px] px-4 sm:px-6 py-8 sm:py-10 grid gap-8">
       <div className="grid gap-1"><h1 className="text-[28px] font-semibold tracking-[-0.02em]">{d.settings_title}</h1><p className="text-[15px] text-ink2">Signed in as {user.login}</p></div>
       <div>
+        <Section id="repositories" title="Repositories" desc="Which repositories Argus Watch monitors.">
+          <RepositoriesPanel sp={sp} embedded />
+        </Section>
+
         <Section id="connect-agent" title="Connect AI agent" desc="Connect your coding agent via MCP.">
           <ConnectAgent endpoint={`${env.APP_URL}/api/mcp`} create={createAgentTokenAction} />
           {tokens.length > 0 && (
@@ -98,7 +104,7 @@ export default async function Settings() {
         </Section>
 
         <Section title={d.account}>
-          <p className="text-[14px]">{d.account_text} <a href="/repos">{d.nav_repos}</a>{d.account_text_2}</p>
+          <p className="text-[14px]">{d.account_text} <a href="#repositories">{d.nav_repos}</a>{d.account_text_2}</p>
           <More><p>Sign-in uses GitHub. Repository access is granted only through the GitHub App installations you connect on Repositories; revoke it there or on GitHub (Settings → Applications).</p></More>
         </Section>
       </div>

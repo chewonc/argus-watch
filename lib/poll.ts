@@ -25,7 +25,7 @@ export type PollState = {
   last_run: string; last_ok: string | null; first_ok: string | null; cursor: string | null; etag?: string | null;
   runs: number; errors: number; last_error: string | null; intervals_ms: number[];
 };
-type SeenDoc = Record<string, { etag: string | null; last_modified: string | null; guids: string[]; first_ok: string | null }>;
+type SeenDoc = Record<string, { etag: string | null; last_modified: string | null; guids: string[]; first_ok: string | null; last_ok?: string | null; last_error?: string | null }>; // last_ok/last_error per feed: shown on the landing page (lib/monitor-sources.ts)
 const SEEN_KEY = "seen:rss";
 const sha8 = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
 
@@ -44,7 +44,7 @@ async function pollFeeds(feeds: Feed[], now: string, firstRun: boolean): Promise
     const s = (seen[f.id] ??= { etag: null, last_modified: null, guids: [], first_ok: null });
     try {
       const r = await fetchFeed(f, { etag: s.etag, last_modified: s.last_modified });
-      if (r.not_modified) { not_modified++; return; }
+      if (r.not_modified) { not_modified++; s.last_ok = now; s.last_error = null; return; }
       s.etag = r.etag; s.last_modified = r.last_modified;
       const fresh = s.first_ok === null;
       for (const e of r.entries.slice(0, 40)) {
@@ -57,8 +57,8 @@ async function pollFeeds(feeds: Feed[], now: string, firstRun: boolean): Promise
         try { const res = await ingest(itemFromEntry(f, e, now)); ingested++; if (res.created) created++; remember(); }
         catch (err) { errors.push(`${f.id} ingest: ${String(err).slice(0, 80)}`); }
       }
-      s.first_ok ??= now;
-    } catch (e) { errors.push(`${f.id}: ${String(e).slice(0, 80)}`); }
+      s.first_ok ??= now; s.last_ok = now; s.last_error = null;
+    } catch (e) { errors.push(`${f.id}: ${String(e).slice(0, 80)}`); s.last_error = "fetch failed"; }
   });
   for (let i = 0; i < work.length; i += 6) await Promise.all(work.slice(i, i + 6).map((w) => w()));
   await store.setSeenDoc(SEEN_KEY, seen);

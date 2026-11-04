@@ -5,16 +5,18 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
-export function RepoFilter({ repos, selected }: { repos: { key: string; count: number }[]; selected: string[] }) {
+// Empty selection is explicit (?repo=none) and shows no findings; it never silently means "all".
+export function RepoFilter({ repos, selected, none = false }: { repos: { key: string; count: number }[]; selected: string[]; none?: boolean }) {
   const router = useRouter();
   const path = usePathname();
   const sp = useSearchParams();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [pick, setPick] = useState<Set<string>>(new Set(selected));
+  const initial = () => new Set(none ? [] : selected.length ? selected : repos.map((r) => r.key));
+  const [pick, setPick] = useState<Set<string>>(initial);
   const wrap = useRef<HTMLDivElement>(null);
   const id = useId();
-  const all = pick.size === 0;
+  const all = pick.size === repos.length;
 
   useEffect(() => {
     if (!open) return;
@@ -26,25 +28,25 @@ export function RepoFilter({ repos, selected }: { repos: { key: string; count: n
 
   const go = (keys: string[]) => {
     const p = new URLSearchParams(sp.toString());
-    if (keys.length) p.set("repo", keys.join(",")); else p.delete("repo");
+    if (keys.length === repos.length) p.delete("repo"); else if (keys.length === 0) p.set("repo", "none"); else p.set("repo", keys.join(","));
     setOpen(false);
     router.push(`${path}${p.toString() ? `?${p}` : ""}`);
   };
-  const label = selected.length === 0 ? "All repositories" : selected.length === 1 ? selected[0] : `${selected.length} repositories`;
+  const label = none ? "No repositories" : selected.length === 0 ? "All repositories" : selected.length === 1 ? selected[0] : `${selected.length} repositories`;
   const shown = repos.filter((r) => r.key.toLowerCase().includes(q.trim().toLowerCase()));
 
   return (
     <div ref={wrap} className="relative">
-      <button type="button" className="btn-ghost max-w-[min(320px,calc(100vw-32px))]" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} onClick={() => { setPick(new Set(selected)); setOpen((o) => !o); }}>
+      <button type="button" className="btn-ghost max-w-[min(320px,calc(100vw-32px))]" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} onClick={() => { setPick(initial()); setOpen((o) => !o); }}>
         <span className="text-ink2">Repository:</span> <span className="truncate">{label}</span> <span aria-hidden className="text-ink2">▾</span>
       </button>
-      {selected.length > 0 && <button type="button" className="text-[12px] text-ink2 hover:text-ink underline ml-2" onClick={() => go([])}>Clear</button>}
+      {(selected.length > 0 || none) && <button type="button" className="text-[12px] text-ink2 hover:text-ink underline ml-2" onClick={() => go(repos.map((r) => r.key))}>Reset</button>}
       {open && (
         <div id={id} role="dialog" aria-label="Filter by repository" className="menu !left-0 !right-auto w-[min(320px,calc(100vw-32px))] !p-3 grid gap-2">
           <div className="text-[13px] font-semibold">Filter by repository</div>
           {repos.length > 6 && <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search repositories" aria-label="Search repositories" className="border hair rounded-[6px] px-2 h-8 text-[13px] bg-transparent" />}
           <ul className="grid gap-0.5 max-h-[260px] overflow-auto text-[13px]">
-            <li><label className="flex items-center gap-2 px-1 py-1"><input type="checkbox" checked={all} onChange={() => setPick(new Set())} /> All repositories</label></li>
+            <li><label className="flex items-center gap-2 px-1 py-1"><input type="checkbox" checked={all} onChange={() => setPick(all ? new Set() : new Set(repos.map((r) => r.key)))} /> All repositories</label></li>
             {shown.map((r) => (
               <li key={r.key}><label className="flex items-center gap-2 px-1 py-1">
                 <input type="checkbox" checked={pick.has(r.key)} onChange={(e) => setPick((s) => { const n = new Set(s); if (e.target.checked) n.add(r.key); else n.delete(r.key); return n; })} />

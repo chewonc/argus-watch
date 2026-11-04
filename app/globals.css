@@ -167,3 +167,12 @@ details.disclose .grid > * { min-width: 0; }
 .nav-link[aria-current="page"] { color: var(--ink); font-weight: 500; }
 .nav-link[aria-current="page"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 2px; background: var(--ink); }
 .badge-quiet { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: 10px; font-weight: 600; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Unread count on the notification bell: red with white digits (only rendered when unread > 0). */
+.badge-alert { background: #d92d20; color: #fff; }
+/* Primary call to action: black with white text, subtle hover, clear keyboard focus. */
+.btn-primary { background: #111; color: #fff; border-color: #111; }
+.btn-primary:hover { background: #2b2b2b; border-color: #2b2b2b; color: #fff; }
+.btn-primary:active { background: #000; }
+.btn-primary:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn-primary { background: #fff; color: #111; border-color: #fff; } :root:not([data-theme="light"]) .btn-primary:hover { background: #e6e6e6; color: #111; } :root:not([data-theme="light"]) .btn-primary:focus-visible { outline-color: #fff; } }

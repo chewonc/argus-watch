@@ -2,11 +2,13 @@
 // repository, you get a plain alert with the exact line, and you fix it with your approval. Every claim here is a
 // shipped capability; the examples are labelled as examples. Text comes from the UI dictionary so it is translated.
 import Link from "next/link";
+import { ReportThreat } from "./report-threat";
+import { STATUS_LABEL, type SourceGroup } from "@/lib/monitor-sources";
 import { StatusPill } from "@/components/alerts";
 import { SignInButton } from "@/components/sign-in-button";
 import type { Dict } from "@/lib/i18n/dictionary";
 
-export function Landing({ signin, next, authReady, signedIn = false, d }: { signin: boolean; next?: string; authReady: boolean; signedIn?: boolean; d: Dict }) {
+export function Landing({ signin, next, authReady, signedIn = false, d, monitor = [] }: { signin: boolean; next?: string; authReady: boolean; signedIn?: boolean; d: Dict; monitor?: SourceGroup[] }) {
   const STEPS = [
     { k: "01", t: d.step1_t, d: d.step1_d }, { k: "02", t: d.step2_t, d: d.step2_d },
     { k: "03", t: d.step3_t, d: d.step3_d }, { k: "04", t: d.step4_t, d: d.step4_d },
@@ -20,7 +22,7 @@ export function Landing({ signin, next, authReady, signedIn = false, d }: { sign
           <p className="text-[17px] leading-relaxed text-ink2 max-w-[520px]">{d.landing_sub}</p>
           {signin && <p className="text-[14px] tone-warn">{d.signin_continue}{next ? ` → ${next}` : ""}.</p>}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            {signedIn ? <Link href="/alerts" className="btn">{d.open_your_alerts}</Link> : authReady ? <SignInButton next={next ?? "/alerts"} label={d.sign_in} /> : <span className="text-[13px] text-ink2">{d.signin_unconfigured}</span>}
+            {signedIn ? <Link href="/alerts" className="btn btn-primary">{d.open_your_alerts}</Link> : authReady ? <SignInButton next={next ?? "/alerts"} label={d.sign_in} /> : <span className="text-[13px] text-ink2">{d.signin_unconfigured}</span>}
             <span className="text-[13px] text-ink2">{d.read_only_note}</span>
           </div>
         </div>
@@ -39,6 +41,8 @@ export function Landing({ signin, next, authReady, signedIn = false, d }: { sign
           ))}
         </ol>
       </section>
+
+      <WhatWeMonitor groups={monitor} />
 
       <section className="py-14 border-t hair grid gap-8 max-w-[560px] text-[14px]">
         {[[d.pillar1_t, d.pillar1_d], [d.pillar2_t, d.pillar2_d], [d.pillar3_t, d.pillar3_d]].map(([t, x]) => (
@@ -85,5 +89,45 @@ function Row({ n, strong, children }: { n: string; strong?: boolean; children: R
         {children}
       </div>
     </div>
+  );
+}
+
+const ago = (iso: string | null) => {
+  if (!iso) return null;
+  const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60e3));
+  return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
+};
+const TONE = { active: "tone-ok", delayed: "tone-warn", unavailable: "tone-bad", not_configured: "text-ink2", unknown: "text-ink2" } as const;
+
+/** Sources Argus Watch actually collects from, with status from real collector state (lib/monitor-sources.ts). */
+function WhatWeMonitor({ groups }: { groups: SourceGroup[] }) {
+  if (!groups.length) return null;
+  const last = groups.flatMap((g) => g.sources.map((s) => s.last_ok)).filter((x): x is string => !!x).sort().pop() ?? null;
+  return (
+    <section aria-labelledby="monitor" className="py-14 border-t hair grid gap-6">
+      <div className="grid gap-2 max-w-[640px]">
+        <h2 id="monitor" className="text-[13px] font-semibold uppercase tracking-[0.08em] text-ink2">What we monitor</h2>
+        <p className="text-[15px] leading-relaxed">Security advisories, AI safety research, and emerging AI security threats, collected on a schedule and checked against your code.</p>
+      </div>
+      <div className="grid md:grid-cols-3 gap-8">
+        {groups.map((g) => (
+          <div key={g.id} className="grid gap-2 content-start">
+            <h3 className="text-[14px] font-semibold">{g.title}</h3>
+            <ul className="grid gap-1 text-[13px]">
+              {g.sources.map((s) => (
+                <li key={s.id} className="flex items-baseline justify-between gap-3 min-w-0">
+                  <a href={s.url} target="_blank" rel="noreferrer" className="truncate text-ink no-underline hover:underline" title={s.name}>{s.name}</a>
+                  <span className={`shrink-0 text-[12px] ${TONE[s.status]}`}>{STATUS_LABEL[s.status]}{s.status !== "unknown" && s.last_ok ? ` · ${ago(s.last_ok)}` : ""}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-1 text-[13px] text-ink2">
+        {last && <p>Last checked: {ago(last)}. Sources are checked every 5 to 60 minutes, not streamed live.</p>}
+        <ReportThreat />
+      </div>
+    </section>
   );
 }

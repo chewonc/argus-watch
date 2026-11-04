@@ -188,7 +188,7 @@ function AutoTab({ c, onChange, goVerify }: { c: Ctx; onChange: () => void; goVe
         <div role="note" className="text-[13px] grid gap-1">
           <p className="text-[15px] font-semibold">Auto Fix is unavailable</p>
           <p className="text-ink2">{((b) => b.charAt(0).toUpperCase() + b.slice(1))(c.blocker.replace(/^(Deployment configuration|Repository permission): /, ""))}</p>
-          {c.blocker.startsWith("Repository permission") && <p className="text-ink2">Manage access on <Link href="/repos">Repositories</Link>. The AI Agent tab still works.</p>}
+          {c.blocker.startsWith("Repository permission") && <p className="text-ink2">Manage access on <Link href="/settings#repositories">Settings → Repositories</Link>. The AI Agent tab still works.</p>}
         </div>
       )}
       {(c.can_act || pending) && <Remediation assessmentId={c.assessment_id} initial={c.fix} canAct={c.can_act} runnerEnabled={c.runner_enabled} defaultBranch={c.default_branch} repo={c.repo} mode={c.mode} onChange={onChange} />}

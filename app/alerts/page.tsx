@@ -5,6 +5,7 @@ import { fixesFor } from "@/lib/authz";
 import Link from "next/link";
 import { AlertCard, type CardData } from "@/components/alerts";
 import { RememberThreatsView, RepoFilter } from "@/components/repo-filter";
+import { BulkFix } from "@/components/bulk-fix";
 import { findingAction, latestFix } from "@/lib/actions";
 import { modeOf } from "@/lib/remediation-mode";
 import { actionLabels } from "@/lib/action-labels";
@@ -81,7 +82,10 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
   for (const c of allRelevant) repoCounts.set(ghRepo(c), (repoCounts.get(ghRepo(c)) ?? 0) + 1);
   for (const r of repos) if (!repoCounts.has(r.repo)) repoCounts.set(r.repo, 0);
   const selectedRepos = (sp.repo ?? "").split(",").map((x) => x.trim()).filter((x) => repoCounts.has(x));
-  const relevant = selectedRepos.length ? allRelevant.filter((c) => selectedRepos.includes(ghRepo(c))) : allRelevant;
+  // ?repo=none: the user deselected every repository; show nothing (never silently fall back to all). Filtering changes
+  // only what is displayed, never which repositories are monitored.
+  const noneSelected = sp.repo === "none";
+  const relevant = noneSelected ? [] : selectedRepos.length ? allRelevant.filter((c) => selectedRepos.includes(ghRepo(c))) : allRelevant;
   const shown = filter === "urgent" ? relevant.filter(isOpen) : filter === "resolved" ? relevant.filter((c) => !isOpen(c)) : relevant;
   const openCount = relevant.filter(isOpen).length;
   // One line per GitHub repository (fixture subfolders of the same repository collapse into it); worst status wins.
@@ -103,7 +107,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
             <ul className="grid gap-0.5 max-h-[180px] overflow-auto" aria-label={d.repositories}>
               {repoLines.map(({ k, s }) => <li key={k} className="flex items-center gap-2 min-w-0"><span aria-hidden className={`tone-${s.tone} text-[9px]`}>●</span><span className="font-medium truncate" title={k}>{k}</span>{s.label !== d.monitoring_active && <span className={`tone-${s.tone} shrink-0`}>{s.label}</span>}</li>)}
             </ul>
-            <Link href="/repos" className="text-ink2 hover:text-ink underline w-fit">Manage repositories</Link>
+            <Link href="/settings#repositories" className="text-ink2 hover:text-ink underline w-fit">Manage repositories</Link>
           </div>
         )}
       </header>
@@ -114,16 +118,17 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
         <>
           <RememberThreatsView />
           <div className="flex flex-wrap items-center gap-3">
-            {repoCounts.size > 1 && <RepoFilter repos={[...repoCounts.entries()].sort((x, y) => x[0].localeCompare(y[0])).map(([key, count]) => ({ key, count }))} selected={selectedRepos} />}
+            {repoCounts.size > 1 && <RepoFilter repos={[...repoCounts.entries()].sort((x, y) => x[0].localeCompare(y[0])).map(([key, count]) => ({ key, count }))} selected={selectedRepos} none={noneSelected} />}
             <nav className="seg w-fit" aria-label="Filter threats by status">
-              {FILTERS.map((f) => { const q = new URLSearchParams(); if (f !== "all") q.set("f", f); if (selectedRepos.length) q.set("repo", selectedRepos.join(",")); return <Link key={f} href={`/alerts${q.toString() ? `?${q}` : ""}`} aria-current={f === filter ? "page" : undefined}>{d[`filter_${f}` as keyof typeof d]}</Link>; })}
+              {FILTERS.map((f) => { const q = new URLSearchParams(); if (f !== "all") q.set("f", f); if (noneSelected) q.set("repo", "none"); else if (selectedRepos.length) q.set("repo", selectedRepos.join(",")); return <Link key={f} href={`/alerts${q.toString() ? `?${q}` : ""}`} aria-current={f === filter ? "page" : undefined}>{d[`filter_${f}` as keyof typeof d]}</Link>; })}
             </nav>
           </div>
-          {shown.length === 0 ? (
+          {noneSelected ? <Empty title="No repositories selected" body="Choose at least one repository in the filter to see its findings." action={<Link href="/alerts" className="btn">Show all repositories</Link>} />
+          : shown.length === 0 ? (
             filter === "resolved" ? <Empty title={d.empty_resolved_title} body={d.empty_resolved_body} />
               : <Empty title={d.empty_clear_title} body={d.empty_clear_body} />
           ) : (
-            <ul className="border hair rounded-[10px] bg-raised overflow-hidden">{shown.map((c) => <AlertCard key={c.a.id} c={c} labels={actionLabels(d)} />)}</ul>
+            <BulkFix ids={shown.map((c) => c.a.id)} mode={modeOf(user?.settings)}><ul className="border hair rounded-[10px] bg-raised overflow-hidden">{shown.map((c) => <AlertCard key={c.a.id} c={c} labels={actionLabels(d)} />)}</ul></BulkFix>
           )}
         </>
       )}

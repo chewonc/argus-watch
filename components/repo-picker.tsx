@@ -6,7 +6,7 @@ import { useState } from "react";
 
 export type PickRepo = { full_name: string; private: boolean; default_branch: string; language: string | null; watched: boolean };
 
-export function RepoPicker({ installationId, repos, action, manageHref }: { installationId: number; repos: PickRepo[]; action: (fd: FormData) => Promise<void>; manageHref?: string }) {
+export function RepoPicker({ installationId, repos, action, manageHref, back }: { installationId: number; repos: PickRepo[]; action: (fd: FormData) => Promise<void>; manageHref?: string; back?: string }) {
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -15,6 +15,7 @@ export function RepoPicker({ installationId, repos, action, manageHref }: { inst
   const toggle = (name: string, on: boolean) => setPicked((s) => { const n = new Set(s); if (on) n.add(name); else n.delete(name); return n; });
   return (
     <form action={action} onSubmit={() => setBusy(true)} className="grid gap-3">
+      {back && <input type="hidden" name="back" value={back} />}
       <input type="hidden" name="installation_id" value={installationId} />
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search repositories" aria-label="Search repositories" className="border hair rounded-[6px] px-3 h-9 text-[14px] bg-transparent" />
       <ul className="grid max-h-[320px] overflow-auto text-[14px] border hair rounded-[8px]" aria-label="Repositories">
