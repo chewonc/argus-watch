@@ -4,16 +4,18 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { NotificationBell } from "@/components/notification-bell";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { signInWithGitHub, signOut } from "@/lib/auth-client";
 
 export type HeaderUser = { id: string; login: string; avatar: string | null } | null;
 export type HeaderLabels = { alerts: string; repos: string; monitoring: string; activity: string; settings: string; notifications: string; signIn: string; signOut: string; notConfigured: string };
 
-export function HeaderNav({ user, authReady, labels }: { user: HeaderUser; authReady: boolean; labels: HeaderLabels }) {
+export function HeaderNav({ user, authReady, labels, locale = "en", languages = [] }: { user: HeaderUser; authReady: boolean; labels: HeaderLabels; locale?: string; languages?: { code: string; name: string }[] }) {
   const path = usePathname();
   const active = path.startsWith("/alerts") || path.startsWith("/case");
   return (
-    <nav className="flex items-center gap-4 text-[13px]">
+    <nav className="flex items-center gap-3 sm:gap-4 text-[13px]">
+      {languages.length > 1 && <LanguageSwitcher current={locale} languages={languages} compact />}
       {user && <Link href="/alerts" aria-current={active ? "page" : undefined} className={`no-underline ${active ? "font-semibold" : "text-ink2 hover:text-ink"}`}>{labels.alerts}</Link>}
       {user && <NotificationBell label={labels.notifications} />}
       {user ? <AccountMenu user={user} labels={labels} /> : authReady ? (

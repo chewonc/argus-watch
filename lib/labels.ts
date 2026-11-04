@@ -18,6 +18,8 @@ const S: Record<StatusKind, Omit<Status, "kind">> = {
   resolved: { label: "Resolved", glyph: "✓", tone: "muted" },
 };
 const mk = (kind: StatusKind): Status => ({ kind, ...S[kind] });
+/** Status with its label taken from a translated UI dictionary (keys st_<kind>). */
+export const localized = <T extends { kind: StatusKind; label: string }>(st: T, d: Record<string, string>): T => ({ ...st, label: d[`st_${st.kind}`] ?? st.label });
 
 /** Verified = the deterministic verdict rule (lib/verdict.ts) returned Affected for this repository. */
 export const isVerified = (a: Pick<Assessment, "verdict"> & { agent?: Assessment["agent"] }) => a.verdict === "Affected" || (a.verdict !== "Not Affected" && a.agent?.status === "confirmed" && a.agent.evidence.length > 0);

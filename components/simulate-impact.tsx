@@ -11,7 +11,7 @@ const BASIS: Record<Basis, { label: string; color: string; help: string }> = {
 };
 const TONE = { normal: "var(--ink)", danger: "var(--contradicted)", success: "var(--observed)", muted: "var(--ink-2)" };
 
-export function SimulateImpact({ assessmentId, repo, sha }: { assessmentId: string; repo: string; sha: string }) {
+export function SimulateImpact({ assessmentId, repo, sha, title = "What happens if you don't fix this?", button = "Simulate user impact" }: { assessmentId: string; repo: string; sha: string; title?: string; button?: string }) {
   const lineHref = (file: string, line: number | null) => `https://github.com/${repo}/blob/${sha}/${file.split("/").map(encodeURIComponent).join("/")}${line ? `#L${line}` : ""}`;
   const [sim, setSim] = useState<Simulation | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,8 +36,8 @@ export function SimulateImpact({ assessmentId, repo, sha }: { assessmentId: stri
   return (
     <section className="grid gap-3" aria-labelledby="sim-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="sim-h" className="text-[15px] font-semibold">What happens if you don&apos;t fix this?</h2>
-        {!sim && <button className="btn" onClick={() => run()} disabled={busy}>{busy ? "Building the scenario… (~20–40 s)" : "Simulate user impact"}</button>}
+        <h2 id="sim-h" className="text-[15px] font-semibold">{title}</h2>
+        {!sim && <button className="btn" onClick={() => run()} disabled={busy}>{busy ? "… (~20–40 s)" : button}</button>}
       </div>
       {!sim && !busy && <p className="text-[13px] text-ink2">See how someone using your app could experience this threat, step by step, built only from what Argus found in your code. Synthetic data; nothing is executed.</p>}
       {err && <p role="alert" className="text-[13px]" style={{ color: "var(--contradicted)" }}>{err}</p>}

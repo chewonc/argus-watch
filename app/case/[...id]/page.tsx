@@ -15,7 +15,7 @@ import { env, hasGitHubApp, hasRunner } from "@/lib/env";
 import { canFix } from "@/lib/fixgate";
 import { installationPermissions } from "@/lib/github-app";
 import { getDict, getLocale, tr } from "@/lib/i18n";
-import { isVerified, location, matchedTech, plainTitle, statusOf, whereLine } from "@/lib/labels";
+import { isVerified, location, matchedTech, plainTitle, statusOf, localized, whereLine } from "@/lib/labels";
 import { permalink, provenanceOf } from "@/lib/remediation";
 import { readFile } from "@/lib/repo";
 import { deriveSeverity } from "@/lib/severity";
@@ -50,7 +50,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   const sev = a.severity ?? deriveSeverity(a, items);
   const loc = location(a);
   const prFix = fixes.find((x) => x.status === "pr_created") ?? null;
-  const status = statusOf(a, sev, { resolved: resolvedSet.includes(a.id), prOpen: !!prFix });
+  const status = localized(statusOf(a, sev, { resolved: resolvedSet.includes(a.id), prOpen: !!prFix }), d);
   const verified = isVerified(a);
   const title0 = plainTitle(a, f, loc, w?.tech_tags, w?.packages.map((p) => p.name));
   const where = whereLine(a, loc);
@@ -108,9 +108,9 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
         </div>
       )}
 
-      {a.verdict !== "Not Affected" && <div className="border-t hair pt-5"><SimulateImpact assessmentId={a.id} repo={repoOnly} sha={a.sha} /></div>}
+      {a.verdict !== "Not Affected" && <div className="border-t hair pt-5"><SimulateImpact assessmentId={a.id} repo={repoOnly} sha={a.sha} title={d.what_if_not_fixed} button={d.simulate_impact} /></div>}
 
-      <div className="border-t hair pt-5"><CredibilityPanel c={f?.credibility} /></div>
+      <div className="border-t hair pt-5"><CredibilityPanel c={f?.credibility} title={d.is_threat_real} /></div>
 
       {(ghUrl || prFix?.pr_url) && (
         <div className="flex flex-wrap items-center gap-2">
@@ -118,7 +118,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
           {prFix?.pr_url && <a href={prFix.pr_url} target="_blank" rel="noreferrer" className="btn">Review draft pull request{prFix.pr_number ? ` #${prFix.pr_number}` : ""} <span aria-hidden>↗</span></a>}
         </div>
       )}
-      {fixAllowed && <div id="fix"><FixPreview assessmentId={a.id} initial={latestFix} allowPr={!!ur?.allow_pr} isDemoRepo={demoRepo} verdict={a.verdict} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} museEnabled={hasRunner()} labels={{ proposed_fix: d.proposed_fix, draft_fix: d.fix, drafting: d.drafting, re_draft: d.re_draft, approve: d.approve_open_pr, not_verified: d.not_verified }} /></div>}
+      {fixAllowed && <div id="fix"><FixPreview assessmentId={a.id} initial={latestFix} allowPr={!!ur?.allow_pr} isDemoRepo={demoRepo} verdict={a.verdict} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} museEnabled={hasRunner()} museLabels={{ title: d.automated_fix, pr: d.fix_create_pr, push: d.fix_push, recommended: d.recommended }} labels={{ proposed_fix: d.proposed_fix, draft_fix: d.fix, drafting: d.drafting, re_draft: d.re_draft, approve: d.approve_open_pr, not_verified: d.not_verified }} /></div>}
 
       {a.verdict !== "Not Affected" && <AskAgent id={a.id} connected={agentConnected} verified={verified} />}
 

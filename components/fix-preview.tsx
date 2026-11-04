@@ -4,13 +4,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Fix } from "@/lib/schema";
-import { MuseFix } from "./muse-fix";
+import { MuseFix, type MuseLabels } from "./muse-fix";
 
 type Labels = { proposed_fix: string; draft_fix: string; drafting: string; re_draft: string; approve: string; not_verified: string };
-type Props = { assessmentId: string; initial: Fix | null; allowPr: boolean; isDemoRepo: boolean; verdict: string; defaultBranch: string; repo: string; labels?: Labels; museEnabled?: boolean };
+type Props = { assessmentId: string; initial: Fix | null; allowPr: boolean; isDemoRepo: boolean; verdict: string; defaultBranch: string; repo: string; labels?: Labels; museEnabled?: boolean; museLabels?: MuseLabels };
 
 const EN: Labels = { proposed_fix: "Proposed fix", draft_fix: "Draft fix", drafting: "Drafting… (model call, ~30–90 s)", re_draft: "Re-draft", approve: "Approve & open draft PR…", not_verified: "Security remediation: not verified" };
-export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict, defaultBranch, repo, labels = EN, museEnabled = false }: Props) {
+export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict, defaultBranch, repo, labels = EN, museEnabled = false, museLabels }: Props) {
   const router = useRouter();
   const [fix, setFix] = useState<Fix | null>(initial);
   const [busy, setBusy] = useState<"draft" | "apply" | "checks" | null>(null);
@@ -75,7 +75,7 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
           <Assessment fix={fix} />
           {fix.caveats.length > 0 && <div className="text-[12px]"><div className="label">Caveats from the drafting model</div><ul className="list-disc pl-5">{fix.caveats.map((c, i) => <li key={i}>{c}</li>)}</ul></div>}
 
-          {museEnabled && !isDemoRepo && fix.files.length > 0 && <MuseFix fix={fix} onChange={setFix} />}
+          {museEnabled && !isDemoRepo && fix.files.length > 0 && <MuseFix fix={fix} onChange={setFix} labels={museLabels} />}
           {fix.status === "drafted" && !museEnabled && (
             <div className="flex flex-wrap items-center gap-3">
               <button className="btn" onClick={() => dlg.current?.showModal()} disabled={!allowPr || isDemoRepo} title={isDemoRepo ? "Shared demo repositories never receive pull requests" : !allowPr ? "Enable draft pull requests for this repository on the Repos page first" : ""}>{labels.approve}</button>

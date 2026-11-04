@@ -8,7 +8,9 @@ import type { Fix } from "@/lib/schema";
 type Info = { allowed_files: string[]; test_command: string | null; default_branch: string; blockers: string[] };
 const ACTIVE = ["queued", "running", "validated", "merging"];
 
-export function MuseFix({ fix: initial, onChange }: { fix: Fix; onChange?: (f: Fix) => void }) {
+export type MuseLabels = { title: string; pr: string; push: string; recommended: string };
+const MUSE_EN: MuseLabels = { title: "Automated fix · Meta Muse Code", pr: "Fix & create PR", push: "Fix & push", recommended: "recommended" };
+export function MuseFix({ fix: initial, onChange, labels = MUSE_EN }: { fix: Fix; onChange?: (f: Fix) => void; labels?: MuseLabels }) {
   const [fix, setFix] = useState<Fix>(initial);
   const [info, setInfo] = useState<Info | null>(null);
   const [mode, setMode] = useState<"pr" | "push">("pr");
@@ -44,13 +46,13 @@ export function MuseFix({ fix: initial, onChange }: { fix: Fix; onChange?: (f: F
   return (
     <div className="grid gap-3 border hair rounded-[6px] p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="label">Automated fix · Meta Muse Code</div>
+        <div className="label">{labels.title}</div>
         <span className="text-[12px] text-ink2">Edits run in an isolated runner. Nothing is written until checks pass.</span>
       </div>
       {canStart && (
         <div className="flex flex-wrap gap-2">
-          <button className="btn" onClick={() => open("pr")}>Fix &amp; create PR <span className="text-ink2 font-normal">· recommended</span></button>
-          <button className="btn-ghost" onClick={() => open("push")}>Fix &amp; push</button>
+          <button className="btn" onClick={() => open("pr")}>{labels.pr} <span className="text-ink2 font-normal">· {labels.recommended}</span></button>
+          <button className="btn-ghost" onClick={() => open("push")}>{labels.push}</button>
         </div>
       )}
       {started && <RunLadder fix={fix} />}

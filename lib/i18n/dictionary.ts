@@ -1,5 +1,5 @@
-// English source strings for the UI. Other languages are produced by Google Cloud Translation at request time
-// (lib/i18n/translate.ts) and cached; the English text is the key, so a changed string is re-translated automatically.
+// English source strings for the UI. Korean ships as a reviewed static dictionary (lib/i18n/ko.ts); other languages are
+// machine-translated at request time by Meta Muse Spark (or Google Cloud Translation when its key is set) and cached.
 export const en = {
   nav_watch: "Watch", nav_repos: "Repositories", nav_monitoring: "Monitoring status", nav_activity: "Activity log", nav_sources: "Sources", nav_alerts: "Alerts", nav_settings: "Settings", sign_in: "Sign in with GitHub", sign_out: "Sign out", sign_in_not_configured: "sign-in not configured",
   headline: "What touched your code.",
@@ -39,6 +39,28 @@ export const en = {
   not_confirmed_code_found: "Not yet confirmed in your project. Related code was found at {where}, but the evidence so far does not establish that this issue applies.",
   could_be_serious: "Could be serious, but not yet confirmed in your project.",
   read_only_footer: "Argus Watch only reads your code. Nothing in your repository changes without your approval.",
+  // Landing (Nov 4)
+  landing_eyebrow: "AI threats evolve every day. Your defenses should keep up.",
+  landing_h1: "Know when new security threats affect your code, and fix them.",
+  landing_sub: "Argus Watch connects emerging vulnerabilities and attacks to the exact lines in your repositories, so you hear about what matters to you, not everything on the internet.",
+  signin_continue: "Sign in to continue", open_your_alerts: "Open your alerts", signin_unconfigured: "Sign-in is not configured on this deployment yet.", read_only_note: "Read-only · nothing changes without your approval",
+  how_it_works: "How it works",
+  step1_t: "A new threat is published", step1_d: "Argus follows security advisories, vulnerability databases, research papers and security news around the clock, and fact-checks each report.",
+  step2_t: "Checked against your code", step2_d: "Meta Muse Spark reads the threat and the code that matters and cites the exact lines; versions are checked from your lockfile. Nothing is run.",
+  step3_t: "You get a plain alert", step3_d: "What's wrong, where, and how sure we are. Unconfirmed issues are clearly marked as possible.",
+  step4_t: "Fix it with your approval", step4_d: "Open the exact line on GitHub, or let your own AI coding agent fix it in your editor.",
+  pillar1_t: "Evidence, not guesses", pillar1_d: "Meta Muse Spark reads each threat and your code and points to the lines that matter; Argus then checks every cited line against the real file. An issue is marked as affecting you only when that evidence holds. Everything else is labelled a possible issue.",
+  pillar2_t: "Read-only by default", pillar2_d: "Argus reads your lockfiles and the files it cites. It never runs your code on its servers, and never changes your repository without your approval.",
+  pillar3_t: "Works with your AI agent", pillar3_d: "Connect an MCP-capable coding agent such as Meta Muse Code, Claude Code or Codex once, and investigate or fix an alert in your editor.",
+  loop_threat: "Threat", loop_code: "Your code", loop_alert: "Alert", loop_fix: "Fix", loop_ago: "Security advisory · 12 min ago", loop_threat_title: "Token verification bypass in a popular JWT library",
+  loop_checked: "acme/api · checked against your repository", loop_example: "Example", loop_alert_title: "Your login tokens could be forged", loop_fix_text: "Upgrade the library and pin the allowed algorithm.", loop_ask_agent: "Ask your AI agent",
+  // Status labels (lib/labels.ts)
+  st_serious: "Serious", st_important: "Important", st_moderate: "Moderate", st_minor: "Minor", st_affects: "Affects you", st_possible: "Possible issue", st_not_affected: "You're not affected", st_fix_ready: "Fix ready to review", st_resolved: "Resolved",
+  // Notifications page
+  all_caught_up: "You're all caught up.", n_unread: "{n} unread", show_all: "All", show_unread: "Unread", no_unread: "No unread notifications.", no_notifications: "No notifications yet. We'll notify you when a new threat matches your code.",
+  // New case-page sections
+  is_threat_real: "Is this threat real?", what_if_not_fixed: "What happens if you don't fix this?", simulate_impact: "Simulate user impact", automated_fix: "Automated fix · Meta Muse Code",
+  fix_create_pr: "Fix & create PR", fix_push: "Fix & push", recommended: "recommended",
 } as const;
 export type Key = keyof typeof en;
 export type Dict = Record<Key, string>;

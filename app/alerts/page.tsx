@@ -7,7 +7,7 @@ import { env, hasGitHubApp } from "@/lib/env";
 import { canFix } from "@/lib/fixgate";
 import { installationPermissions } from "@/lib/github-app";
 import { getDict, getLocale, tr } from "@/lib/i18n";
-import { caseHref, discoveredAt, location, plainTitle, repoStatus, statusOf, whereLine } from "@/lib/labels";
+import { caseHref, discoveredAt, location, plainTitle, repoStatus, statusOf, localized, whereLine } from "@/lib/labels";
 import { deriveSeverity } from "@/lib/severity";
 import { currentUser, visibleRepoKeys } from "@/lib/session";
 import { store } from "@/lib/store";
@@ -51,7 +51,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
     const sev = a.severity ?? deriveSeverity(a, []);
     const fs = fixStates.get(a.id) ?? "none";
     const loc = location(a);
-    const status = statusOf(a, sev, { resolved: resolved.has(a.id), prOpen: fs === "pr_created" });
+    const status = localized(statusOf(a, sev, { resolved: resolved.has(a.id), prOpen: fs === "pr_created" }), d);
     const fix = status.kind !== "fix_ready" && status.kind !== "resolved" && canFix(a, { allowPr: !!ur?.allow_pr, isDemo: !ur, hasInstallation: !!ur?.installation_id, writePermission: ur?.installation_id ? perms.get(ur.installation_id) ?? null : null, loc, priorFailed: fs === "failed" });
     return { a, f, sev, status, title: plainTitle(a, f, loc, r?.tech_tags, r?.packages.map((p) => p.name)), where: whereLine(a, loc), fix, caseHref: caseHref(a.id) };
   });

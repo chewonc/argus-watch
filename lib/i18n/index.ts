@@ -4,6 +4,10 @@ import { cookies } from "next/headers";
 import { createHash } from "node:crypto";
 import { kv } from "../store";
 import { en, type Dict } from "./dictionary";
+import { dict as ko } from "./ko";
+
+/** Reviewed static dictionaries: no translation call, no latency, no cost. Missing keys fall back to English. */
+const STATIC: Record<string, Partial<Dict>> = { ko };
 import { normalizeLocale, translateMany } from "./translate";
 
 export const LOCALE_COOKIE = "aw_locale";
@@ -14,6 +18,7 @@ const dictMemo = new Map<string, Dict>();
 export async function getDict(locale: string): Promise<Dict> {
   locale = normalizeLocale(locale);
   if (locale === "en") return en;
+  if (STATIC[locale]) return { ...en, ...STATIC[locale] } as Dict;
   const m = dictMemo.get(locale); if (m) return m;
   const k = `tr:dict:${locale}:${DICT_VERSION}`;
   const c = await kv.get<Dict>(k);

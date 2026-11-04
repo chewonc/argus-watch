@@ -11,22 +11,23 @@ export const dynamic = "force-dynamic";
 export default async function Notifications({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const user = await requireUser("/notifications");
   const sp = await searchParams;
-  const d = await getDict(await getLocale());
+  const locale = await getLocale();
+  const d = await getDict(locale);
   const onlyUnread = sp.show === "unread";
   const [list, unread] = await Promise.all([store.listNotifications(user.id, 200), store.unreadCount(user.id)]);
   const views = (await viewNotifications(user.id, list)).sort(sp.sort === "time" ? (a, b) => b.notified_at.localeCompare(a.notified_at) : byPriority).filter((n) => !onlyUnread || !n.read_at);
-  const fmt = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const fmt = (iso: string) => new Date(iso).toLocaleString(locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return (
     <div className="mx-auto max-w-[760px] px-4 sm:px-6 py-8 sm:py-10 grid gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="grid gap-1"><h1 className="text-[28px] font-semibold tracking-[-0.02em]">{d.notifications}</h1><p className="text-[15px] text-ink2">{unread ? `${unread} unread` : "You're all caught up."}</p></div>
+        <div className="grid gap-1"><h1 className="text-[28px] font-semibold tracking-[-0.02em]">{d.notifications}</h1><p className="text-[15px] text-ink2">{unread ? d.n_unread.replace("{n}", String(unread)) : d.all_caught_up}</p></div>
         <div className="flex items-center gap-2">
-          <nav className="seg" aria-label="Show"><Link href="/notifications" aria-current={!onlyUnread ? "page" : undefined}>All</Link><Link href="/notifications?show=unread" aria-current={onlyUnread ? "page" : undefined}>Unread</Link></nav>
+          <nav className="seg" aria-label="Show"><Link href="/notifications" aria-current={!onlyUnread ? "page" : undefined}>{d.show_all}</Link><Link href="/notifications?show=unread" aria-current={onlyUnread ? "page" : undefined}>{d.show_unread}</Link></nav>
           {unread > 0 && <MarkAllRead />}
         </div>
       </div>
       {views.length === 0 ? (
-        <div className="border hair rounded-[10px] bg-raised px-6 py-12 text-center text-[14px] text-ink2">{onlyUnread ? "No unread notifications." : "No notifications yet. We'll notify you when a new threat matches your code."}</div>
+        <div className="border hair rounded-[10px] bg-raised px-6 py-12 text-center text-[14px] text-ink2">{onlyUnread ? d.no_unread : d.no_notifications}</div>
       ) : (
         <ul className="border hair rounded-[10px] bg-raised overflow-hidden">
           {views.map((n) => (
