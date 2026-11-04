@@ -26,6 +26,16 @@ export async function GET(req: Request) {
   const verified = isVerified(a);
   const blocker = a.verdict === "Not Affected" ? "This finding does not affect your code; there is nothing to fix." : automationBlocker(a, { fixEnabled: env.FIX_ENABLED, allowPr: !!ur?.allow_pr, isDemo: demo, hasInstallation: !!inst, writePermission, mode });
   const runnerMissing = env.FIX_ENABLED && !hasRunner() ? "Deployment configuration: the Muse Code runner is not configured, so patches are previewed by Muse Spark and syntax-checked only." : null;
+  // How the user can grant what is missing, in the fewest steps (never bypassing GitHub's own approval):
+  //   install        the App is not installed on this repository: guided connect flow (Settings → Repositories)
+  //   accept         the installation lacks Contents/Pull requests write: GitHub's own page for reviewing the App's permissions
+  //   allow_changes  Argus's per-repository opt-in is off: one click here, no GitHub change
+  const instRec = inst ? await store.getInstallation(inst).catch(() => null) : null;
+  const grant = !verified || !blocker?.startsWith("Repository permission") ? null
+    : !inst ? { kind: "install" as const, url: "/settings#repositories" }
+    : writePermission !== true ? { kind: "accept" as const, url: instRec?.account_type === "Organization" ? `https://github.com/organizations/${instRec.account}/settings/installations/${inst}` : `https://github.com/settings/installations/${inst}` }
+    : !ur?.allow_pr ? { kind: "allow_changes" as const, url: null }
+    : null;
   const loc = location(a);
   const repoOnly = a.repo.split("/").slice(0, 2).join("/");
   return Response.json({
@@ -43,6 +53,8 @@ export async function GET(req: Request) {
     // Auto Fix is offered only for confirmed findings that automation can act on; Verify and AI Agent are always available.
     can_act: verified && !blocker,
     blocker: verified ? blocker : null,
+    grant,
+    repo_key: a.repo,
     runner_enabled: hasRunner(),
     runner_note: runnerMissing,
     mode,

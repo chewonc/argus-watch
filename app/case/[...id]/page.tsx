@@ -54,7 +54,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   const sev = a.severity ?? deriveSeverity(a, items);
   const loc = location(a);
   const prFix = fixes.find((x) => ["pr_created", "blocked_by_protection", "merging", "merged"].includes(x.status)) ?? null; // same rule as the Threats list
-  const status = localized(statusOf(a, sev, { resolved: resolvedSet.includes(a.id), prOpen: !!prFix }), d);
+  const status = localized(statusOf(a, sev, { resolved: resolvedSet.includes(a.id), prOpen: !!prFix && prFix.status !== "merged", merged: prFix?.status === "merged" }), d);
   const verified = isVerified(a);
   const title0 = plainTitle(a, f, loc, w?.tech_tags, w?.packages.map((p) => p.name));
   const where = whereLine(a, loc);
@@ -101,41 +101,41 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   const cachedSim = a.verdict === "Not Affected" ? null : await cachedSimulation(a, fixes.find((x) => x.files.length > 0) ?? null, locale).catch(() => null);
 
   return (
-    <div className="mx-auto max-w-[760px] px-4 sm:px-6 py-8 sm:py-10 grid grid-cols-[minmax(0,1fr)] gap-8">
+    <div className="mx-auto max-w-[calc(760px*var(--ui))] px-4 sm:px-6 py-8 sm:py-10 grid grid-cols-[minmax(0,1fr)] gap-8">
       <MarkRead assessmentId={a.id} />
       <div className="grid gap-3">
         <BackToThreats label={d.nav_threats} />
         <div className="flex flex-wrap items-center gap-2"><StatusPill s={status} /><CredibilityChip c={f?.credibility} l={{ none: d.report_not_checked, prefix: d.report_prefix }} /><SparkBadge a={a} label={d.analysed_by_spark} /></div>
-        <h1 className="text-[26px] sm:text-[30px] font-semibold tracking-[-0.02em] leading-tight">{T.title}</h1>
-        {loc && a.verdict !== "Not Affected" && <div className="text-[13px] text-ink2"><span>{verified ? d.affected_at : d.potentially_affected}: </span>{ghUrl ? <a href={ghUrl} target="_blank" rel="noreferrer" className="mono [overflow-wrap:anywhere]" title={d.open_in_github}>{`${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}`} ↗</a> : <span className="mono [overflow-wrap:anywhere]">{`${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}`}</span>}</div>}
-        {!loc && (where.kind === "package") && <div className="mono text-[13px] text-ink2 [overflow-wrap:anywhere]">{where.text}</div>}
+        <h1 className="text-[calc(26px*var(--ui))] sm:text-[calc(30px*var(--ui))] font-semibold tracking-[-0.02em] leading-tight">{T.title}</h1>
+        {loc && a.verdict !== "Not Affected" && <div className="text-[calc(13px*var(--ui))] text-ink2"><span>{verified ? d.affected_at : d.potentially_affected}: </span>{ghUrl ? <a href={ghUrl} target="_blank" rel="noreferrer" className="mono [overflow-wrap:anywhere]" title={d.open_in_github}>{`${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}`} ↗</a> : <span className="mono [overflow-wrap:anywhere]">{`${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}`}</span>}</div>}
+        {!loc && (where.kind === "package") && <div className="mono text-[calc(13px*var(--ui))] text-ink2 [overflow-wrap:anywhere]">{where.text}</div>}
         {a.verdict === "Not Affected"
-          ? <p className="text-[14px] text-ink2">This threat doesn&apos;t affect your project: the code it needs isn&apos;t there. We&apos;ll check again when your code changes.</p>
-          : !verified && <p className="text-[14px] text-ink2">{severeUnverified ? d.could_be_serious : loc ? d.not_confirmed_code_found.replace("{where}", `${loc.file.split("/").pop()}:${loc.from}`) : d.not_confirmed_long.replace("{tech}", tech)}</p>}
-        {a.agent && <p className="text-[13px] text-ink2">{a.agent.status === "confirmed" ? "Confirmed" : a.agent.status === "not_affected" ? "Marked not affected" : "Fix proposed"} by your AI agent on {new Date(a.agent.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Argus checked the lines it cited{a.verdict !== "Affected" && a.agent.status === "confirmed" ? "; Argus's own analysis had not confirmed this" : ""}.</p>}
-        <div className="grid gap-0.5 mt-1"><div className="label">{d.next_step}</div><p className="text-[14px] leading-relaxed">{nextStep}</p></div>
+          ? <p className="text-[calc(14px*var(--ui))] text-ink2">This threat doesn&apos;t affect your project: the code it needs isn&apos;t there. We&apos;ll check again when your code changes.</p>
+          : !verified && <p className="text-[calc(14px*var(--ui))] text-ink2">{severeUnverified ? d.could_be_serious : loc ? d.not_confirmed_code_found.replace("{where}", `${loc.file.split("/").pop()}:${loc.from}`) : d.not_confirmed_long.replace("{tech}", tech)}</p>}
+        {a.agent && <p className="text-[calc(13px*var(--ui))] text-ink2">{a.agent.status === "confirmed" ? "Confirmed" : a.agent.status === "not_affected" ? "Marked not affected" : "Fix proposed"} by your AI agent on {new Date(a.agent.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Argus checked the lines it cited{a.verdict !== "Affected" && a.agent.status === "confirmed" ? "; Argus's own analysis had not confirmed this" : ""}.</p>}
+        <div className="grid gap-0.5 mt-1"><div className="label">{d.next_step}</div><p className="text-[calc(14px*var(--ui))] leading-relaxed">{nextStep}</p></div>
       </div>
 
-      {T.problem && <section className="border-t hair pt-5 grid gap-1.5"><h2 className="text-[15px] font-semibold">{d.whats_wrong}</h2><p className="text-[15px] leading-relaxed">{T.problem}</p></section>}
+      {T.problem && <section className="border-t hair pt-5 grid gap-1.5"><h2 className="text-[calc(15px*var(--ui))] font-semibold">{d.whats_wrong}</h2><p className="text-[calc(15px*var(--ui))] leading-relaxed">{T.problem}</p></section>}
 
       {a.verdict !== "Not Affected" && (T.fix || act.primary || prFix?.pr_url) && (
         <section id="how-to-fix" className="border-t hair pt-5 grid gap-3 scroll-mt-20">
-          <h2 className="text-[15px] font-semibold">{d.how_to_fix}</h2>
-          {T.fix && <p className="text-[15px] leading-relaxed">{T.fix}</p>}
+          <h2 className="text-[calc(15px*var(--ui))] font-semibold">{d.how_to_fix}</h2>
+          {T.fix && <p className="text-[calc(15px*var(--ui))] leading-relaxed">{T.fix}</p>}
           <FindingActions act={act} labels={actionLabels(d)} modalFor={a.id} autoOpen />
         </section>
       )}
 
       <div className="border-t hair pt-5">
         {a.verdict === "Not Affected"
-          ? <section className="grid gap-1.5"><h2 className="text-[15px] font-semibold">{d.what_could_happen}</h2><p className="text-[14px] text-ink2">{d.impact_not_affected}</p></section>
+          ? <section className="grid gap-1.5"><h2 className="text-[calc(15px*var(--ui))] font-semibold">{d.what_could_happen}</h2><p className="text-[calc(14px*var(--ui))] text-ink2">{d.impact_not_affected}</p></section>
           : <SimulateImpact assessmentId={a.id} repo={repoOnly} sha={a.sha} title={d.what_could_happen} button={`${d.simulate_impact} →`} intro={d.simulate_intro} locale={locale}
               lead={cachedSim ? (
                 <div className="grid gap-1">
-                  <p className="text-[15px] leading-relaxed">{cachedSim.applicable ? cachedSim.consequence.summary : cachedSim.not_applicable_reason}</p>
-                  {cachedSim.applicable && <p className="text-[12px] text-ink2">{cachedSim.consequence.basis === "demonstrated" ? d.impact_observed : cachedSim.consequence.basis === "inferred" ? d.impact_inferred : d.impact_hypothetical}</p>}
+                  <p className="text-[calc(15px*var(--ui))] leading-relaxed">{cachedSim.applicable ? cachedSim.consequence.summary : cachedSim.not_applicable_reason}</p>
+                  {cachedSim.applicable && <p className="text-[calc(12px*var(--ui))] text-ink2">{cachedSim.consequence.basis === "demonstrated" ? d.impact_observed : cachedSim.consequence.basis === "inferred" ? d.impact_inferred : d.impact_hypothetical}</p>}
                 </div>
-              ) : <p className="text-[13px] text-ink2">{d.impact_unknown}</p>} />}
+              ) : <p className="text-[calc(13px*var(--ui))] text-ink2">{d.impact_unknown}</p>} />}
       </div>
 
       <div className="border-t hair pt-5"><CredibilityPanel c={f?.credibility} title={d.report_verification} none={d.report_not_checked_long} collapsible viewDetails={d.view_details} /></div>
@@ -145,68 +145,68 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
       <details className="disclose border-t hair pt-5">
         <summary>{d.technical_details}</summary>
         <div className="grid gap-8 mt-6">
-          <Stage title="Where this came from">
-            <ul className="grid gap-2 text-[13px]">
+          <Stage title={d.cs_sources}>
+            <ul className="grid gap-2 text-[calc(13px*var(--ui))]">
               {items.map((it) => <li key={it.id}><span className="text-ink2 mr-2">{it.source}</span>{it.url ? <a href={it.url} target="_blank" rel="noreferrer">{it.title}</a> : it.title}</li>)}
             </ul>
-            {f?.claim && <p className="mt-3 text-[13px]">{T.summary}</p>}
-            <div className="mono text-[12px] text-ink2 mt-2 break-all">{f?.ids.join(" · ")} · {a.repo} @{a.sha.slice(0, 7)} · {a.tier}{a.replayed ? " · replayed" : ""} · severity {sev.level}{sev.cvss != null ? ` (CVSS ${sev.cvss})` : ""}{sev.source === "estimated" ? " (estimated)" : ""} · {relevance(a.verdict, a.tier, a.conditions)}</div>
+            {f?.claim && <p className="mt-3 text-[calc(13px*var(--ui))]">{T.summary}</p>}
+            <div className="mono text-[calc(12px*var(--ui))] text-ink2 mt-2 break-all">{f?.ids.join(" · ")} · {a.repo} @{a.sha.slice(0, 7)} · {a.tier}{a.replayed ? " · replayed" : ""} · severity {sev.level}{sev.cvss != null ? ` (CVSS ${sev.cvss})` : ""}{sev.source === "estimated" ? " (estimated)" : ""} · {relevance(a.verdict, a.tier, a.conditions)}</div>
           </Stage>
 
           {a.agent && (
-            <Stage title="Your AI agent's report">
-              <p className="text-[13px]">{a.agent.summary}</p>
-              <ul className="mono text-[12px] mt-2 grid gap-1">{a.agent.evidence.map((e, i) => <li key={i}><a href={gh(e.file, e.line)} target="_blank" rel="noreferrer">{e.file}:{e.line} ↗</a> <span className="text-ink2">{e.quote}</span></li>)}</ul>
-              {a.agent.pr_url && <a href={a.agent.pr_url} target="_blank" rel="noreferrer" className="text-[13px]">Pull request ↗</a>}
+            <Stage title={d.cs_agent}>
+              <p className="text-[calc(13px*var(--ui))]">{a.agent.summary}</p>
+              <ul className="mono text-[calc(12px*var(--ui))] mt-2 grid gap-1">{a.agent.evidence.map((e, i) => <li key={i}><a href={gh(e.file, e.line)} target="_blank" rel="noreferrer">{e.file}:{e.line} ↗</a> <span className="text-ink2">{e.quote}</span></li>)}</ul>
+              {a.agent.pr_url && <a href={a.agent.pr_url} target="_blank" rel="noreferrer" className="text-[calc(13px*var(--ui))]">Pull request ↗</a>}
             </Stage>
           )}
 
-          <Stage title="Dates"><Timeline a={a} /></Stage>
+          <Stage title={d.cs_dates}><Timeline a={a} /></Stage>
 
-          <Stage title="Does this affect your project?">
-            {a.dependency ? <p className="text-[13px]">Affected package <span className="mono">{a.dependency.name}@{a.dependency.version}</span> found in <span className="mono">{a.dependency.source_file}</span>.</p> : <p className="text-[13px] text-ink2">No affected package named in this report; matched on the technologies your project uses.</p>}
-            <p className="text-[12px] text-ink2 mt-1">Having a vulnerable version doesn&apos;t by itself mean your app is affected.</p>
+          <Stage title={d.cs_affects}>
+            {a.dependency ? <p className="text-[calc(13px*var(--ui))]">Affected package <span className="mono">{a.dependency.name}@{a.dependency.version}</span> found in <span className="mono">{a.dependency.source_file}</span>.</p> : <p className="text-[calc(13px*var(--ui))] text-ink2">No affected package named in this report; matched on the technologies your project uses.</p>}
+            <p className="text-[calc(12px*var(--ui))] text-ink2 mt-1">Having a vulnerable version doesn&apos;t by itself mean your app is affected.</p>
           </Stage>
 
-          <Stage title="Where in your code">
-            {a.locations.length === 0 && <p className="text-[13px] text-ink2">Affected file not found. That doesn&apos;t prove the code is safe.</p>}
-            <ul className="grid gap-1 text-[13px]">
+          <Stage title={d.cs_where}>
+            {a.locations.length === 0 && <p className="text-[calc(13px*var(--ui))] text-ink2">Affected file not found. That doesn&apos;t prove the code is safe.</p>}
+            <ul className="grid gap-1 text-[calc(13px*var(--ui))]">
               {a.locations.map((l, i) => <li key={i}><a href={gh(l.file, l.line)} target="_blank" rel="noreferrer" className="mono">{l.file}:{l.line} ↗</a> <span className="text-ink2">{locWhy[i]}</span></li>)}
             </ul>
           </Stage>
 
-          <Stage title="When could this happen?">
+          <Stage title={d.cs_when}>
             <ul className="grid gap-3">
               {a.conditions.map((c, ci) => (
                 <li key={c.id} className="grid sm:grid-cols-[130px_1fr] gap-2 sm:gap-3 items-start border-b hair pb-3">
                   <Chip state={c.state} />
                   <div>
-                    <div className="text-[14px]">{condT[ci].text}</div>
-                    <div className="text-[12px] text-ink2 mt-1">{c.role === "required" ? "required condition" : `missing protection · ${c.mitigation_kind}`}{c.computed ? " · computed in code" : ""}</div>
-                    <div className="text-[12px] mt-1">{condT[ci].reasoning}</div>
-                    {c.evidence.length > 0 && <div className="mono text-[12px] mt-1">{c.evidence.map((e, i) => <a key={i} href={gh(e.file, e.line)} target="_blank" rel="noreferrer" className="mr-3">{e.file.split("/").slice(-2).join("/")}{e.line ? `:${e.line}` : ""} ↗</a>)}</div>}
-                    {c.state === "Unknown" && <div className="text-[12px] text-ink2 mt-1">Missing evidence: nothing in the inspected files establishes this.</div>}
+                    <div className="text-[calc(14px*var(--ui))]">{condT[ci].text}</div>
+                    <div className="text-[calc(12px*var(--ui))] text-ink2 mt-1">{c.role === "required" ? "required condition" : `missing protection · ${c.mitigation_kind}`}{c.computed ? " · computed in code" : ""}</div>
+                    <div className="text-[calc(12px*var(--ui))] mt-1">{condT[ci].reasoning}</div>
+                    {c.evidence.length > 0 && <div className="mono text-[calc(12px*var(--ui))] mt-1">{c.evidence.map((e, i) => <a key={i} href={gh(e.file, e.line)} target="_blank" rel="noreferrer" className="mr-3">{e.file.split("/").slice(-2).join("/")}{e.line ? `:${e.line}` : ""} ↗</a>)}</div>}
+                    {c.state === "Unknown" && <div className="text-[calc(12px*var(--ui))] text-ink2 mt-1">Missing evidence: nothing in the inspected files establishes this.</div>}
                   </div>
                 </li>
               ))}
             </ul>
           </Stage>
 
-          <Stage title="How this was analysed"><Provenance a={a} extracted={f?.claim?.conditions.length ?? null} /></Stage>
+          <Stage title={d.cs_how}><Provenance a={a} extracted={f?.claim?.conditions.length ?? null} /></Stage>
 
-          <Stage title="How sure are we?">
+          <Stage title={d.cs_sure}>
             <Band a={a} qualifier={T.qualifier} />
-            <div className="grid sm:grid-cols-3 gap-4 mt-4 text-[13px]">
-              <Col title="Supporting evidence" items={a.conditions.map((c, ci) => ({ c, t: condT[ci].text })).filter(({ c }) => c.state === "Observed" || c.state === "Inferred").map(({ c, t }) => `${c.state}: ${t}`)} empty="None." />
-              <Col title="Missing evidence" items={missingT} empty="None identified in inspected files." />
-              <Col title="Unverified" items={a.unverified} empty="None" />
+            <div className="grid sm:grid-cols-3 gap-4 mt-4 text-[calc(13px*var(--ui))]">
+              <Col title={d.cs_support} items={a.conditions.map((c, ci) => ({ c, t: condT[ci].text })).filter(({ c }) => c.state === "Observed" || c.state === "Inferred").map(({ c, t }) => `${c.state}: ${t}`)} empty="None." />
+              <Col title={d.cs_missing} items={missingT} empty="None identified in inspected files." />
+              <Col title={d.cs_unverified} items={a.unverified} empty="None" />
             </div>
           </Stage>
 
           {a.verdict !== "Not Affected" && recs.length > 0 && (
-            <Stage title="All recommended steps">
-              <ol className="grid gap-2 text-[14px] list-decimal pl-5">
-                {recs.map((r, i) => <li key={i}>{r.text}<span className="text-[11px] text-ink2 ml-2">{r.prov.toLowerCase().replace("-", " ")}</span></li>)}
+            <Stage title={d.cs_steps}>
+              <ol className="grid gap-2 text-[calc(14px*var(--ui))] list-decimal pl-5">
+                {recs.map((r, i) => <li key={i}>{r.text}<span className="text-[calc(11px*var(--ui))] text-ink2 ml-2">{r.prov.toLowerCase().replace("-", " ")}</span></li>)}
               </ol>
             </Stage>
           )}
@@ -216,8 +216,8 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
               <div className="grid gap-4">
                 {sources.map((s) => (
                   <div key={s.file} className="border hair rounded-[8px] bg-raised overflow-hidden">
-                    <div id={`file-${s.file.replace(/[^A-Za-z0-9._-]/g, "_")}`} className="mono text-[12px] px-3 py-2 border-b hair flex justify-between gap-2"><span className="truncate">{s.file}</span><a href={gh(s.file)} target="_blank" rel="noreferrer" className="shrink-0">GitHub ↗</a></div>
-                    <div className="code mono text-[12px] overflow-auto max-h-[420px] py-2" dangerouslySetInnerHTML={{ __html: s.html }} />
+                    <div id={`file-${s.file.replace(/[^A-Za-z0-9._-]/g, "_")}`} className="mono text-[calc(12px*var(--ui))] px-3 py-2 border-b hair flex justify-between gap-2"><span className="truncate">{s.file}</span><a href={gh(s.file)} target="_blank" rel="noreferrer" className="shrink-0">GitHub ↗</a></div>
+                    <div className="code mono text-[calc(12px*var(--ui))] overflow-auto max-h-[calc(420px*var(--ui))] py-2" dangerouslySetInnerHTML={{ __html: s.html }} />
                   </div>
                 ))}
               </div>
@@ -245,14 +245,14 @@ function Provenance({ a, extracted }: { a: Assessment; extracted: number | null 
     ["Verdict", `${a.verdict}, decided by a fixed rule in code, never by the model.`],
   ];
   return (
-    <ol className="grid gap-1.5 text-[13px]">
+    <ol className="grid gap-1.5 text-[calc(13px*var(--ui))]">
       {steps.map(([k, v]) => <li key={k} className="grid sm:grid-cols-[130px_1fr] gap-1 sm:gap-3"><span className="text-ink2">{k}</span><span>{v}</span></li>)}
     </ol>
   );
 }
 
 function Stage({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section><h3 className="text-[13px] font-semibold mb-2">{title}</h3>{children}</section>;
+  return <section><h3 className="text-[calc(13px*var(--ui))] font-semibold mb-2">{title}</h3>{children}</section>;
 }
 function Col({ title, items, empty }: { title: string; items: string[]; empty: string }) {
   return <div><div className="label mb-1">{title}</div>{items.length ? <ul className="grid gap-1">{items.map((x, i) => <li key={i}>{x}</li>)}</ul> : <p className="text-ink2">{empty}</p>}</div>;

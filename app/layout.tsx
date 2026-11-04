@@ -25,14 +25,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang={locale} dir={isRtl(locale) ? "rtl" : "ltr"} className={`${geistSans.variable} ${geistMono.variable} ${serif.variable} h-full`}>
       <body className="min-h-full flex flex-col">
         <header className="border-b hair bg-[var(--bg)] sticky top-0 z-20">
-          <div className="mx-auto max-w-[1080px] px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-8">
-            <Link href="/" className="flex items-center gap-2 no-underline text-[15px] font-semibold tracking-[-0.01em] whitespace-nowrap shrink-0"><span aria-hidden className="w-2 h-2 rounded-full bg-[var(--accent)]" />Argus Watch</Link>
+          <div className="mx-auto max-w-[calc(1080px*var(--ui))] px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-8">
+            <Link href="/" className="flex items-center gap-[calc(8px*var(--ui))] no-underline text-[calc(17px*var(--ui))] font-semibold tracking-[-0.015em] text-ink whitespace-nowrap shrink-0"><span aria-hidden className="w-[calc(10px*var(--ui))] h-[calc(10px*var(--ui))] rounded-full bg-[var(--accent)]" />Argus Watch</Link>
             <HeaderNav locale={locale} languages={langs} user={user ? { id: user.id, login: user.login, avatar: user.avatar } : null} authReady={hasAuth()} labels={{ threats: d.nav_threats, repos: d.nav_repos, monitoring: d.nav_monitoring, activity: d.nav_activity, settings: d.nav_settings, language: d.language, notifications: d.notifications, signIn: d.sign_in, signOut: d.sign_out, notConfigured: d.sign_in_not_configured }} />
           </div>
         </header>
         <main className="flex-1">{children}</main>
         <footer className="border-t hair">
-          <div className="mx-auto max-w-[1080px] px-4 sm:px-6 py-4 text-[12px] text-ink2">{d.read_only_footer}</div>
+          <div className="mx-auto max-w-[calc(1080px*var(--ui))] px-4 sm:px-6 py-4 text-[calc(12px*var(--ui))] text-ink2">{d.read_only_footer}</div>
         </footer>
       </body>
     </html>

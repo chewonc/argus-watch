@@ -2,6 +2,7 @@
 // App installation present. Then branch + commit + DRAFT pull request (lib/fix-apply.ts). Never merges.
 import { assertUserCanWrite } from "@/lib/access";
 import { applyFix } from "@/lib/fix-apply";
+import { installationCanWrite, installationPermissions } from "@/lib/github-app";
 import { env, hasGitHubApp } from "@/lib/env";
 import { notifyFix } from "@/lib/notify";
 import { writeModeFor } from "@/lib/remediation-mode";
@@ -32,6 +33,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const w = await store.getRepo(fix.repo_key);
   const inst = w?.installation_id ?? ur.installation_id;
   if (!hasGitHubApp() || !inst) return Response.json({ error: "this repository is not connected through the GitHub App installation, so no write is possible" }, { status: 403 });
+  // The App installation must hold the write permissions this destination needs (checked before any approval is recorded;
+  // an unreadable permission set is treated as missing, like the runner approval route).
+  const perms = await installationPermissions(inst).catch(() => ({} as Record<string, string>));
+  if (!installationCanWrite(perms, wm.mode === "branch" ? "branch" : "pr")) return Response.json({ error: "the GitHub App installation lacks Contents/Pull requests write permission for this repository; accept the App's updated permissions on GitHub" }, { status: 403 });
   try { await assertUserCanWrite(await githubUserToken(), fix.repo_key); } catch (e) { return Response.json({ error: (e as Error).message }, { status: 403 }); } // V6
   const a = await store.getAssessment(fix.assessment_id);
   if (!a) return Response.json({ error: "assessment missing" }, { status: 404 });

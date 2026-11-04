@@ -29,34 +29,34 @@ export default async function Monitoring() {
   const lastCheck = log.find((l) => l.kind === "poll" || l.kind === "heartbeat" || l.kind === "webhook")?.at ?? null;
   const errors = recentErrors(log);
   return (
-    <div className="mx-auto max-w-[760px] px-4 sm:px-6 py-8 sm:py-10 grid grid-cols-[minmax(0,1fr)] gap-8">
+    <div className="mx-auto max-w-[calc(760px*var(--ui))] px-4 sm:px-6 py-8 sm:py-10 grid grid-cols-[minmax(0,1fr)] gap-8">
       <div className="grid gap-1">
-        <h1 className="text-[28px] font-semibold tracking-[-0.02em]">{d.mon_title}</h1>
-        <p className="text-[15px] text-ink2">{errors ? d.mon_errors : d.mon_ok}</p>
+        <h1 className="text-[calc(28px*var(--ui))] font-semibold tracking-[-0.02em]">{d.mon_title}</h1>
+        <p className="text-[calc(15px*var(--ui))] text-ink2">{errors ? d.mon_errors : d.mon_ok}</p>
       </div>
       <section className="border hair rounded-[10px] bg-raised overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 px-5 py-3 border-b hair text-[13px]"><span className="font-semibold">{d.mon_your_repos}</span><span className="text-ink2">{lastCheck ? `${d.mon_last_check} ${ago(lastCheck)}` : d.mon_waiting}</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 px-5 py-3 border-b hair text-[calc(13px*var(--ui))]"><span className="font-semibold">{d.mon_your_repos}</span><span className="text-ink2">{lastCheck ? `${d.mon_last_check} ${ago(lastCheck)}` : d.mon_waiting}</span></div>
         <ul>
-          {repos.length === 0 && <li className="px-5 py-4 text-[14px] text-ink2">{d.mon_no_repos} <Link href="/repos">{d.mon_add_one}</Link></li>}
+          {repos.length === 0 && <li className="px-5 py-4 text-[calc(14px*var(--ui))] text-ink2">{d.mon_no_repos} <Link href="/repos">{d.mon_add_one}</Link></li>}
           {repos.map((r) => { const k = store.repoKey(r); const ur = mine.find((m) => m.repo_key === k); const s = repoStatus(r, { connected: !ur || !!ur.installation_id || !hasGitHubApp() }); return (
-            <li key={k} className="flex items-center justify-between gap-3 px-5 py-3 border-b hair last:border-0 text-[14px]"><span className="font-medium truncate min-w-0">{k}</span><span className={`tone-${s.tone} shrink-0`}><span aria-hidden>{s.glyph}</span> {s.label}</span></li>); })}
+            <li key={k} className="flex items-center justify-between gap-3 px-5 py-3 border-b hair last:border-0 text-[calc(14px*var(--ui))]"><span className="font-medium truncate min-w-0">{k}</span><span className={`tone-${s.tone} shrink-0`}><span aria-hidden>{s.glyph}</span> {s.label}</span></li>); })}
         </ul>
       </section>
       <section className="border hair rounded-[10px] bg-raised overflow-hidden">
-        <div className="px-5 py-3 border-b hair text-[13px] font-semibold">{d.mon_ai_month}</div>
-        <dl className="grid sm:grid-cols-3 text-[14px]">
-          <div className="px-5 py-4 grid gap-0.5"><dt className="text-[12px] text-ink2">{d.mon_threats_read}</dt><dd className="font-semibold">{usage.claim.calls}</dd></div>
-          <div className="px-5 py-4 grid gap-0.5 sm:border-l hair"><dt className="text-[12px] text-ink2">{d.mon_code_checks}</dt><dd className="font-semibold">{analyses}{tokens ? <span className="text-ink2 font-normal text-[12px]"> · {Math.round(tokens / 1000)}k tokens</span> : null}</dd></div>
-          <div className="px-5 py-4 grid gap-0.5 sm:border-l hair"><dt className="text-[12px] text-ink2">{d.mon_included}</dt><dd className="font-semibold">{mineUsed.cap < 0 ? d.mon_unlimited : d.mon_used_of.replace("{n}", String(Math.min(mineUsed.used, mineUsed.cap))).replace("{cap}", String(mineUsed.cap))}</dd></div>
+        <div className="px-5 py-3 border-b hair text-[calc(13px*var(--ui))] font-semibold">{d.mon_ai_month}</div>
+        <dl className="grid sm:grid-cols-3 text-[calc(14px*var(--ui))]">
+          <div className="px-5 py-4 grid gap-0.5"><dt className="text-[calc(12px*var(--ui))] text-ink2">{d.mon_threats_read}</dt><dd className="font-semibold">{usage.claim.calls}</dd></div>
+          <div className="px-5 py-4 grid gap-0.5 sm:border-l hair"><dt className="text-[calc(12px*var(--ui))] text-ink2">{d.mon_code_checks}</dt><dd className="font-semibold">{analyses}{tokens ? <span className="text-ink2 font-normal text-[calc(12px*var(--ui))]"> · {Math.round(tokens / 1000)}k tokens</span> : null}</dd></div>
+          <div className="px-5 py-4 grid gap-0.5 sm:border-l hair"><dt className="text-[calc(12px*var(--ui))] text-ink2">{d.mon_included}</dt><dd className="font-semibold">{mineUsed.cap < 0 ? d.mon_unlimited : d.mon_used_of.replace("{n}", String(Math.min(mineUsed.used, mineUsed.cap))).replace("{cap}", String(mineUsed.cap))}</dd></div>
         </dl>
-        <p className="px-5 pb-4 text-[12px] text-ink2">Package version checks never use AI. {mineUsed.cap >= 0 && mineUsed.used >= mineUsed.cap ? "You've used this month's included checks: new alerts still arrive, marked Possible issue, and your connected AI agent can check them." : "When the included checks run out, alerts keep arriving, marked Possible issue, and your connected AI agent can check them."} Monthly totals cover all of Argus.</p>
+        <p className="px-5 pb-4 text-[calc(12px*var(--ui))] text-ink2">Package version checks never use AI. {mineUsed.cap >= 0 && mineUsed.used >= mineUsed.cap ? "You've used this month's included checks: new alerts still arrive, marked Possible issue, and your connected AI agent can check them." : "When the included checks run out, alerts keep arriving, marked Possible issue, and your connected AI agent can check them."} Monthly totals cover all of Argus.</p>
       </section>
 
       <details className="disclose">
         <summary>{d.mon_cleared} ({cleared.length})</summary>
-        {clearedRows.length === 0 ? <p className="mt-3 text-[13px] text-ink2">{d.mon_none_yet}</p> : (
+        {clearedRows.length === 0 ? <p className="mt-3 text-[calc(13px*var(--ui))] text-ink2">{d.mon_none_yet}</p> : (
           <ul className="mt-3 border hair rounded-[10px] bg-raised">
-            {clearedRows.map(({ a, title }) => <li key={a.id} className="flex items-center justify-between gap-3 px-5 py-3 border-b hair last:border-0 text-[14px] min-w-0"><Link href={caseHref(a.id)} className="truncate min-w-0 no-underline hover:underline">{title}</Link><span className="text-[12px] tone-ok shrink-0">✓ Not affected</span></li>)}
+            {clearedRows.map(({ a, title }) => <li key={a.id} className="flex items-center justify-between gap-3 px-5 py-3 border-b hair last:border-0 text-[calc(14px*var(--ui))] min-w-0"><Link href={caseHref(a.id)} className="truncate min-w-0 no-underline hover:underline">{title}</Link><span className="text-[calc(12px*var(--ui))] tone-ok shrink-0">✓ Not affected</span></li>)}
           </ul>
         )}
       </details>
@@ -66,9 +66,9 @@ export default async function Monitoring() {
         <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-8">
           <SourceCoverage embedded />
           <section>
-            <h2 className="text-[13px] font-semibold mb-2">{d.mon_raw_log}</h2>
-            <ul className="mono text-[11px] grid gap-1 max-h-[360px] overflow-auto">
-              {log.map((l, i) => <li key={i} className="flex gap-2 min-w-0"><span className="text-ink2 shrink-0">{l.at.slice(0, 19).replace("T", " ")}</span><span className="shrink-0 w-[62px]">{l.kind}</span><span className="truncate min-w-0" title={l.detail}>{l.detail}</span></li>)}
+            <h2 className="text-[calc(13px*var(--ui))] font-semibold mb-2">{d.mon_raw_log}</h2>
+            <ul className="mono text-[calc(11px*var(--ui))] grid gap-1 max-h-[calc(360px*var(--ui))] overflow-auto">
+              {log.map((l, i) => <li key={i} className="flex gap-2 min-w-0"><span className="text-ink2 shrink-0">{l.at.slice(0, 19).replace("T", " ")}</span><span className="shrink-0 w-[calc(62px*var(--ui))]">{l.kind}</span><span className="truncate min-w-0" title={l.detail}>{l.detail}</span></li>)}
             </ul>
           </section>
         </div>

@@ -9,6 +9,8 @@ import { prText } from "./fix";
 import { assertWrite, fixBranch, stillAllowed } from "./write-auth";
 import type { Assessment, Finding, Fix } from "./schema";
 import { store } from "./store";
+import { event } from "./runner-gates";
+import { pullOutcome } from "./pull-state";
 
 export type ApplyOpts = { draft?: boolean; author?: string; testsNote?: string; openPr?: boolean };
 export async function applyFix(fix: Fix, a: Assessment, f: Finding | null, installationId: number, opts: ApplyOpts = {}): Promise<Fix> {
@@ -101,10 +103,24 @@ ${pt.body}` : pt.body;
 export async function refreshChecks(fix: Fix, installationId: number): Promise<Fix> {
   if (!fix.branch) return fix;
   const [owner, repo] = fix.repo.split("/");
-  const ok = await scopedRepoOctokit(installationId, repo, { checks: "read", metadata: "read" }); // read-only
+  const ok = await scopedRepoOctokit(installationId, repo, { checks: "read", pull_requests: "read", metadata: "read" }); // read-only
   const { data } = await ok.rest.checks.listForRef({ owner, repo, ref: fix.branch, per_page: 50, filter: "latest" });
   const runs = data.check_runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion ?? null, url: r.html_url ?? null }));
-  const out: Fix = { ...fix, check_runs: runs, checks_at: new Date().toISOString() };
+  let out: Fix = { ...fix, check_runs: runs, checks_at: new Date().toISOString() };
+  out = await syncPull(out, ok);
   await store.putFix(out);
   return out;
+}
+
+type PullsClient = { rest: { pulls: { get: (p: { owner: string; repo: string; pull_number: number }) => Promise<{ data: { merged: boolean; merge_commit_sha: string | null; state: string; html_url: string } }> } } };
+/** Read the pull request (read-only) and record a merge done by the user on GitHub, or a closed PR. */
+export async function syncPull(fix: Fix, ok: PullsClient): Promise<Fix> {
+  if (!fix.pr_number || !["pr_created", "blocked_by_protection", "merging"].includes(fix.status)) return fix;
+  const [owner, repo] = fix.repo.split("/");
+  const { data: pr } = await ok.rest.pulls.get({ owner, repo, pull_number: fix.pr_number });
+  const o = pullOutcome(fix, pr);
+  if (!o) return fix;
+  if ("closed" in o) return fix.error === "pull request closed without merging" ? fix : event({ ...fix, error: "pull request closed without merging" }, "github", "pr_closed", "the pull request was closed without merging", pr.html_url);
+  await store.log({ kind: "fix", source: "github", detail: `PR #${fix.pr_number} on ${fix.repo} was merged on GitHub`, ref: fix.assessment_id });
+  return event({ ...fix, status: "merged", merge_sha: o.merge_sha, commit_url: o.merge_sha ? `https://github.com/${fix.repo}/commit/${o.merge_sha}` : fix.commit_url, error: null }, "github", "merged", "merged on GitHub by the repository owner", pr.html_url);
 }

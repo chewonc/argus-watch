@@ -38,11 +38,11 @@ export function PushToggle({ vapidPublicKey, enabled }: { vapidPublicKey: string
     try { const r = await fetch("/api/push/test", { method: "POST" }); const j = await r.json().catch(() => ({})); setTest(r.ok ? `Sent to ${j.sent} device${j.sent === 1 ? "" : "s"}. It should appear in a few seconds.` : (j.error ?? "Could not send a test notification.")); }
     catch { setTest("Could not send a test notification."); }
   }
-  if (!vapidPublicKey) return <p className="text-[13px] text-ink2">Not configured</p>;
-  if (state === "unsupported") return <p className="text-[13px] text-ink2">This browser does not support Web Push. On iOS, add the site to the Home Screen first (iOS 16.4+).</p>;
-  if (state === "denied") return <p className="text-[13px] text-ink2">Notifications are blocked for this site in the browser settings; allow them there to enable push.</p>;
+  if (!vapidPublicKey) return <p className="text-[calc(13px*var(--ui))] text-ink2">Not configured</p>;
+  if (state === "unsupported") return <p className="text-[calc(13px*var(--ui))] text-ink2">This browser does not support Web Push. On iOS, add the site to the Home Screen first (iOS 16.4+).</p>;
+  if (state === "denied") return <p className="text-[calc(13px*var(--ui))] text-ink2">Notifications are blocked for this site in the browser settings; allow them there to enable push.</p>;
   return (
-    <div className="flex flex-wrap items-center gap-3 text-[13px]">
+    <div className="flex flex-wrap items-center gap-3 text-[calc(13px*var(--ui))]">
       {state === "on" && <button className="btn" onClick={sendTest}>Send test notification</button>}
       {state === "on" ? <button className="btn-ghost" onClick={disable}>Disable browser push on this device</button> : <button className="btn" onClick={enable} disabled={state === "busy"}>{state === "busy" ? "…" : "Enable browser push on this device"}</button>}
       {test && <span role="status" className="text-ink2">{test}</span>}

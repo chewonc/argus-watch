@@ -4,19 +4,22 @@
 // shown next to it; the server binds that click to user, repository, commit, patch hash and destination
 // (lib/write-auth.ts). The destination dropdown defaults to the saved Settings preference, applies to this attempt only,
 // and never writes by itself. Automatic merging is never offered as part of an approval.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Fix } from "@/lib/schema";
 import { isStaleRun } from "@/lib/run-stale";
 import { DESTINATIONS, fixChecks, friendlyError, type Check } from "@/lib/fix-summary";
 import type { RemediationMode } from "@/lib/remediation-mode";
 import { Assessment, Diff, RejectedHunks, StatusLadder } from "./fix-preview";
 import { RunLadder } from "./muse-fix";
+import type { ResultInfo } from "./result-dialog";
+import { DONE, fixSummary } from "@/lib/fix-summary";
+
 
 const WORKING = ["drafting", "queued", "running"];
 const since = (from: number | null, now: number) => { if (!from) return null; const s = Math.max(0, Math.round((now - from) / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
 
 function Checks({ items }: { items: Check[] }) {
-  return <ul className="grid gap-0.5 text-[13px]">{items.map((c) => <li key={c.text} className={c.tone === "ok" ? "" : c.tone === "bad" ? "tone-bad" : "tone-warn"}><span aria-hidden>{c.tone === "ok" ? "✓" : c.tone === "bad" ? "✗" : "⚠"}</span> {c.text}</li>)}</ul>;
+  return <ul className="grid gap-0.5 text-[calc(13px*var(--ui))]">{items.map((c) => <li key={c.text} className={c.tone === "ok" ? "" : c.tone === "bad" ? "tone-bad" : "tone-warn"}><span aria-hidden>{c.tone === "ok" ? "✓" : c.tone === "bad" ? "✗" : "⚠"}</span> {c.text}</li>)}</ul>;
 }
 
 /** The repository's own CI on the fix branch (read-only). CI results are build health, not proof the vulnerability is fixed. */
@@ -39,7 +42,7 @@ function RepoCI({ fix }: { fix: Fix }) {
 function TechnicalDetails({ fix }: { fix: Fix }) {
   return (
     <details className="disclose"><summary>Technical details</summary>
-      <div className="grid gap-4 mt-3 text-[12px]">
+      <div className="grid gap-4 mt-3 text-[calc(12px*var(--ui))]">
         {fix.summary && <div><div className="label">{fix.agent === "muse-code" ? "Muse Code's note (written before the checks)" : "Proposal note"}</div><p>{fix.summary}</p></div>}
         {fix.error && <div><div className="label">Error</div><p className="mono [overflow-wrap:anywhere]">{fix.error}</p></div>}
         <StatusLadder fix={fix} />
@@ -53,7 +56,7 @@ function TechnicalDetails({ fix }: { fix: Fix }) {
   );
 }
 
-export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defaultBranch, repo, mode = "pr", onChange }: { assessmentId: string; initial: Fix | null; canAct: boolean; runnerEnabled: boolean; defaultBranch: string; repo: string; embedded?: boolean; mode?: RemediationMode; onChange?: (f: Fix | null) => void }) {
+export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defaultBranch, repo, mode = "pr", onChange, onDone, permissionMissing = false }: { assessmentId: string; initial: Fix | null; canAct: boolean; runnerEnabled: boolean; defaultBranch: string; repo: string; embedded?: boolean; mode?: RemediationMode; onChange?: (f: Fix | null) => void; onDone?: (info: ResultInfo) => void; permissionMissing?: boolean }) {
   const [fix, setFix] = useState<Fix | null>(initial);
   const [dest, setDest] = useState<RemediationMode>(mode); // this attempt only; Settings is not changed
   const [busy, setBusy] = useState<string | null>(null);
@@ -81,6 +84,30 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
   });
 
   useEffect(() => { onChange?.(fix); }, [fix]); // eslint-disable-line react-hooks/exhaustive-deps
+  // "Approve & Fix" on a not-yet-checked patch: the user approved the patch they reviewed (approvedVersion). The
+  // runner checks it; if the checked patch is byte-for-byte that version, Argus continues to the write with the same
+  // server-side approval rules. If the checks changed the patch, the user must review and approve the final version.
+  const approvedVersion = useRef<string | null>(null);
+  const [patchChanged, setPatchChanged] = useState(false);
+  // The completion dialog appears only for an operation the user started in this session, once the server reports it finished.
+  const armed = useRef(false);
+  useEffect(() => {
+    if (!fix) return;
+    if (fix.status === "validated" && approvedVersion.current && !busy) {
+      const v = approvedVersion.current; approvedVersion.current = null;
+      if (fix.patch_version === v) void act("approve", () => call(`/api/fix/${fix.id}/approve`, { patch_version: v, mode: dest, reviewed: true }));
+      else { setPatchChanged(true); setReviewed(false); }
+      return;
+    }
+    if (armed.current && DONE.includes(fix.status) && !busy) { armed.current = false; const info = fixSummary(fix, repo); if (info) onDone?.(info); }
+  }, [fix, busy]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A request the server refused before anything was recorded (e.g. permission or approval checks): report it too.
+  useEffect(() => {
+    if (!armed.current || busy || !err) return;
+    if (fix && DONE.includes(fix.status)) return; // the status effect above reports it
+    armed.current = false; approvedVersion.current = null;
+    onDone?.({ tone: "bad", title: "Fix not completed", summary: friendlyError(err) === "We couldn't prepare the fix." ? err : friendlyError(err), points: ["Nothing was written to your repository."], next: "Fix the problem shown, then try again. Your prepared patch is kept." });
+  }, [err, busy]); // eslint-disable-line react-hooks/exhaustive-deps
   const status = fix?.status ?? null;
   const stale = !!fix && isStaleRun(fix, now);
   useEffect(() => {
@@ -99,19 +126,19 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
   const destLabel = DESTINATIONS.find((d) => d.id === dest)!.label;
   const destLine = dest === "preview" ? `Nothing will be written to ${repo}.` : dest === "branch" ? `New branch ${branch} in ${repo}. Your default branch ${defaultBranch} is not changed.` : `Draft pull request from ${branch} into ${defaultBranch} in ${repo}. Nothing is merged.`;
   const destSelect = (
-    <label className="flex flex-wrap items-center gap-2 text-[13px]"><span className="text-ink2">After fixing</span>
-      <select value={dest} disabled={!!busy} onChange={(e) => { setDest(e.target.value as RemediationMode); setErr(null); }} className="border hair rounded-[6px] h-8 px-2 bg-transparent text-[13px]">
+    <label className="flex flex-wrap items-center gap-2 text-[calc(13px*var(--ui))]"><span className="text-ink2">After fixing</span>
+      <select value={dest} disabled={!!busy} onChange={(e) => { setDest(e.target.value as RemediationMode); setErr(null); }} className="border hair rounded-[6px] h-8 px-2 bg-transparent text-[calc(13px*var(--ui))]">
         {DESTINATIONS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
       </select>
     </label>
   );
-  const errLine = (err ? <p role="alert" className="text-[13px] tone-bad">{friendlyError(err) === "We couldn't prepare the fix." ? err : friendlyError(err)}</p> : null);
+  const errLine = (err ? <p role="alert" className="text-[calc(13px*var(--ui))] tone-bad">{friendlyError(err) === "We couldn't prepare the fix." ? err : friendlyError(err)}</p> : null);
 
   // 1. Nothing prepared yet
   if (!fix || (status === "drafting" && !working)) return (
     <div className="grid gap-3">
-      <h3 className="text-[15px] font-semibold">Prepare a fix</h3>
-      <p className="text-[13px] text-ink2">{runnerEnabled ? "Muse Code prepares a change and checks it in an isolated environment. Nothing is written to your repository." : "Argus drafts a proposed change from the cited files. Nothing is written to your repository."}</p>
+      <h3 className="text-[calc(15px*var(--ui))] font-semibold">Prepare a fix</h3>
+      <p className="text-[calc(13px*var(--ui))] text-ink2">{runnerEnabled ? "Muse Code prepares a change and checks it in an isolated environment. Nothing is written to your repository." : "Argus drafts a proposed change from the cited files. Nothing is written to your repository."}</p>
       {destSelect}
       {errLine}
       <button className="btn w-fit" disabled={!!busy || !canAct} onClick={() => prepare(false)}>Prepare fix</button>
@@ -121,9 +148,9 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
   // 2. Working (drafting, queued, running)
   if (working) return (
     <div className="grid gap-3" aria-live="polite">
-      <h3 className="text-[15px] font-semibold">Preparing your fix…</h3>
-      <p className="text-[13px] text-ink2">Generating and checking the patch. Nothing is written to your repository.</p>
-      <p className="text-[12px] text-ink2">Elapsed {since(fix.runner?.dispatched_at && status !== "drafting" ? Date.parse(fix.runner.dispatched_at) : busySince, now) ?? "0s"}</p>
+      <h3 className="text-[calc(15px*var(--ui))] font-semibold">Preparing your fix…</h3>
+      <p className="text-[calc(13px*var(--ui))] text-ink2">Generating and checking the patch. Nothing is written to your repository.</p>
+      <p className="text-[calc(12px*var(--ui))] text-ink2">Elapsed {since(fix.runner?.dispatched_at && status !== "drafting" ? Date.parse(fix.runner.dispatched_at) : busySince, now) ?? "0s"}</p>
       {(status === "queued" || status === "running") && <button className="btn-ghost w-fit" disabled={busy === "cancel"} onClick={() => act("cancel", () => call(`/api/fix/${fix.id}/cancel`))}>{busy === "cancel" ? "Cancelling…" : "Cancel"}</button>}
     </div>
   );
@@ -131,8 +158,8 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
   // 3. Writing (approved): authorized operation in progress, cannot be cancelled
   if (status === "approved") return (
     <div className="grid gap-2" aria-live="polite">
-      <h3 className="text-[15px] font-semibold">{fix.mode === "branch" ? "Pushing branch…" : "Creating pull request…"}</h3>
-      <p className="text-[13px] text-ink2">You approved this change. It can no longer be stopped; you can delete the branch or close the pull request on GitHub afterwards.</p>
+      <h3 className="text-[calc(15px*var(--ui))] font-semibold">{fix.mode === "branch" ? "Pushing branch…" : "Creating pull request…"}</h3>
+      <p className="text-[calc(13px*var(--ui))] text-ink2">You approved this change. It can no longer be stopped; you can delete the branch or close the pull request on GitHub afterwards.</p>
     </div>
   );
 
@@ -142,8 +169,8 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
     const text = status === "branch_pushed" ? `Your fix is on branch ${fix.branch} in ${repo}. Open a pull request on GitHub when you're ready.` : status === "merged" ? "Your repository's checks passed and the change was merged." : status === "merging" ? "The change will merge only if your repository's checks pass." : status === "blocked_by_protection" ? "The pull request stays open for your review." : "Your proposed fix is ready to review on GitHub.";
     return (
       <div className="grid gap-3">
-        <h3 className="text-[15px] font-semibold">{h}</h3>
-        <p className="text-[13px] text-ink2">{text}</p>
+        <h3 className="text-[calc(15px*var(--ui))] font-semibold">{h}</h3>
+        <p className="text-[calc(13px*var(--ui))] text-ink2">{text}</p>
         <Checks items={fixChecks(fix)} />
         <div className="flex flex-wrap gap-2">
           {fix.pr_url && <a className="btn no-underline" href={fix.pr_url} target="_blank" rel="noreferrer">View pull request ↗</a>}
@@ -151,7 +178,7 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
           {status === "merging" && <button className="btn-ghost" disabled={!!busy} onClick={() => act("cancel", () => call(`/api/fix/${fix.id}/cancel`))}>Cancel automatic merge</button>}
         </div>
         {errLine}
-        <details className="disclose"><summary>Code changes</summary><div className="grid gap-3 mt-3">{files.map((x) => <div key={x.path} className="border hair rounded-[6px] overflow-hidden"><div className="mono text-[12px] px-3 py-2 border-b hair [overflow-wrap:anywhere]">{x.path}</div><Diff patch={x.patch} /></div>)}</div></details>
+        <details className="disclose"><summary>Code changes</summary><div className="grid gap-3 mt-3">{files.map((x) => <div key={x.path} className="border hair rounded-[6px] overflow-hidden"><div className="mono text-[calc(12px*var(--ui))] px-3 py-2 border-b hair [overflow-wrap:anywhere]">{x.path}</div><Diff patch={x.patch} /></div>)}</div></details>
         <TechnicalDetails fix={fix} />
       </div>
     );
@@ -160,8 +187,8 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
   // 5. Failed / cancelled / stalled
   if (status === "failed" || status === "validation_failed" || status === "cancelled" || stale) return (
     <div className="grid gap-3">
-      <h3 className="text-[15px] font-semibold">{status === "cancelled" ? "Cancelled" : "Fix failed"}</h3>
-      <p className="text-[13px] text-ink2">{status === "cancelled" ? "The operation was stopped. Nothing was written to your repository." : stale ? friendlyError("stale") : friendlyError(fix.error)}</p>
+      <h3 className="text-[calc(15px*var(--ui))] font-semibold">{status === "cancelled" ? "Cancelled" : "Fix failed"}</h3>
+      <p className="text-[calc(13px*var(--ui))] text-ink2">{status === "cancelled" ? "The operation was stopped. Nothing was written to your repository." : stale ? friendlyError("stale") : friendlyError(fix.error)}</p>
       {errLine}
       <button className="btn w-fit" disabled={!!busy || !canAct} onClick={() => prepare(true)}>{busy === "prepare" ? "Starting…" : "Start over"}</button>
       <TechnicalDetails fix={fix} />
@@ -173,37 +200,39 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
     const writeFailed = /GitHub write failed|write refused/.test(fix.error ?? "");
     return (
       <div className="grid gap-3">
-        <h3 className="text-[15px] font-semibold">Patch ready for review</h3>
-        <p className="text-[13px] text-ink2">{status === "validated" ? "Muse Code prepared a fix for your repository." : "Argus drafted a proposed fix."}</p>
+        <h3 className="text-[calc(15px*var(--ui))] font-semibold">Patch ready for review</h3>
+        {patchChanged && <p role="alert" className="text-[calc(13px*var(--ui))] tone-warn">The checks changed the patch. Nothing was written. Review the final changes below, then approve them.</p>}
+        <p className="text-[calc(13px*var(--ui))] text-ink2">{status === "validated" ? "Muse Code prepared a fix for your repository." : "Argus drafted a proposed fix."}</p>
         <Checks items={needsCheck ? fixChecks(fix).map((c) => (c.text === "Not tested yet" ? { ...c, text: "Not checked in an isolated environment yet" } : c)) : fixChecks(fix)} />
-        {writeFailed && <p role="alert" className="text-[13px] tone-bad">The last attempt to write didn&apos;t finish. If a branch named {branch} exists on GitHub, it was created by that attempt; nothing else was changed.</p>}
+        {writeFailed && <p role="alert" className="text-[calc(13px*var(--ui))] tone-bad">The last attempt to write didn&apos;t finish. If a branch named {branch} exists on GitHub, it was created by that attempt; nothing else was changed.</p>}
         <details className="disclose" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open) setReviewed(true); }}>
           <summary>Review changes ({files.length} file{files.length === 1 ? "" : "s"})</summary>
-          <div className="grid gap-3 mt-3">{files.map((x) => <div key={x.path} className="border hair rounded-[6px] overflow-hidden"><div className="mono text-[12px] px-3 py-2 border-b hair [overflow-wrap:anywhere]">{x.path}</div><Diff patch={x.patch} /></div>)}{fix.rejected_hunks.length > 0 && <RejectedHunks fix={fix} />}</div>
+          <div className="grid gap-3 mt-3">{files.map((x) => <div key={x.path} className="border hair rounded-[6px] overflow-hidden"><div className="mono text-[calc(12px*var(--ui))] px-3 py-2 border-b hair [overflow-wrap:anywhere]">{x.path}</div><Diff patch={x.patch} /></div>)}{fix.rejected_hunks.length > 0 && <RejectedHunks fix={fix} />}</div>
         </details>
         {destSelect}
-        <p className="text-[12px] text-ink2">{destLine}</p>
+        <p className="text-[calc(12px*var(--ui))] text-ink2">{destLine}</p>
         {errLine}
         <div className="flex flex-wrap items-center gap-2">
           {dest === "preview" ? (
             <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(files.map((x) => x.patch).join("\n")); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard unavailable */ } }}>{copied ? "Copied" : "Copy patch"}</button>
           ) : needsCheck ? (
-            <button className="btn" disabled={!!busy || !canAct} onClick={() => act("prepare", () => run(fix))}>Check this fix</button>
+            <button className="btn" disabled={!reviewed || !!busy || !canAct || permissionMissing} title={reviewed ? undefined : "Open Review changes first"}
+              onClick={() => { armed.current = true; approvedVersion.current = fix.patch_version; setPatchChanged(false); void act("prepare", () => run(fix)); }}>Approve &amp; Fix</button>
           ) : (
-            <button className="btn" disabled={!reviewed || !!busy || !canAct} title={reviewed ? undefined : "Open Review changes first"}
-              onClick={() => act("approve", () => (status === "validated"
+            <button className="btn" disabled={!reviewed || !!busy || !canAct || permissionMissing} title={reviewed ? undefined : "Open Review changes first"}
+              onClick={() => { armed.current = true; void act("approve", () => (status === "validated"
                 ? call(`/api/fix/${fix.id}/approve`, { patch_version: fix.patch_version, mode: dest, reviewed: true })
-                : call(`/api/fix/${fix.id}/apply`, { reviewed: true, mode: dest, patch_version: fix.patch_version })))}>
+                : call(`/api/fix/${fix.id}/apply`, { reviewed: true, mode: dest, patch_version: fix.patch_version }))); }}>
               {busy === "approve" ? "Working…" : dest === "branch" ? "Approve & push branch" : "Approve & create PR"}
             </button>
           )}
           {status === "validated" && <button className="btn-ghost" disabled={!!busy} onClick={() => act("discard", () => call(`/api/fix/${fix.id}/cancel`))}>Discard</button>}
-          {!reviewed && dest !== "preview" && !needsCheck && <span className="text-[12px] text-ink2">Open Review changes to enable approval.</span>}
+          {!reviewed && dest !== "preview" && <span className="text-[calc(12px*var(--ui))] text-ink2">Open Review changes to enable approval.</span>}
         </div>
         <TechnicalDetails fix={fix} />
       </div>
     );
   }
 
-  return <p className="text-[13px] text-ink2">{destLabel}</p>;
+  return <p className="text-[calc(13px*var(--ui))] text-ink2">{destLabel}</p>;
 }

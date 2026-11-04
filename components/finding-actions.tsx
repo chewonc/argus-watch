@@ -16,13 +16,13 @@ export function FindingActions({ act, labels, secondary, showNote = true, align 
   return (
     <div className={`grid gap-1.5 ${align === "end" ? "justify-items-end max-sm:justify-items-start" : ""}`}>
       <div className="flex flex-wrap items-center gap-2">
-        {act.state && <span className={`text-[12px] tone-${act.state.tone}`} role="status">{labels[`st_${act.state.key}`]}</span>}
+        {act.state && <span className={`text-[calc(12px*var(--ui))] tone-${act.state.tone}`} role="status">{labels[`st_${act.state.key}`]}</span>}
         {p && modalFor && IN_MODAL.has(p.kind) ? <FixButton assessmentId={modalFor} label={labels[p.kind]} autoOpen={autoOpen} /> : p && (p.external
           ? <a href={p.href} target="_blank" rel="noreferrer" className="btn">{labels[p.kind]} <span aria-hidden>↗</span></a>
           : <Link href={p.href} className="btn">{labels[p.kind]}</Link>)}
         {secondary && <Link href={secondary.href} className="btn-ghost">{secondary.label}</Link>}
       </div>
-      {showNote && act.note && <p className={`text-[12px] text-ink2 max-w-[460px] ${align === "end" ? "sm:text-right" : ""}`}>{act.note}</p>}
+      {showNote && act.note && <p className={`text-[calc(12px*var(--ui))] text-ink2 max-w-[calc(460px*var(--ui))] ${align === "end" ? "sm:text-right" : ""}`}>{act.note}</p>}
     </div>
   );
 }

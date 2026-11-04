@@ -42,3 +42,23 @@ export const DESTINATIONS = [
   { id: "pr", label: "Create draft PR" },
   { id: "branch", label: "Push to new branch" },
 ] as const;
+
+/** What a completion dialog shows. */
+export type ResultInfo = { tone: "ok" | "bad" | "warn"; title: string; summary: string; points?: string[]; next?: string; link?: { href: string; label: string } };
+
+export const DONE = ["pr_created", "branch_pushed", "merging", "merged", "blocked_by_protection", "failed", "validation_failed"];
+/** Completion summary from the fix record the backend returned. Success wording only for statuses the server reports. */
+export function fixSummary(fix: Fix, repo: string): ResultInfo | null {
+  const files = `${fix.files.length} file${fix.files.length === 1 ? "" : "s"} changed`;
+  const checks = fixChecks(fix).map((c) => c.text);
+  const pr = fix.pr_url ? { href: fix.pr_url, label: "View pull request" } : fix.commit_url ? { href: fix.commit_url, label: "View on GitHub" } : undefined;
+  switch (fix.status) {
+    case "pr_created": return { tone: "ok", title: fix.pr_draft === false ? "Fix complete: pull request created" : "Fix complete: draft pull request created", summary: `Argus opened ${fix.pr_draft === false ? "a pull request (marked [DRAFT])" : "a draft pull request"} in ${repo}${fix.pr_number ? ` (#${fix.pr_number})` : ""} with the change you approved. Nothing was merged.`, points: checks, next: "Review it on GitHub and merge it when you are satisfied. The alert shows \"Fix merged\" after you merge.", link: pr };
+    case "branch_pushed": return { tone: "ok", title: "Fix complete: branch pushed", summary: `Argus pushed the change you approved to ${fix.branch} in ${repo}. Your default branch is unchanged.`, points: [files, ...checks.slice(1)], next: "Open a pull request on GitHub when you are ready.", link: pr };
+    case "merging": return { tone: "warn", title: "Pull request created, waiting for checks", summary: `The pull request in ${repo} is open. Argus merges it only if your repository's checks pass.`, points: checks, next: "You can cancel the automatic merge from this tab.", link: pr };
+    case "merged": return { tone: "ok", title: "Fix merged", summary: `The change is merged into ${repo}.`, points: checks, next: "Argus checks the repository again with the new code.", link: pr };
+    case "blocked_by_protection": return { tone: "warn", title: "Pull request open, not merged", summary: fix.error ?? "The merge was refused, so the pull request stays open for your review.", points: checks, next: "Review and merge it on GitHub yourself.", link: pr };
+    case "failed": case "validation_failed": return { tone: "bad", title: "Fix failed", summary: friendlyError(fix.error), points: ["Nothing was merged.", ...(fix.branch && /pull request|PR/i.test(fix.error ?? "") ? [`If a branch ${fix.branch} exists, it was created by this attempt.`] : [])], next: "Start over, or use the AI Agent tab to fix it in your editor." };
+    default: return null;
+  }
+}

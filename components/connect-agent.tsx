@@ -36,11 +36,11 @@ export function ConnectAgent({ endpoint, create }: { endpoint: string; create: (
         <button type="button" className="btn w-fit" disabled={busy} onClick={async () => { setBusy(true); try { setToken(await create(agent)); } finally { setBusy(false); } }}>{busy ? "Creating…" : `Connect ${agent === "Other" ? "an agent" : agent}`}</button>
       ) : (
         <div className="grid gap-2">
-          <p className="text-[13px]">{agent === "Meta Muse Code" ? "Add this to your Muse Code settings, then start muse in your repository:" : agent === "Claude Code" ? "Run this once in your terminal:" : agent === "Codex" ? "Add this to your Codex config:" : "Use these settings in your agent:"}</p>
-          <pre className="mono text-[12px] whitespace-pre-wrap break-all border hair rounded-[8px] bg-[var(--sunken)] p-3">{cmd}</pre>
+          <p className="text-[calc(13px*var(--ui))]">{agent === "Meta Muse Code" ? "Add this to your Muse Code settings, then start muse in your repository:" : agent === "Claude Code" ? "Run this once in your terminal:" : agent === "Codex" ? "Add this to your Codex config:" : "Use these settings in your agent:"}</p>
+          <pre className="mono text-[calc(12px*var(--ui))] whitespace-pre-wrap break-all border hair rounded-[8px] bg-[var(--sunken)] p-3">{cmd}</pre>
           <div className="flex items-center gap-3">
             <button type="button" className="btn-ghost" onClick={() => navigator.clipboard.writeText(cmd).then(() => setCopied(true)).catch(() => {})}>{copied ? "Copied" : "Copy"}</button>
-            <span className="text-[12px] text-ink2">This key is shown only once. It can only read your alerts and report results, never change your code.</span>
+            <span className="text-[calc(12px*var(--ui))] text-ink2">This key is shown only once. It can only read your alerts and report results, never change your code.</span>
           </div>
         </div>
       )}

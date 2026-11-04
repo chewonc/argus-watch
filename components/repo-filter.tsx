@@ -40,17 +40,17 @@ export function RepoFilter({ repos, selected, none = false }: { repos: { key: st
       <button type="button" className="btn-ghost max-w-[min(320px,calc(100vw-32px))]" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} onClick={() => { setPick(initial()); setOpen((o) => !o); }}>
         <span className="text-ink2">Repository:</span> <span className="truncate">{label}</span> <span aria-hidden className="text-ink2">▾</span>
       </button>
-      {(selected.length > 0 || none) && <button type="button" className="text-[12px] text-ink2 hover:text-ink underline ml-2" onClick={() => go(repos.map((r) => r.key))}>Reset</button>}
+      {(selected.length > 0 || none) && <button type="button" className="text-[calc(12px*var(--ui))] text-ink2 hover:text-ink underline ml-2" onClick={() => go(repos.map((r) => r.key))}>Reset</button>}
       {open && (
         <div id={id} role="dialog" aria-label="Filter by repository" className="menu !left-0 !right-auto w-[min(320px,calc(100vw-32px))] !p-3 grid gap-2">
-          <div className="text-[13px] font-semibold">Filter by repository</div>
-          {repos.length > 6 && <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search repositories" aria-label="Search repositories" className="border hair rounded-[6px] px-2 h-8 text-[13px] bg-transparent" />}
-          <ul className="grid gap-0.5 max-h-[260px] overflow-auto text-[13px]">
+          <div className="text-[calc(13px*var(--ui))] font-semibold">Filter by repository</div>
+          {repos.length > 6 && <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search repositories" aria-label="Search repositories" className="border hair rounded-[6px] px-2 h-8 text-[calc(13px*var(--ui))] bg-transparent" />}
+          <ul className="grid gap-0.5 max-h-[calc(260px*var(--ui))] overflow-auto text-[calc(13px*var(--ui))]">
             <li><label className="flex items-center gap-2 px-1 py-1"><input type="checkbox" checked={all} onChange={() => setPick(all ? new Set() : new Set(repos.map((r) => r.key)))} /> All repositories</label></li>
             {shown.map((r) => (
               <li key={r.key}><label className="flex items-center gap-2 px-1 py-1">
                 <input type="checkbox" checked={pick.has(r.key)} onChange={(e) => setPick((s) => { const n = new Set(s); if (e.target.checked) n.add(r.key); else n.delete(r.key); return n; })} />
-                <span className="flex-1 truncate">{r.key}</span><span className="text-ink2 text-[12px]">{r.count}</span>
+                <span className="flex-1 truncate">{r.key}</span><span className="text-ink2 text-[calc(12px*var(--ui))]">{r.count}</span>
               </label></li>
             ))}
           </ul>
@@ -72,5 +72,5 @@ export function RememberThreatsView() {
 export function BackToThreats({ label }: { label: string }) {
   const [qs, setQs] = useState("");
   useEffect(() => { try { const v = sessionStorage.getItem("aw_threats_qs") ?? ""; const r = requestAnimationFrame(() => setQs(v)); return () => cancelAnimationFrame(r); } catch { /* storage unavailable */ } }, []);
-  return <a href={`/alerts${qs ? `?${qs}` : ""}`} className="text-[13px] text-ink2 no-underline hover:text-ink w-fit">← {label}</a>;
+  return <a href={`/alerts${qs ? `?${qs}` : ""}`} className="text-[calc(13px*var(--ui))] text-ink2 no-underline hover:text-ink w-fit">← {label}</a>;
 }

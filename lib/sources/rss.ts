@@ -8,7 +8,7 @@ import type { Item } from "../schema";
 // demo: the feed's terms permit personal/non-commercial use only; items are labelled low-trust and the feed is listed as demo-only.
 // format: "rss" (default) is RSS/Atom XML; "hn_algolia" is the Hacker News Algolia JSON search API (hnrss.org, the
 // previous source, failed about half of all polls with 502/timeouts on Nov 1 2026; Algolia answered every probe in <1.5 s).
-export type Feed = { id: string; name: string; url: string; kind: "list" | "release" | "research" | "ai_security" | "academic" | "aggregator" | "vendor" | "incidents" | "social" | "news"; cadence: "fast" | "slow"; demo?: boolean; format?: "rss" | "hn_algolia"; queries?: string[] };
+export type Feed = { id: string; name: string; url: string; kind: "list" | "release" | "research" | "ai_security" | "academic" | "aggregator" | "vendor" | "incidents" | "social" | "news"; cadence: "fast" | "slow"; demo?: boolean; format?: "rss" | "hn_algolia"; queries?: string[]; community?: { suggested_by: string; added_at: string } };
 export const FEEDS: Feed[] = [
   { id: "oss-sec", name: "oss-security (seclists mirror)", url: "https://seclists.org/rss/oss-sec.rss", kind: "list", cadence: "fast" },
   { id: "fulldisclosure", name: "Full Disclosure", url: "https://seclists.org/rss/fulldisclosure.rss", kind: "list", cadence: "fast" },

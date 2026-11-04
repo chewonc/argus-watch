@@ -31,60 +31,60 @@ export default async function DemoCase({ params }: { params: Promise<{ id: strin
   const STATE: Record<string, string> = { Observed: "Observed in code", Inferred: "Inferred", Unknown: "Not established", Contradicted: "Contradicted by code" };
 
   return (
-    <div className="mx-auto max-w-[760px] px-4 sm:px-6 py-8 sm:py-10 grid grid-cols-[minmax(0,1fr)] gap-8">
+    <div className="mx-auto max-w-[calc(760px*var(--ui))] px-4 sm:px-6 py-8 sm:py-10 grid grid-cols-[minmax(0,1fr)] gap-8">
       <div className="grid gap-3">
-        <Link href="/demo" className="text-[13px] no-underline hover:underline w-fit">← Demo findings</Link>
-        <p className="text-[12px] text-ink2">Public demo on an evaluation fixture in this open-source repository. Read-only.</p>
+        <Link href="/demo" className="text-[calc(13px*var(--ui))] no-underline hover:underline w-fit">← Demo findings</Link>
+        <p className="text-[calc(12px*var(--ui))] text-ink2">Public demo on an evaluation fixture in this open-source repository. Read-only.</p>
         <div className="flex flex-wrap items-center gap-2"><StatusPill s={status} /><CredibilityChip c={f?.credibility} l={{ none: d.report_not_checked, prefix: d.report_prefix }} /><SparkBadge a={a} label={d.analysed_by_spark} /></div>
-        <h1 className="text-[26px] sm:text-[30px] font-semibold tracking-[-0.02em] leading-tight">{tidy(plainTitle(a, f, loc, w?.tech_tags, w?.packages.map((p) => p.name)))}</h1>
-        <div className="text-[13px] text-ink2 mono [overflow-wrap:anywhere]">{a.repo.replace("chewonc/argus-watch/", "")}</div>
-        {loc && a.verdict !== "Not Affected" && ghUrl && <div className="text-[13px] text-ink2"><span>{verified ? d.affected_at : d.potentially_affected}: </span><a href={ghUrl} target="_blank" rel="noreferrer" className="mono [overflow-wrap:anywhere]">{`${loc.file}:${loc.from}${loc.to !== loc.from ? `-${loc.to}` : ""}`} ↗</a></div>}
-        {!loc && where.kind === "package" && <div className="mono text-[13px] text-ink2 [overflow-wrap:anywhere]">{where.text}</div>}
+        <h1 className="text-[calc(26px*var(--ui))] sm:text-[calc(30px*var(--ui))] font-semibold tracking-[-0.02em] leading-tight">{tidy(plainTitle(a, f, loc, w?.tech_tags, w?.packages.map((p) => p.name)))}</h1>
+        <div className="text-[calc(13px*var(--ui))] text-ink2 mono [overflow-wrap:anywhere]">{a.repo.replace("chewonc/argus-watch/", "")}</div>
+        {loc && a.verdict !== "Not Affected" && ghUrl && <div className="text-[calc(13px*var(--ui))] text-ink2"><span>{verified ? d.affected_at : d.potentially_affected}: </span><a href={ghUrl} target="_blank" rel="noreferrer" className="mono [overflow-wrap:anywhere]">{`${loc.file}:${loc.from}${loc.to !== loc.from ? `-${loc.to}` : ""}`} ↗</a></div>}
+        {!loc && where.kind === "package" && <div className="mono text-[calc(13px*var(--ui))] text-ink2 [overflow-wrap:anywhere]">{where.text}</div>}
       </div>
 
       <section className="grid gap-2">
-        <h2 className="text-[18px] font-semibold">What&apos;s wrong?</h2>
-        <p className="text-[14px] leading-relaxed">{tidy(f?.claim?.summary ? firstSentence(f.claim.summary) : a.verdict_qualifier)}</p>
+        <h2 className="text-[calc(18px*var(--ui))] font-semibold">What&apos;s wrong?</h2>
+        <p className="text-[calc(14px*var(--ui))] leading-relaxed">{tidy(f?.claim?.summary ? firstSentence(f.claim.summary) : a.verdict_qualifier)}</p>
       </section>
       {a.verdict !== "Not Affected" && fix && (
         <section className="grid gap-2">
-          <h2 className="text-[18px] font-semibold">How to fix it</h2>
-          <p className="text-[14px] leading-relaxed">{tidy(fix)}</p>
+          <h2 className="text-[calc(18px*var(--ui))] font-semibold">How to fix it</h2>
+          <p className="text-[calc(14px*var(--ui))] leading-relaxed">{tidy(fix)}</p>
         </section>
       )}
 
       <section className="grid gap-2">
-        <h2 className="text-[18px] font-semibold">Why Argus says this</h2>
-        <p className="text-[13px] text-ink2">{tidy(a.verdict_reason)}</p>
-        <ul className="grid gap-2 text-[14px]">
+        <h2 className="text-[calc(18px*var(--ui))] font-semibold">Why Argus says this</h2>
+        <p className="text-[calc(13px*var(--ui))] text-ink2">{tidy(a.verdict_reason)}</p>
+        <ul className="grid gap-2 text-[calc(14px*var(--ui))]">
           {a.conditions.map((c) => (
             <li key={c.id} className="border hair rounded-[6px] px-3 py-2 grid gap-1">
-              <div className="text-[12px] text-ink2">{c.role === "mitigation" ? "Mitigation" : "Required"} · {STATE[c.state] ?? c.state}{c.computed ? " · computed in code" : ""}</div>
+              <div className="text-[calc(12px*var(--ui))] text-ink2">{c.role === "mitigation" ? "Mitigation" : "Required"} · {STATE[c.state] ?? c.state}{c.computed ? " · computed in code" : ""}</div>
               <div>{tidy(c.text)}</div>
-              {c.evidence.filter((e) => e.line).slice(0, 2).map((e) => <a key={`${e.file}:${e.line}`} href={permalink(repoOnly, a.sha, e.file, e.line)} target="_blank" rel="noreferrer" className="mono text-[12px] [overflow-wrap:anywhere]">{e.file}:{e.line} ↗</a>)}
+              {c.evidence.filter((e) => e.line).slice(0, 2).map((e) => <a key={`${e.file}:${e.line}`} href={permalink(repoOnly, a.sha, e.file, e.line)} target="_blank" rel="noreferrer" className="mono text-[calc(12px*var(--ui))] [overflow-wrap:anywhere]">{e.file}:{e.line} ↗</a>)}
             </li>
           ))}
         </ul>
-        <p className="text-[12px] text-ink2">Analysis: {a.hosted === "deterministic" ? "version check in code (no model)" : a.hosted === "capped" ? "version check only (hosted budget reached)" : modelName(a.model)}{a.investigation ? ` · ${a.investigation.steps} read-only tool steps` : ""} · {fmtDate(a.timestamps.processed_at)}</p>
+        <p className="text-[calc(12px*var(--ui))] text-ink2">Analysis: {a.hosted === "deterministic" ? "version check in code (no model)" : a.hosted === "capped" ? "version check only (hosted budget reached)" : modelName(a.model)}{a.investigation ? ` · ${a.investigation.steps} read-only tool steps` : ""} · {fmtDate(a.timestamps.processed_at)}</p>
       </section>
 
       <CredibilityPanel c={f?.credibility} />
 
       {timeline && timeline.events.length > 0 && (
         <section className="grid gap-2">
-          <h2 className="text-[18px] font-semibold">Threat timeline</h2>
-          <ol className="grid gap-2 text-[14px]">
+          <h2 className="text-[calc(18px*var(--ui))] font-semibold">Threat timeline</h2>
+          <ol className="grid gap-2 text-[calc(14px*var(--ui))]">
             {timeline.events.filter((e) => e.lane === "threat").slice(0, 20).map((e) => (
               <li key={e.id} className="grid grid-cols-[110px_minmax(0,1fr)] gap-3">
-                <time dateTime={e.at} className="mono text-[12px] text-ink2">{fmtDate(e.at)}</time>
-                <div><span className="[overflow-wrap:anywhere]">{tidy(e.title)}</span> <span className="text-[12px] text-ink2">({e.confidence}{e.sources[0]?.url ? <>, <a href={e.sources[0].url} target="_blank" rel="noreferrer">source ↗</a></> : null})</span></div>
+                <time dateTime={e.at} className="mono text-[calc(12px*var(--ui))] text-ink2">{fmtDate(e.at)}</time>
+                <div><span className="[overflow-wrap:anywhere]">{tidy(e.title)}</span> <span className="text-[calc(12px*var(--ui))] text-ink2">({e.confidence}{e.sources[0]?.url ? <>, <a href={e.sources[0].url} target="_blank" rel="noreferrer">source ↗</a></> : null})</span></div>
               </li>
             ))}
           </ol>
         </section>
       )}
 
-      <p className="text-[13px] text-ink2"><Link href="/">Sign in</Link> to connect your own repositories and get alerts, fixes and AI-agent access.</p>
+      <p className="text-[calc(13px*var(--ui))] text-ink2"><Link href="/">Sign in</Link> to connect your own repositories and get alerts, fixes and AI-agent access.</p>
     </div>
   );
 }

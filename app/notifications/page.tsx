@@ -18,31 +18,31 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
   const views = (await viewNotifications(user.id, list)).sort(sp.sort === "time" ? (a, b) => b.notified_at.localeCompare(a.notified_at) : byPriority).filter((n) => !onlyUnread || !n.read_at);
   const fmt = (iso: string) => new Date(iso).toLocaleString(locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return (
-    <div className="mx-auto max-w-[760px] px-4 sm:px-6 py-8 sm:py-10 grid gap-6">
+    <div className="mx-auto max-w-[calc(760px*var(--ui))] px-4 sm:px-6 py-8 sm:py-10 grid gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="grid gap-1"><h1 className="text-[28px] font-semibold tracking-[-0.02em]">{d.notifications}</h1><p className="text-[15px] text-ink2">{unread ? d.n_unread.replace("{n}", String(unread)) : d.all_caught_up}</p></div>
+        <div className="grid gap-1"><h1 className="text-[calc(28px*var(--ui))] font-semibold tracking-[-0.02em]">{d.notifications}</h1><p className="text-[calc(15px*var(--ui))] text-ink2">{unread ? d.n_unread.replace("{n}", String(unread)) : d.all_caught_up}</p></div>
         <div className="flex items-center gap-2">
           <nav className="seg" aria-label="Show"><Link href="/notifications" aria-current={!onlyUnread ? "page" : undefined}>{d.show_all}</Link><Link href="/notifications?show=unread" aria-current={onlyUnread ? "page" : undefined}>{d.show_unread}</Link></nav>
           {unread > 0 && <MarkAllRead />}
         </div>
       </div>
       {views.length === 0 ? (
-        <div className="border hair rounded-[10px] bg-raised px-6 py-12 text-center text-[14px] text-ink2">{onlyUnread ? d.no_unread : d.no_notifications}</div>
+        <div className="border hair rounded-[10px] bg-raised px-6 py-12 text-center text-[calc(14px*var(--ui))] text-ink2">{onlyUnread ? d.no_unread : d.no_notifications}</div>
       ) : (
         <ul className="border hair rounded-[10px] bg-raised overflow-hidden">
           {views.map((n) => (
             <li key={n.id} className="border-b hair last:border-0">
               <Link href={n.href} className="flex gap-3 px-4 sm:px-5 py-4 no-underline hover:bg-[var(--sunken)]">
-                <span aria-hidden className={`mt-[7px] w-2 h-2 rounded-full shrink-0 ${n.read_at ? "" : "bg-[var(--accent)]"}`} />
+                <span aria-hidden className={`mt-[calc(7px*var(--ui))] w-2 h-2 rounded-full shrink-0 ${n.read_at ? "" : "bg-[var(--accent)]"}`} />
                 <span className="grid gap-1 min-w-0 flex-1">
-                  <span className={`text-[14px] leading-snug ${n.read_at ? "" : "font-semibold"}`}>{n.display_title}{!n.read_at && <span className="sr-only"> (unread)</span>}</span>
-                  <span className="text-[12px] text-ink2 flex flex-wrap gap-x-2">
+                  <span className={`text-[calc(14px*var(--ui))] leading-snug font-semibold`}>{n.display_title}{!n.read_at && <span className="sr-only"> (unread)</span>}</span>
+                  <span className="text-[calc(12px*var(--ui))] text-ink2 flex flex-wrap gap-x-2">
                     {n.status && <span className={`tone-${n.status.tone}`}><span aria-hidden>{n.status.glyph}</span> {n.status.label}</span>}
                     {n.report && <span className={`tone-${n.report.tone}`}>{n.report.label}</span>}
                     <span>{n.repo.split("/").slice(0, 2).join("/")}</span>
                   </span>
                 </span>
-                <time className="text-[12px] text-ink2 shrink-0" dateTime={n.notified_at}>{fmt(n.notified_at)}</time>
+                <time className="text-[calc(12px*var(--ui))] text-ink2 shrink-0" dateTime={n.notified_at}>{fmt(n.notified_at)}</time>
               </Link>
             </li>
           ))}

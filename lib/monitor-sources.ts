@@ -71,3 +71,13 @@ export async function monitoredSources(now = Date.now()): Promise<SourceGroup[]>
 }
 
 export const STATUS_LABEL: Record<SourceStatus, string> = { active: "Active", delayed: "Delayed", unavailable: "Unavailable", not_configured: "Not configured", unknown: "Status not recorded yet" };
+
+/** Category summary for "What we monitor": "12 sources · all active", or the counts of each other state. From real status. */
+export function groupSummary(sources: { status: SourceStatus }[]): { text: string; worst: SourceStatus } {
+  const n = sources.length;
+  const by = (s: SourceStatus) => sources.filter((x) => x.status === s).length;
+  const worst = (["unavailable", "delayed", "unknown", "not_configured", "active"] as const).find((s) => by(s) > 0) ?? "unknown";
+  if (n && by("active") === n) return { text: `${n} source${n === 1 ? "" : "s"} · all active`, worst };
+  const parts = (["active", "delayed", "unavailable", "not_configured", "unknown"] as const).filter((s) => by(s) > 0).map((s) => `${by(s)} ${s === "unknown" ? "not recorded yet" : STATUS_LABEL[s].toLowerCase()}`);
+  return { text: `${n} source${n === 1 ? "" : "s"} · ${parts.join(", ")}`, worst };
+}

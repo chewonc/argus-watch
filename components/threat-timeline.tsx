@@ -58,8 +58,8 @@ export function ThreatTimeline({ assessmentId, title = "Threat timeline", labels
   return (
     <section className="grid gap-3" aria-labelledby="tl-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="tl-h" className="text-[15px] font-semibold">{title}</h2>
-        {t && expanded && <div className="flex items-center gap-2 text-[12px]">
+        <h2 id="tl-h" className="text-[calc(15px*var(--ui))] font-semibold">{title}</h2>
+        {t && expanded && <div className="flex items-center gap-2 text-[calc(12px*var(--ui))]">
           <div className="seg" role="group" aria-label="Filter events">
             <button type="button" aria-pressed={!onlyConfirmed} onClick={() => setOnlyConfirmed(false)} className={`tl-seg${!onlyConfirmed ? " on" : ""}`}>All</button>
             <button type="button" aria-pressed={onlyConfirmed} onClick={() => setOnlyConfirmed(true)} className={`tl-seg${onlyConfirmed ? " on" : ""}`}>Confirmed only</button>
@@ -68,8 +68,8 @@ export function ThreatTimeline({ assessmentId, title = "Threat timeline", labels
         </div>}
       </div>
 
-      {busy && !t && <div className="grid gap-2" aria-busy="true" aria-live="polite"><p className="text-[13px] text-ink2">Collecting dated records and reading the sources with Meta Muse Spark (first time ~10–30 s)…</p>{[0, 1, 2].map((i) => <div key={i} className="h-[14px] rounded bg-[var(--sunken)] pulse" style={{ width: `${80 - i * 15}%` }} />)}</div>}
-      {err && <p className="text-[13px]" style={{ color: "var(--contradicted)" }}>Timeline unavailable: {err}. <button type="button" className="underline" onClick={() => load()}>Try again</button></p>}
+      {busy && !t && <div className="grid gap-2" aria-busy="true" aria-live="polite"><p className="text-[calc(13px*var(--ui))] text-ink2">Collecting dated records and reading the sources with Meta Muse Spark (first time ~10–30 s)…</p>{[0, 1, 2].map((i) => <div key={i} className="h-[calc(14px*var(--ui))] rounded bg-[var(--sunken)] pulse" style={{ width: `${80 - i * 15}%` }} />)}</div>}
+      {err && <p className="text-[calc(13px*var(--ui))]" style={{ color: "var(--contradicted)" }}>Timeline unavailable: {err}. <button type="button" className="underline" onClick={() => load()}>Try again</button></p>}
 
       {t && !expanded && (() => {
         const o = overview(all);
@@ -80,36 +80,36 @@ export function ThreatTimeline({ assessmentId, title = "Threat timeline", labels
           <>
             {rows.length ? <ol className="tl-list">{rows.map(([e, text]) => (
               <li key={e.id} className={`tl-item${e.lane === "repo" || isArgusRecord(e) ? " tl-repo" : ""}`}>
-                <time dateTime={e.at} className="mono text-[12px] text-ink2 tl-date">{fmt(e)}</time>
-                <div className="text-[14px] [overflow-wrap:anywhere]">{text}</div>
+                <time dateTime={e.at} className="mono text-[calc(12px*var(--ui))] text-ink2 tl-date">{fmt(e)}</time>
+                <div className="text-[calc(14px*var(--ui))] [overflow-wrap:anywhere]">{text}</div>
               </li>
-            ))}</ol> : <p className="text-[13px] text-ink2">No dated events are known for this threat yet.</p>}
+            ))}</ol> : <p className="text-[calc(13px*var(--ui))] text-ink2">No dated events are known for this threat yet.</p>}
             {all.length > rows.length && <button type="button" className="btn-ghost w-fit" aria-expanded={false} aria-controls="tl-full" onClick={() => setExpanded(true)}>{labels.showAll} ({all.length}) <span aria-hidden>▾</span></button>}
           </>
         );
       })()}
       {t && expanded && <div id="tl-full" className="contents">
-        <p className="text-[14px] leading-relaxed">{t.summary}<span className="text-[11px] text-ink2 ml-2">{t.summary_basis === "model" ? "summary by Muse Spark, checked against the events" : "summary generated from the events"}</span></p>
-        {t.limited && <p className="text-[13px] text-ink2">Little history is known for this threat: only {t.events.filter((e) => e.kind !== "argus_discovered").length} dated record(s) in the sources Argus follows. Absence of events is not evidence that nothing happened.</p>}
+        <p className="text-[calc(14px*var(--ui))] leading-relaxed">{t.summary}<span className="text-[calc(11px*var(--ui))] text-ink2 ml-2">{t.summary_basis === "model" ? "summary by Muse Spark, checked against the events" : "summary generated from the events"}</span></p>
+        {t.limited && <p className="text-[calc(13px*var(--ui))] text-ink2">Little history is known for this threat: only {t.events.filter((e) => e.kind !== "argus_discovered").length} dated record(s) in the sources Argus follows. Absence of events is not evidence that nothing happened.</p>}
         <ol className="tl-list">
           {shown.map((e) => {
             const c = CONF[e.confidence];
             const conflict = e.conflicts_with.map((id) => byId.get(id)).filter(Boolean) as TLEvent[];
             return (
               <li key={e.id} className={`tl-item${e.lane === "repo" ? " tl-repo" : ""}${conflict.length ? " tl-conflict" : ""}`}>
-                <time dateTime={e.at} className="mono text-[12px] text-ink2 tl-date">{fmt(e)}</time>
+                <time dateTime={e.at} className="mono text-[calc(12px*var(--ui))] text-ink2 tl-date">{fmt(e)}</time>
                 <div className="grid gap-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
-                    <span className="label !text-[11px]">{e.lane === "repo" ? "Your repository · " : ""}{KIND[e.kind] ?? e.kind}</span>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[calc(12px*var(--ui))]">
+                    <span className="label !text-[calc(11px*var(--ui))]">{e.lane === "repo" ? "Your repository · " : ""}{KIND[e.kind] ?? e.kind}</span>
                     {isArgusRecord(e) ? <span className="text-ink2" title="An action Argus Watch recorded. It does not mean the vulnerability is confirmed in your repository.">{labels.recorded}</span>
                       : <span className="chip" style={{ color: c.color }} title={c.help}>{c.glyph} {c.label}</span>}
                     {e.basis === "model_extracted" && <span className="text-ink2" title="Proposed by Meta Muse Spark; date and claim were found verbatim in the source">read by Muse Spark · quote checked</span>}
                     {conflict.length > 0 && <span style={{ color: "var(--unclear)" }}>⚠ dates differ between sources</span>}
                   </div>
-                  <div className="text-[14px] [overflow-wrap:anywhere]">{e.title}</div>
-                  {e.detail && <div className="text-[12px] text-ink2">{e.detail}</div>}
-                  <div className="text-[12px] flex flex-wrap gap-x-3">{e.sources.map((s, i) => s.url ? <a key={i} href={s.url} target="_blank" rel="noreferrer nofollow" className="break-all">{s.publisher} ↗</a> : <span key={i} className="text-ink2">{s.publisher}</span>)}</div>
-                  {e.quote && <details className="disclose"><summary>Source text</summary><blockquote className="text-[12px] mt-1 border-l-2 hair pl-3">“{e.quote}”{e.date_quote && <span className="block text-ink2 mt-1">Date as written: “{e.date_quote}”</span>}</blockquote></details>}
+                  <div className="text-[calc(14px*var(--ui))] [overflow-wrap:anywhere]">{e.title}</div>
+                  {e.detail && <div className="text-[calc(12px*var(--ui))] text-ink2">{e.detail}</div>}
+                  <div className="text-[calc(12px*var(--ui))] flex flex-wrap gap-x-3">{e.sources.map((s, i) => s.url ? <a key={i} href={s.url} target="_blank" rel="noreferrer nofollow" className="break-all">{s.publisher} ↗</a> : <span key={i} className="text-ink2">{s.publisher}</span>)}</div>
+                  {e.quote && <details className="disclose"><summary>Source text</summary><blockquote className="text-[calc(12px*var(--ui))] mt-1 border-l-2 hair pl-3">“{e.quote}”{e.date_quote && <span className="block text-ink2 mt-1">Date as written: “{e.date_quote}”</span>}</blockquote></details>}
                 </div>
               </li>
             );
@@ -117,7 +117,7 @@ export function ThreatTimeline({ assessmentId, title = "Threat timeline", labels
         </ol>
         <details className="disclose">
           <summary>How this timeline was built</summary>
-          <ul className="text-[12px] text-ink2 grid gap-1 mt-2">
+          <ul className="text-[calc(12px*var(--ui))] text-ink2 grid gap-1 mt-2">
             <li>{all.length} events from {sources} source(s). Dates come from source timestamps, registry records{t.registry.length ? ` (${t.registry.map((r) => `${r.id} ${r.registry}: ${r.status === "ok" ? "found" : r.status === "not_found" ? "not found" : "unreachable"}`).join("; ")})` : ""} and Argus Watch&apos;s own records.</li>
             <li>{t.model.name ? `Meta ${t.model.name}` : "Meta Muse Spark"} read the reports and proposed {t.model.proposed} dated development(s); {t.model.accepted} were kept because their date and claim appear verbatim in the source{t.model.rejected.length ? `; ${t.model.rejected.length} rejected (${[...new Set(t.model.rejected.map((r) => r.reason))].join("; ")})` : ""}.{t.model.error ? ` Model unavailable: ${t.model.error}. Showing dated records only.` : ""}</li>
             <li>{t.wonder.enabled ? (t.wonder.reviews.length ? `Meta Muse Wonder reviewed a date conflict: ${t.wonder.reviews[0].resolution === "unresolved" ? "unresolved" : "a preference was accepted because it quoted the source"}. No event is ever removed.` : "Muse Wonder conflict review is on; no conflict needed review.") : "Conflicting dates are shown side by side (Muse Wonder review is off)."}</li>

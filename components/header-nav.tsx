@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { NotificationBell } from "@/components/notification-bell";
 import { LanguageSwitcher, useLocaleSwitch, withCurrent, type Lang } from "@/components/language-switcher";
 import { signInWithGitHub, signOut } from "@/lib/auth-client";
+import { ReportIssueDialog } from "@/components/report-issue";
 
 export type HeaderUser = { id: string; login: string; avatar: string | null } | null;
 export type HeaderLabels = { threats: string; repos: string; monitoring: string; activity: string; settings: string; language: string; notifications: string; signIn: string; signOut: string; notConfigured: string };
@@ -19,15 +20,15 @@ const isThreats = (p: string) => p.startsWith("/alerts") || p.startsWith("/case"
 export function HeaderNav({ user, authReady, labels, locale = "en", languages = [] }: { user: HeaderUser; authReady: boolean; labels: HeaderLabels; locale?: string; languages?: Lang[] }) {
   const path = usePathname();
   if (!user) return (
-    <div className="flex items-center gap-3 text-[13px]">
+    <div className="flex items-center gap-3 text-[calc(13px*var(--ui))]">
       {languages.length > 1 && <LanguageSwitcher current={locale} languages={languages} compact />}
       {authReady ? <button type="button" className="btn" onClick={() => signInWithGitHub(path === "/" ? "/alerts" : path)}>{labels.signIn}</button>
-        : <span className="text-ink2 text-[12px]" title="Set BETTER_AUTH_SECRET, GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET">{labels.notConfigured}</span>}
+        : <span className="text-ink2 text-[calc(12px*var(--ui))]" title="Set BETTER_AUTH_SECRET, GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET">{labels.notConfigured}</span>}
     </div>
   );
   return (
-    <div className="flex flex-1 items-center min-w-0 gap-6">
-      <nav aria-label="Primary" className="max-sm:hidden flex items-center gap-6 text-[13px]">
+    <div className="flex flex-1 items-center min-w-0 gap-6 sm:gap-8">
+      <nav aria-label="Primary" className="max-sm:hidden flex items-center gap-6 text-[calc(13px*var(--ui))]">
         <Link href="/alerts" className="nav-link" aria-current={isThreats(path) ? "page" : undefined}>{labels.threats}</Link>
       </nav>
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
@@ -43,6 +44,7 @@ function AccountMenu({ user, labels, locale, languages }: { user: NonNullable<He
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "lang">("main");
+  const [issue, setIssue] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const btn = useRef<HTMLButtonElement>(null);
   const { value: lang, pending, choose } = useLocaleSwitch(locale);
@@ -78,14 +80,14 @@ function AccountMenu({ user, labels, locale, languages }: { user: NonNullable<He
     <div ref={wrap} className="relative" onKeyDown={onKey}>
       <button ref={btn} type="button" aria-haspopup="menu" aria-expanded={open} aria-label={`Menu and account for ${user.login}`} onClick={() => (open ? close() : setOpen(true))}
         onKeyDown={(e) => { if (e.key === "ArrowDown" && !open) { e.preventDefault(); setOpen(true); } }}
-        className="flex items-center gap-1.5 h-8 rounded-[6px] px-2 text-[13px] text-ink hover:bg-[var(--sunken)] cursor-pointer">
-        <span className="max-sm:hidden max-w-[160px] truncate">{user.login}</span>
+        className="flex items-center gap-1.5 h-9 rounded-[6px] px-2 text-[calc(14px*var(--ui))] font-medium text-ink hover:bg-[var(--sunken)] cursor-pointer">
+        <span className="max-sm:hidden max-w-[calc(160px*var(--ui))] truncate">{user.login}</span>
         <svg aria-hidden className="max-sm:hidden text-ink2" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3.5 5 6.5 8 3.5" /></svg>
         <svg aria-hidden className="sm:hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
       </button>
       {open && view === "main" && (
         <div role="menu" aria-label="Account" className="menu">
-          <div className="px-[10px] py-2 text-[12px] text-ink2 border-b hair mb-1">Signed in as <span className="text-ink font-medium">{user.login}</span></div>
+          <div className="px-[calc(10px*var(--ui))] py-2 text-[calc(12px*var(--ui))] text-ink2 border-b hair mb-1">Signed in as <span className="text-ink font-medium">{user.login}</span></div>
           <Item href="/settings" current={path.startsWith("/settings")}>{labels.settings}</Item>
           <div className="sm:hidden">
             <Item href="/alerts" current={isThreats(path)}>{labels.threats}</Item>
@@ -95,9 +97,10 @@ function AccountMenu({ user, labels, locale, languages }: { user: NonNullable<He
           {langs.length > 1 && (
             <button role="menuitem" tabIndex={-1} type="button" data-lang-item aria-haspopup="menu" onClick={openLang} className="!flex items-center justify-between gap-3">
               <span>{labels.language}</span>
-              <span className="text-ink2 text-[12px] flex items-center gap-1" aria-label={`current: ${langName}`}><span className="uppercase">{lang.split("-")[0]}</span><span aria-hidden>›</span></span>
+              <span className="text-ink2 text-[calc(12px*var(--ui))] flex items-center gap-1" aria-label={`current: ${langName}`}><span className="uppercase">{lang.split("-")[0]}</span><span aria-hidden>›</span></span>
             </button>
           )}
+          <button role="menuitem" tabIndex={-1} type="button" onClick={() => { close(); setIssue(true); }}>Report an issue</button>
           <div className="border-t hair my-1" />
           <button role="menuitem" tabIndex={-1} type="button" onClick={() => signOut().then(() => { router.push("/"); router.refresh(); })}>{labels.signOut}</button>
         </div>
@@ -115,6 +118,7 @@ function AccountMenu({ user, labels, locale, languages }: { user: NonNullable<He
           </div>
         </div>
       )}
+      {issue && <ReportIssueDialog onClose={() => setIssue(false)} />}
     </div>
   );
 }

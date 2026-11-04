@@ -36,28 +36,28 @@ export function SimulateImpact({ assessmentId, repo, sha, title = "What happens 
   return (
     <section className="grid gap-3" aria-labelledby="sim-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="sim-h" className="text-[15px] font-semibold">{title}</h2>
+        <h2 id="sim-h" className="text-[calc(15px*var(--ui))] font-semibold">{title}</h2>
         {!sim && <button className="btn" onClick={() => run()} disabled={busy}>{busy ? "… (~20–40 s)" : button}</button>}
       </div>
       {lead}
-      {!sim && !busy && !lead && <p className="text-[13px] text-ink2">{intro ?? "See how someone using your app could experience this threat, step by step, built only from what Argus found in your code. Synthetic data; nothing is executed."}</p>}
-      {err && <p role="alert" className="text-[13px]" style={{ color: "var(--contradicted)" }}>{err}</p>}
-      {sim && !sim.applicable && <div className="border hair rounded-[8px] p-4 text-[14px]"><b>Not enough evidence for a user-facing scenario.</b> <span className="text-ink2">{sim.not_applicable_reason}</span></div>}
+      {!sim && !busy && !lead && <p className="text-[calc(13px*var(--ui))] text-ink2">{intro ?? "See how someone using your app could experience this threat, step by step, built only from what Argus found in your code. Synthetic data; nothing is executed."}</p>}
+      {err && <p role="alert" className="text-[calc(13px*var(--ui))]" style={{ color: "var(--contradicted)" }}>{err}</p>}
+      {sim && !sim.applicable && <div className="border hair rounded-[8px] p-4 text-[calc(14px*var(--ui))]"><b>Not enough evidence for a user-facing scenario.</b> <span className="text-ink2">{sim.not_applicable_reason}</span></div>}
       {sim && sim.applicable && (
         <div className="grid gap-3">
-          <div className="text-[12px] px-3 py-2 rounded-[6px]" style={{ background: "var(--sunken)" }} role="note">Hypothetical simulation with synthetic data. Nothing was executed or reproduced. Each step says what supports it.</div>
+          <div className="text-[calc(12px*var(--ui))] px-3 py-2 rounded-[6px]" style={{ background: "var(--sunken)" }} role="note">Hypothetical simulation with synthetic data. Nothing was executed or reproduced. Each step says what supports it.</div>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-[13px] text-ink2">{sim.persona} using <b className="text-ink">{sim.surface.name}</b>{sim.surface.generic ? <span> (generic app: no user-facing code was cited)</span> : <> · based on {sim.surface.derived_from.map((d, k) => <a key={k} className="mono" target="_blank" rel="noreferrer" href={lineHref(d.file, d.line)}>{d.file.split("/").pop()}{d.line ? `:${d.line}` : ""}{k < sim.surface.derived_from.length - 1 ? ", " : ""}</a>)}</>}</div>
+            <div className="text-[calc(13px*var(--ui))] text-ink2">{sim.persona} using <b className="text-ink">{sim.surface.name}</b>{sim.surface.generic ? <span> (generic app: no user-facing code was cited)</span> : <> · based on {sim.surface.derived_from.map((d, k) => <a key={k} className="mono" target="_blank" rel="noreferrer" href={lineHref(d.file, d.line)}>{d.file.split("/").pop()}{d.line ? `:${d.line}` : ""}{k < sim.surface.derived_from.length - 1 ? ", " : ""}</a>)}</>}</div>
             {sim.with_fix && <nav className="seg" aria-label="Scenario"><button aria-current={!withFix ? "page" : undefined} onClick={() => { setWithFix(false); setI(0); }}>Without fix</button><button aria-current={withFix ? "page" : undefined} onClick={() => { setWithFix(true); setI(0); }}>With fix</button></nav>}
           </div>
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
             <div className="border hair rounded-[14px] bg-raised overflow-hidden" style={{ minHeight: 260 }}>
-              <div className="flex items-center gap-1.5 px-3 py-2 border-b hair" aria-hidden><span className="w-2 h-2 rounded-full" style={{ background: "var(--line)" }} /><span className="w-2 h-2 rounded-full" style={{ background: "var(--line)" }} /><span className="w-2 h-2 rounded-full" style={{ background: "var(--line)" }} /><span className="text-[11px] text-ink2 ml-2 truncate">{sim.surface.name}</span></div>
+              <div className="flex items-center gap-1.5 px-3 py-2 border-b hair" aria-hidden><span className="w-2 h-2 rounded-full" style={{ background: "var(--line)" }} /><span className="w-2 h-2 rounded-full" style={{ background: "var(--line)" }} /><span className="w-2 h-2 rounded-full" style={{ background: "var(--line)" }} /><span className="text-[calc(11px*var(--ui))] text-ink2 ml-2 truncate">{sim.surface.name}</span></div>
               <div key={`${withFix}-${i}`} className="fade p-4">
                 {i < last ? <ScreenView s={sim.steps[i].screen} /> : <Outcome sim={sim} withFix={withFix} />}
               </div>
             </div>
-            <ol className="grid gap-1 content-start text-[12px]" aria-label="Steps">
+            <ol className="grid gap-1 content-start text-[calc(12px*var(--ui))]" aria-label="Steps">
               {sim.steps.slice(0, last).map((s, k) => <li key={k}><button className="text-left w-full px-2 py-1 rounded-[4px]" style={{ background: k === i ? "var(--sunken)" : "transparent" }} onClick={() => setI(k)}><span className="mono text-ink2 mr-1">{k + 1}</span>{s.narration.slice(0, 70)}</button></li>)}
               <li><button className="text-left w-full px-2 py-1 rounded-[4px] font-medium" style={{ background: i === last ? "var(--sunken)" : "transparent" }} onClick={() => setI(last)}>{withFix ? "With the fix" : "Outcome"}</button></li>
             </ol>
@@ -66,10 +66,10 @@ export function SimulateImpact({ assessmentId, repo, sha, title = "What happens 
           <div className="flex flex-wrap items-center gap-2">
             <button className="btn-ghost" onClick={() => go(-1)} disabled={i === 0} aria-label="Previous step">←</button>
             <button className="btn-ghost" onClick={() => go(1)} disabled={i >= total - 1} aria-label="Next step">→</button>
-            <span className="text-[12px] text-ink2">{Math.min(i + 1, total)} / {total} · arrow keys work</span>
+            <span className="text-[calc(12px*var(--ui))] text-ink2">{Math.min(i + 1, total)} / {total} · arrow keys work</span>
             <button className="btn-ghost ml-auto" onClick={() => run(true)} disabled={busy}>{busy ? "Rebuilding…" : "Rebuild"}</button>
           </div>
-          <p className="text-[11px] text-ink2">Built by Meta {sim.model} from Argus&apos;s assessment in {(sim.ms / 1000).toFixed(0)} s.{sim.downgraded ? ` ${sim.downgraded} claim(s) the model made without evidence were downgraded to hypothetical.` : ""}</p>
+          <p className="text-[calc(11px*var(--ui))] text-ink2">Built by Meta {sim.model} from Argus&apos;s assessment in {(sim.ms / 1000).toFixed(0)} s.{sim.downgraded ? ` ${sim.downgraded} claim(s) the model made without evidence were downgraded to hypothetical.` : ""}</p>
         </div>
       )}
     </section>
@@ -79,10 +79,10 @@ export function SimulateImpact({ assessmentId, repo, sha, title = "What happens 
 function StepMeta({ s, lineHref }: { s: Step; lineHref: (file: string, line: number | null) => string }) {
   const b = BASIS[s.basis];
   return (
-    <div className="grid gap-1 text-[13px]">
+    <div className="grid gap-1 text-[calc(13px*var(--ui))]">
       <p>{s.narration}</p>
       <div className="flex flex-wrap items-center gap-2"><span className="chip" style={{ color: b.color }} title={b.help}>{b.label}</span>
-        {s.evidence.map((e, k) => e.file ? <a key={k} className="mono text-[12px]" target="_blank" rel="noreferrer" href={lineHref(e.file, e.line)}>{e.file}{e.line ? `:${e.line}` : ""}</a> : e.condition_id ? <span key={k} className="mono text-[12px] text-ink2">condition {e.condition_id}</span> : null)}
+        {s.evidence.map((e, k) => e.file ? <a key={k} className="mono text-[calc(12px*var(--ui))]" target="_blank" rel="noreferrer" href={lineHref(e.file, e.line)}>{e.file}{e.line ? `:${e.line}` : ""}</a> : e.condition_id ? <span key={k} className="mono text-[calc(12px*var(--ui))] text-ink2">condition {e.condition_id}</span> : null)}
       </div>
     </div>
   );
@@ -94,30 +94,30 @@ function ScreenView({ s }: { s: Screen }) {
     <div className="grid gap-2">
       <div className="label">{s.kind.replace("_", " ")} · {s.title}</div>
       {s.kind === "chat" || s.kind === "email"
-        ? <div className="grid gap-2">{s.lines.map((l, k) => <div key={k} className="max-w-[85%] px-3 py-2 rounded-[10px] text-[13px]" style={{ ...bubble(l.who), color: TONE[l.tone] }}><span className="text-[10px] uppercase tracking-wide text-ink2 block">{l.who}</span>{l.text}</div>)}</div>
+        ? <div className="grid gap-2">{s.lines.map((l, k) => <div key={k} className="max-w-[85%] px-3 py-2 rounded-[10px] text-[calc(13px*var(--ui))]" style={{ ...bubble(l.who), color: TONE[l.tone] }}><span className="text-[calc(10px*var(--ui))] uppercase tracking-wide text-ink2 block">{l.who}</span>{l.text}</div>)}</div>
         : s.kind === "notification"
-        ? <div className="grid gap-2">{s.lines.map((l, k) => <div key={k} className="px-3 py-2 rounded-[10px] text-[13px] shadow-sm border hair" style={{ color: TONE[l.tone] }}>🔔 {l.text}</div>)}</div>
+        ? <div className="grid gap-2">{s.lines.map((l, k) => <div key={k} className="px-3 py-2 rounded-[10px] text-[calc(13px*var(--ui))] shadow-sm border hair" style={{ color: TONE[l.tone] }}>🔔 {l.text}</div>)}</div>
         : s.kind === "terminal" || s.kind === "agent_log"
-        ? <pre className="mono text-[12px] whitespace-pre-wrap p-3 rounded-[6px]" style={{ background: "var(--sunken)" }}>{s.lines.map((l, k) => <div key={k} style={{ color: TONE[l.tone] }}>{l.who === "agent" ? "› " : l.who === "system" ? "# " : ""}{l.text}</div>)}</pre>
-        : <div className="grid gap-1.5 text-[13px]">{s.lines.map((l, k) => <div key={k} className="py-1.5 border-b hair last:border-0" style={{ color: TONE[l.tone] }}>{l.text}</div>)}</div>}
+        ? <pre className="mono text-[calc(12px*var(--ui))] whitespace-pre-wrap p-3 rounded-[6px]" style={{ background: "var(--sunken)" }}>{s.lines.map((l, k) => <div key={k} style={{ color: TONE[l.tone] }}>{l.who === "agent" ? "› " : l.who === "system" ? "# " : ""}{l.text}</div>)}</pre>
+        : <div className="grid gap-1.5 text-[calc(13px*var(--ui))]">{s.lines.map((l, k) => <div key={k} className="py-1.5 border-b hair last:border-0" style={{ color: TONE[l.tone] }}>{l.text}</div>)}</div>}
     </div>
   );
 }
 
 function Outcome({ sim, withFix }: { sim: Simulation; withFix: boolean }) {
   if (withFix && sim.with_fix) return (
-    <div className="grid gap-2 text-[14px]">
+    <div className="grid gap-2 text-[calc(14px*var(--ui))]">
       <div className="label" style={{ color: "var(--observed)" }}>With the fix</div>
       <p>{sim.with_fix.changed_behavior}</p>
-      <p className="text-[12px] text-ink2">{sim.with_fix.label}{sim.with_fix.blocked_at_step ? ` · the chain is expected to stop at step ${sim.with_fix.blocked_at_step}` : ""}</p>
-      {sim.with_fix.remaining_uncertainty.length > 0 && <div className="text-[13px]"><div className="label">Still uncertain</div><ul className="list-disc pl-5">{sim.with_fix.remaining_uncertainty.map((u, k) => <li key={k}>{u}</li>)}</ul></div>}
+      <p className="text-[calc(12px*var(--ui))] text-ink2">{sim.with_fix.label}{sim.with_fix.blocked_at_step ? ` · the chain is expected to stop at step ${sim.with_fix.blocked_at_step}` : ""}</p>
+      {sim.with_fix.remaining_uncertainty.length > 0 && <div className="text-[calc(13px*var(--ui))]"><div className="label">Still uncertain</div><ul className="list-disc pl-5">{sim.with_fix.remaining_uncertainty.map((u, k) => <li key={k}>{u}</li>)}</ul></div>}
     </div>
   );
   const b = BASIS[sim.consequence.basis];
   return (
-    <div className="grid gap-2 text-[14px]">
+    <div className="grid gap-2 text-[calc(14px*var(--ui))]">
       <div className="label" style={{ color: "var(--contradicted)" }}>What your user experiences</div>
-      <p className="text-[16px] font-medium">{sim.consequence.summary}</p>
+      <p className="text-[calc(16px*var(--ui))] font-medium">{sim.consequence.summary}</p>
       <span className="chip w-fit" style={{ color: b.color }}>{b.label}</span>
     </div>
   );

@@ -3,7 +3,7 @@
 // finding that is not established for this repository is never shown with a severity word.
 import type { Assessment, Finding, Severity } from "./schema";
 
-export type StatusKind = "serious" | "important" | "moderate" | "minor" | "affects" | "possible" | "not_affected" | "fix_ready" | "resolved" | "withdrawn";
+export type StatusKind = "serious" | "important" | "moderate" | "minor" | "affects" | "possible" | "not_affected" | "fix_ready" | "fix_merged" | "resolved" | "withdrawn";
 export type Status = { kind: StatusKind; label: string; glyph: string; tone: string };
 
 const S: Record<StatusKind, Omit<Status, "kind">> = {
@@ -15,6 +15,7 @@ const S: Record<StatusKind, Omit<Status, "kind">> = {
   possible: { label: "Possible issue", glyph: "◌", tone: "possible" },
   not_affected: { label: "You're not affected", glyph: "✓", tone: "ok" },
   fix_ready: { label: "Fix ready to review", glyph: "✓", tone: "muted" },
+  fix_merged: { label: "Fix merged", glyph: "✓", tone: "ok" },
   resolved: { label: "Resolved", glyph: "✓", tone: "muted" },
   withdrawn: { label: "Advisory withdrawn", glyph: "⊘", tone: "muted" },
 };
@@ -26,7 +27,9 @@ export const localized = <T extends { kind: StatusKind; label: string }>(st: T, 
 /** Verified = the deterministic verdict rule (lib/verdict.ts) returned Affected for this repository. */
 export const isVerified = (a: Pick<Assessment, "verdict"> & { agent?: Assessment["agent"]; withdrawn_at?: string | null }) => !a.withdrawn_at && (a.verdict === "Affected" || (a.verdict !== "Not Affected" && a.agent?.status === "confirmed" && a.agent.evidence.length > 0));
 
-export function statusOf(a: Pick<Assessment, "verdict"> & { agent?: Assessment["agent"]; withdrawn_at?: string | null }, sev: Severity, state: { resolved: boolean; prOpen: boolean }): Status {
+export function statusOf(a: Pick<Assessment, "verdict"> & { agent?: Assessment["agent"]; withdrawn_at?: string | null }, sev: Severity, state: { resolved: boolean; prOpen: boolean; merged?: boolean }): Status {
+  // Merged on GitHub: the change is in the default branch. The vulnerability fix itself is still not verified by Argus.
+  if (state.merged) return mk("fix_merged");
   if (state.prOpen || a.agent?.status === "fix_proposed") return mk("fix_ready");
   if (state.resolved) return mk("resolved");
   if (a.withdrawn_at) return mk("withdrawn"); // the registry withdrew the advisory: never shown as a live threat

@@ -58,7 +58,7 @@ export function MuseFix({ fix: initial, onChange, labels = MUSE_EN, autoOpen = f
     <div className="grid gap-3 border hair rounded-[6px] p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="label">{labels.title}</div>
-        <span className="text-[12px] text-ink2">Edits run in an isolated runner. Nothing is written to your repository until you authorize it and validation passes.</span>
+        <span className="text-[calc(12px*var(--ui))] text-ink2">Edits run in an isolated runner. Nothing is written to your repository until you authorize it and validation passes.</span>
       </div>
       {canStart && (
         <div className="flex flex-wrap gap-2">
@@ -69,8 +69,8 @@ export function MuseFix({ fix: initial, onChange, labels = MUSE_EN, autoOpen = f
       {started && <RunLadder fix={fix} />}
 
       <dialog ref={dlg} className="modal" aria-labelledby="muse-fix-title">
-        <form method="dialog" className="grid gap-3 text-[13px]" onSubmit={(e) => { e.preventDefault(); authorize(); }}>
-          <div id="muse-fix-title" className="serif text-[22px]">{mode === "pr" ? "Fix & create pull request" : "Fix & push to " + (info?.default_branch ?? "the default branch")}</div>
+        <form method="dialog" className="grid gap-3 text-[calc(13px*var(--ui))]" onSubmit={(e) => { e.preventDefault(); authorize(); }}>
+          <div id="muse-fix-title" className="serif text-[calc(22px*var(--ui))]">{mode === "pr" ? "Fix & create pull request" : "Fix & push to " + (info?.default_branch ?? "the default branch")}</div>
           <ul className="grid gap-1 list-disc pl-5">
             <li><b>Meta Muse Code</b> investigates and edits a fresh copy of <span className="mono">{fix.repo}</span> at <span className="mono">{fix.base_sha.slice(0, 7)}</span> inside an isolated GitHub Actions runner. Your code is never run on the Argus server.</li>
             <li>It may change only: <span className="mono">{info ? info.allowed_files.join(", ") : "…"}</span>. Any other change discards the whole result.</li>
@@ -106,16 +106,16 @@ export function RunLadder({ fix }: { fix: Fix }) {
     : { tone: "var(--ink-2)", text: st === "queued" ? "Starting the isolated runner…" : st === "running" ? "Muse Code is working on the fix…" : "Validated; writing to GitHub…", url: r?.run_url ?? null, link: "Runner log ↗" };
   return (
     <div className="grid gap-3">
-      <div className="text-[14px]" style={{ color: final.tone }} aria-live="polite">{final.text}{final.url && <> · <a href={final.url} target="_blank" rel="noreferrer">{final.link}</a></>}</div>
+      <div className="text-[calc(14px*var(--ui))]" style={{ color: final.tone }} aria-live="polite">{final.text}{final.url && <> · <a href={final.url} target="_blank" rel="noreferrer">{final.link}</a></>}</div>
       {r && (r.finished_at || r.summary) ? (
-        <div className="grid gap-1 text-[12px]">
-          {r.summary && <p className="text-[13px]"><span className="label mr-2">Muse Code</span>{r.summary}</p>}
+        <div className="grid gap-1 text-[calc(12px*var(--ui))]">
+          {r.summary && <p className="text-[calc(13px*var(--ui))]"><span className="label mr-2">Muse Code</span>{r.summary}</p>}
           <div className="text-ink2">Changed: <span className="mono">{r.changed_files.join(", ") || "none"}</span>{r.rejected_files.length ? <span style={{ color: "var(--contradicted)" }}> · rejected: <span className="mono">{r.rejected_files.join(", ")}</span></span> : null}{r.steps != null ? ` · ${r.steps} agent step(s)` : ""}{r.muse_version ? ` · ${r.muse_version}` : ""}</div>
           <div>{t?.executed ? <span style={{ color: t.exit_code === 0 ? "var(--observed)" : "var(--contradicted)" }}>Tests executed: <span className="mono">{t.command}</span> → exit {t.exit_code}</span> : <span className="text-ink2">Tests: none executed (no test command detected). Checks were static only.</span>}</div>
-          {t?.log && <details><summary className="cursor-pointer text-ink2">Test log</summary><pre className="mono whitespace-pre-wrap text-[11px] max-h-64 overflow-auto mt-1">{t.log}</pre></details>}
+          {t?.log && <details><summary className="cursor-pointer text-ink2">Test log</summary><pre className="mono whitespace-pre-wrap text-[calc(11px*var(--ui))] max-h-64 overflow-auto mt-1">{t.log}</pre></details>}
         </div>
       ) : null}
-      <details open={false} className="text-[12px]"><summary className="label cursor-pointer">Audit trail ({fix.events.length})</summary>
+      <details open={false} className="text-[calc(12px*var(--ui))]"><summary className="label cursor-pointer">Audit trail ({fix.events.length})</summary>
         <ol className="grid gap-1 mt-2">{fix.events.map((e, i) => <li key={i} className="grid grid-cols-[150px_1fr] gap-2"><span className="mono text-ink2">{e.at.replace("T", " ").slice(0, 19)}Z</span><span><b>{e.actor}</b> {e.action.replace(/_/g, " ")}: {e.detail}{e.url && <> · <a href={e.url} target="_blank" rel="noreferrer">link ↗</a></>}</span></li>)}</ol>
       </details>
     </div>

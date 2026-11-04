@@ -8,6 +8,7 @@ import { FEEDS, fetchFeed, itemFromEntry, type Feed } from "./sources/rss";
 import { fetchNvd, itemFromNvd } from "./sources/nvd";
 import { getVuln, itemFromOsv, queriesFor, queryBatch } from "./sources/osv";
 import { store } from "./store";
+import { communityFeeds } from "./source-suggest";
 
 export type SourceClass = "push" | "near_realtime" | "periodic";
 export type Poller = { id: string; name: string; cls: SourceClass; interval_min: number };
@@ -139,7 +140,9 @@ export async function runSource(id: string): Promise<{ ok: boolean; source: stri
         note = `${qs.length} package version(s) queried, ${ids.size} known vulnerability id(s), ${fetched} fetched`;
       }
     } else if (id === "rss" || id === "rss-slow") {
-      const r = await pollFeeds(FEEDS.filter((f) => (id === "rss" ? f.cadence === "fast" : f.cadence === "slow")), now, !st.last_ok);
+      // Hourly group also carries community feeds that passed the automatic checks (lib/source-suggest.ts).
+      const extra = id === "rss-slow" ? await communityFeeds().catch(() => []) : [];
+      const r = await pollFeeds([...FEEDS.filter((f) => (id === "rss" ? f.cadence === "fast" : f.cadence === "slow")), ...extra], now, !st.last_ok);
       ingested = r.ingested; created = r.created;
       note = `${r.not_modified} feed(s) unchanged${r.errors.length ? `; ${r.errors.length} feed(s) failed: ${r.errors.join("; ")}` : ""}`.slice(0, 300);
       if (r.errors.length) await store.log({ kind: "error", source: id, detail: `feeds failed: ${r.errors.join("; ")}`.slice(0, 300) });

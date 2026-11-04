@@ -110,3 +110,110 @@ test("push: plain wording, threshold and fix notices", async () => {
   assert.equal(meetsThreshold(high, "critical"), false);
   assert.equal(meetsThreshold({ ...low, kind: "fix_pr_created" }, "critical"), true, "fix notices always pass");
 });
+
+test("a pull request merged on GitHub marks the fix merged; closing it does not", async () => {
+  const { pullOutcome } = await import("../lib/pull-state");
+  const pr = { merged: false, merge_commit_sha: null, state: "open", html_url: "https://github.com/o/r/pull/1" };
+  assert.equal(pullOutcome({ status: "pr_created" }, pr), null, "still open");
+  assert.deepEqual(pullOutcome({ status: "pr_created" }, { ...pr, merged: true, merge_commit_sha: "abc", state: "closed" }), { status: "merged", merge_sha: "abc" });
+  assert.deepEqual(pullOutcome({ status: "pr_created" }, { ...pr, state: "closed" }), { closed: true }, "closed without merge is not a fix");
+  assert.equal(pullOutcome({ status: "merged" }, { ...pr, merged: true }), null, "already recorded");
+  assert.equal(statusOf({ verdict: "Affected" }, sev, { resolved: false, prOpen: false, merged: true }).kind, "fix_merged");
+  assert.equal(statusOf({ verdict: "Affected" }, sev, { resolved: false, prOpen: true }).kind, "fix_ready");
+});
+
+test("write needs the installation's permissions for the chosen destination", async () => {
+  const { installationCanWrite } = await import("../lib/pull-state");
+  assert.equal(installationCanWrite({ contents: "write", pull_requests: "write" }, "pr"), true);
+  assert.equal(installationCanWrite({ contents: "write" }, "pr"), false, "a PR needs pull_requests write");
+  assert.equal(installationCanWrite({ contents: "write" }, "branch"), true, "a branch push needs only contents");
+  assert.equal(installationCanWrite({ contents: "read", pull_requests: "write" }, "branch"), false);
+  assert.equal(installationCanWrite({}, "pr"), false, "unreadable permissions count as missing");
+});
+
+test("fix completion dialog: success only for statuses the server reports, honest next steps", async () => {
+  const { fixSummary } = await import("../lib/fix-summary");
+  const base = { id: "f1", files: [{ path: "a.ts", patch: "", after: "", before_sha: "" }], runner: null, agent: "muse-code", syntax_check: [], pr_url: "https://github.com/o/r/pull/3", pr_number: 3, pr_draft: true, commit_url: null, branch: "argus/fix-f1", error: null } as never;
+  const s = (status: string, over: object = {}) => fixSummary({ ...(base as object), status, ...over } as never, "o/r");
+  assert.equal(s("validated"), null, "a checked patch is not a completed fix");
+  assert.equal(s("approved"), null, "a write in progress is not completed");
+  assert.equal(s("pr_created")?.tone, "ok");
+  assert.match(s("pr_created")!.title, /draft pull request created/);
+  assert.match(s("pr_created", { pr_draft: false })!.title, /^Fix complete: pull request created$/);
+  assert.ok(s("pr_created")!.points!.includes("Security fix not yet verified"), "never claims the vulnerability is fixed");
+  assert.equal(s("pr_created")!.link?.href, "https://github.com/o/r/pull/3");
+  assert.equal(s("failed", { error: "403 write access" })?.tone, "bad");
+  assert.equal(s("blocked_by_protection")?.tone, "warn");
+  assert.equal(s("merged")?.title, "Fix merged");
+});
+
+test("UI requests: scale factor, solid bell, bold titles, centered checkbox, Verify tab, Approve & Fix", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(css, /--ui: 1;/); assert.match(css, /@media \(min-width: 1024px\) and \(pointer: fine\)[\s\S]*--ui: 1\.125/);
+  assert.match(css, /--spacing: calc\(0\.25rem \* var\(--ui\)\)/);
+  assert.doesNotMatch(css, /\bzoom\s*:/); assert.doesNotMatch(css, /transform:\s*scale/);
+  const bell = readFileSync("components/notification-bell.tsx", "utf8");
+  assert.match(bell, /fill="currentColor"/);
+  assert.match(bell, /font-semibold \$\{n\.read_at/);
+  assert.match(readFileSync("app/notifications/page.tsx", "utf8"), /leading-snug font-semibold`\}>\{n\.display_title\}/);
+  assert.match(readFileSync("components/bulk-fix.tsx", "utf8"), /w-4 h-4 self-center/);
+  const modal = readFileSync("components/fix-modal.tsx", "utf8");
+  assert.doesNotMatch(modal, /onClick=\{goFix\}>Fix<\/button>/, "no Fix button on the Verify tab");
+  assert.match(modal, /Check again/);
+  assert.match(modal, /hidden=\{tab !== "verify"\}/, "tabs stay mounted so Verify results persist");
+  assert.match(modal, /Grant Permission/);
+  const rem = readFileSync("components/remediation.tsx", "utf8");
+  assert.doesNotMatch(rem, /Check this fix/); assert.match(rem, /Approve &amp; Fix/);
+  assert.match(rem, /fix\.patch_version === v/, "auto-approve only the exact reviewed patch");
+});
+
+test("suggest a source: relevance and decision rules (only all-green sources are added automatically)", async () => {
+  const { relevanceScore, decide } = await import("../lib/source-suggest");
+  const sec = [{ title: "CVE-2026-1234: RCE in parser", summary: "" }, { title: "Prompt injection in agent SDK", summary: "" }, { title: "Weekly links", summary: "cooking recipes" }];
+  assert.equal(relevanceScore(sec), 0.67);
+  assert.equal(relevanceScore([{ title: "Our new office", summary: "team news" }]), 0);
+  const ok = { blocked: false, duplicate: false, reachable: true, robotsOk: true, headersOk: true, isFeed: true, entries: 10, relevance: 0.6, capacity: true };
+  assert.equal(decide(ok).status, "registered");
+  assert.equal(decide({ ...ok, duplicate: true }).status, "duplicate");
+  assert.equal(decide({ ...ok, blocked: true }).status, "rejected");
+  for (const k of ["reachable", "robotsOk", "headersOk", "isFeed", "capacity"] as const) assert.equal(decide({ ...ok, [k]: false }).status, "needs_review", `${k} false must go to review, not auto-add`);
+  assert.equal(decide({ ...ok, relevance: 0.2 }).status, "needs_review");
+  assert.equal(decide({ ...ok, entries: 2 }).status, "needs_review");
+});
+
+test("suggest a source refuses internal and blocked links before fetching", async () => {
+  const { evaluateSuggestion } = await import("../lib/source-suggest");
+  assert.deepEqual(await evaluateSuggestion({ name: "x", url: "http://127.0.0.1/feed" }, "u"), { error: "Use a public link (no internal or IP addresses)." });
+  assert.ok("error" in (await evaluateSuggestion({ name: "", url: "https://example.com/feed" }, "u")), "name required");
+  const r = await evaluateSuggestion({ name: "X", url: `https://x.com/someone-${Date.now()}` }, "u");
+  assert.ok(!("error" in r) && r.status === "rejected", "platforms whose terms forbid collection are refused");
+});
+
+test("Settings, Sources, Threats and header: requested UI changes are in place", async () => {
+  const { readFileSync, existsSync } = await import("node:fs");
+  const settings = readFileSync("app/settings/page.tsx", "utf8");
+  assert.doesNotMatch(settings, /title=\{d\.account\}/, "Account section removed");
+  const panel = readFileSync("app/repos/panel.tsx", "utf8");
+  assert.match(panel, /Nothing in your repository changes without your approval\./);
+  assert.doesNotMatch(panel, /A change is written only after/);
+  const picker = readFileSync("components/repo-picker.tsx", "utf8");
+  assert.match(picker, />Manage GitHub access</); assert.doesNotMatch(picker, /Repository missing\? Grant access on GitHub/);
+  assert.doesNotMatch(picker, /disabled=\{r\.watched\}/, "monitored repositories can be unticked");
+  assert.match(picker, /window\.confirm\(`Stop monitoring/, "stopping needs explicit confirmation");
+  assert.match(readFileSync("app/repos/actions.ts", "utf8"), /getAll\("stop"\)[\s\S]*paused: true/, "unticking pauses monitoring, it does not remove GitHub access");
+  assert.match(readFileSync("app/sources/page.tsx", "utf8"), /<SuggestSource/);
+  assert.match(readFileSync("components/header-nav.tsx", "utf8"), /Report an issue/);
+  for (const f of ["app/favicon.ico", "app/icon.svg", "app/apple-icon.png", "public/icon-512.png", "app/manifest.ts"]) assert.ok(existsSync(f), f);
+});
+
+test("What we monitor: category summary is derived from real status", async () => {
+  const { groupSummary } = await import("../lib/monitor-sources");
+  assert.deepEqual(groupSummary([{ status: "active" }, { status: "active" }]), { text: "2 sources \u00b7 all active", worst: "active" });
+  assert.deepEqual(groupSummary([{ status: "active" }, { status: "delayed" }, { status: "unknown" }]), { text: "3 sources \u00b7 1 active, 1 delayed, 1 not recorded yet", worst: "delayed" });
+  assert.equal(groupSummary([]).worst, "unknown", "an empty group never claims to be active");
+  const { readFileSync } = await import("node:fs");
+  const land = readFileSync("components/landing.tsx", "utf8");
+  assert.doesNotMatch(land, /md:grid-cols-3 gap-8/); assert.match(land, /<details key=\{g\.id\}/);
+  assert.doesNotMatch(land.slice(land.indexOf("function WhatWeMonitor")), /\btruncate\b/, "source names are not truncated");
+});

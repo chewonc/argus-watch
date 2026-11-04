@@ -25,13 +25,29 @@ export async function beginConnect(formData?: FormData) {
   redirect(`https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new?state=${state}`);
 }
 
-/** Watch the selected repositories of one installation (shared WatchedRepo per repo; per-user link). */
+/**
+ * Save the repository picker: start monitoring the ticked repositories (`repo`) and stop monitoring the unticked
+ * ones (`stop`, confirmed by the user in the browser). Stopping keeps history and never touches GitHub access.
+ */
 export async function addRepos(formData: FormData) {
   const user = await requireUser("/repos");
   const instId = Number(formData.get("installation_id"));
   const picked = formData.getAll("repo").map(String).filter(Boolean);
+  const stops = formData.getAll("stop").map(String).filter(Boolean);
   const inst = await store.getInstallation(instId);
   if (!inst || !inst.user_ids.includes(user.id)) redirect(dest(formData, "error=installation_not_yours"));
+  const stopped: string[] = [];
+  for (const key of stops) {
+    const ur = await store.getUserRepo(user.id, key);
+    if (!ur || ur.paused || (ur.installation_id != null && ur.installation_id !== instId)) continue; // only this user's own, in this installation
+    await store.addUserRepo({ ...ur, paused: true });
+    stopped.push(key);
+  }
+  if (stopped.length) await store.log({ kind: "auth", source: "repos", detail: `${user.login} stopped monitoring ${stopped.join(", ")}`.slice(0, 300) });
+  if (!picked.length) {
+    revalidatePath("/repos"); revalidatePath("/settings"); revalidatePath("/alerts");
+    redirect(dest(formData, `paused=${encodeURIComponent(stopped.join(", "))}`));
+  }
   // Listed with the App's installation token: works after the user's sign-in token has expired.
   let list: Awaited<ReturnType<typeof listInstallationReposApp>>;
   try { list = await listInstallationReposApp(instId); } catch (e) { redirect(dest(formData, `error=${encodeURIComponent(explainGitHubError(e, inst.account))}`)); }
@@ -61,7 +77,8 @@ export async function addRepos(formData: FormData) {
   forgetInstallations();
   await store.log({ kind: "auth", source: "repos", detail: `${user.login} watches ${picked.length - errors.length} repo(s) via installation ${instId}${errors.length ? `; errors: ${errors.join("; ")}` : ""}`.slice(0, 300) });
   revalidatePath("/repos"); revalidatePath("/settings"); revalidatePath("/alerts");
-  redirect(errors.length ? dest(formData, `error=${encodeURIComponent(errors.join(" | ").slice(0, 300))}`) : dest(formData, `added=1&checking=${backfilled}`));
+  const stopQs = stopped.length ? `&paused=${encodeURIComponent(stopped.join(", "))}` : "";
+  redirect(errors.length ? dest(formData, `error=${encodeURIComponent(errors.join(" | ").slice(0, 300))}${stopQs}`) : dest(formData, `added=1&checking=${backfilled}${stopQs}`));
 }
 
 export async function removeRepo(formData: FormData) {

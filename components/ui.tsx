@@ -12,11 +12,11 @@ export function Band({ a, compact = false, qualifier }: { a: Assessment; compact
   return (
     <div className={`band ${verdictClass(a.verdict)}`}>
       <div className="flex items-baseline gap-3 flex-wrap">
-        <span className={`serif verdict-word ${compact ? "text-[22px]" : "text-[32px]"}`}>{a.verdict}</span>
+        <span className={`serif verdict-word ${compact ? "text-[calc(22px*var(--ui))]" : "text-[calc(32px*var(--ui))]"}`}>{a.verdict}</span>
         <span className="label">{a.tier}{a.replayed ? " · replayed" : ""}</span>
       </div>
-      {!compact && <p className="mt-1 text-[15px]">{qualifier ?? a.verdict_qualifier}</p>}
-      {!compact && <p className="mt-1 text-[12px] text-ink2 mono">rule: {a.verdict_reason}</p>}
+      {!compact && <p className="mt-1 text-[calc(15px*var(--ui))]">{qualifier ?? a.verdict_qualifier}</p>}
+      {!compact && <p className="mt-1 text-[calc(12px*var(--ui))] text-ink2 mono">rule: {a.verdict_reason}</p>}
     </div>
   );
 }
@@ -32,7 +32,7 @@ export function Timeline({ a }: { a: Assessment }) {
   const t = a.timestamps;
   const steps: [string, string | null][] = [["Published", t.published_at], ["Discovered", t.discovered_at], ["Processed", t.processed_at], ["Notified", t.notified_at]];
   return (
-    <dl className="grid grid-cols-[110px_1fr] gap-y-1 text-[13px]">
+    <dl className="grid grid-cols-[110px_1fr] gap-y-1 text-[calc(13px*var(--ui))]">
       {steps.map(([k, v]) => <div key={k} className="contents"><dt className="text-ink2">{k}</dt><dd title={v ? fmtTime(v) : undefined}>{fmtDay(v)}</dd></div>)}
     </dl>
   );

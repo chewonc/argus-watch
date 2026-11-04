@@ -62,7 +62,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
     const lf = latestFix(fixes);
     const loc = location(a);
     // An open (or merged) pull request shows as "fix ready to review"; it is never marked resolved by Argus itself.
-    const status = localized(statusOf(a, sev, { resolved: resolved.has(a.id), prOpen: !!lf && ["pr_created", "blocked_by_protection", "merging", "merged"].includes(lf.status) }), d);
+    const status = localized(statusOf(a, sev, { resolved: resolved.has(a.id), prOpen: !!lf && ["pr_created", "blocked_by_protection", "merging"].includes(lf.status), merged: lf?.status === "merged" }), d);
     const href = caseHref(a.id);
     const act = findingAction(a, fixes, { fixEnabled: env.FIX_ENABLED, allowPr: !!ur?.allow_pr, isDemo: !ur, hasInstallation: !!ur?.installation_id, writePermission: ur?.installation_id ? perms.get(ur.installation_id) ?? null : null, mode: modeOf(user?.settings) }, href);
     return { a, f, sev, status, title: plainTitle(a, f, loc, r?.tech_tags, r?.packages.map((p) => p.name)), where: whereLine(a, loc), act, caseHref: href };
@@ -74,7 +74,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
     for (const c of cards) if (c.where.kind === "unverified" || c.where.kind === "none") c.where = { ...c.where, text: c.where.kind === "unverified" ? d.not_yet_confirmed : c.where.text };
   }
   const filter: Filter = (FILTERS as readonly string[]).includes(sp.f ?? "") ? (sp.f as Filter) : LEGACY[sp.f ?? ""] ?? "all";
-  const isOpen = (c: CardData) => c.status.kind !== "not_affected" && c.status.kind !== "resolved" && c.status.kind !== "fix_ready";
+  const isOpen = (c: CardData) => c.status.kind !== "not_affected" && c.status.kind !== "resolved" && c.status.kind !== "fix_ready" && c.status.kind !== "fix_merged" && c.status.kind !== "withdrawn";
   // Repository filter (server-side): GitHub repositories as owner/name; fixture folders inside a repository belong to it.
   const ghRepo = (c: CardData) => c.a.repo.split("/").slice(0, 2).join("/");
   const allRelevant = cards.filter((c) => c.status.kind !== "not_affected");
@@ -95,19 +95,20 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
   const repoLines = [...byRepo.entries()].map(([k, s]) => ({ k, s: { ...s, label: s.label === "Monitoring active" ? d.monitoring_active : s.label === "Monitoring paused" ? d.monitoring_paused : s.label } }));
 
   return (
-    <div className="mx-auto max-w-[1080px] px-4 sm:px-6 py-8 sm:py-10 grid gap-6">
+    <div className="mx-auto max-w-[calc(1080px*var(--ui))] px-4 sm:px-6 py-8 sm:py-10 grid gap-6">
       <header className="grid gap-3">
         <div className="grid gap-1">
-          <h1 className="text-[28px] font-semibold tracking-[-0.02em] leading-tight">{d.nav_threats}</h1>
-          <p className="text-[15px] text-ink2" aria-live="polite">{repos.length === 0 ? d.no_repos_short : openCount === 0 ? d.nothing_needs_you : openCount === 1 ? d.one_needs_you : d.n_need_you.replace("{n}", String(openCount))}</p>
+          <h1 className="text-[calc(28px*var(--ui))] font-semibold tracking-[-0.02em] leading-tight">{d.nav_threats}</h1>
+          <p className="text-[calc(15px*var(--ui))] text-ink2" aria-live="polite">{repos.length === 0 ? d.no_repos_short : openCount === 0 ? d.nothing_needs_you : openCount === 1 ? d.one_needs_you : d.n_need_you.replace("{n}", String(openCount))}</p>
         </div>
         {repoLines.length > 0 && (
-          <div className="grid gap-1 text-[13px]">
+          <div className="grid gap-1 text-[calc(13px*var(--ui))]">
             <div className="label">{d.monitored_repos}</div>
-            <ul className="grid gap-0.5 max-h-[180px] overflow-auto" aria-label={d.repositories}>
-              {repoLines.map(({ k, s }) => <li key={k} className="flex items-center gap-2 min-w-0"><span aria-hidden className={`tone-${s.tone} text-[9px]`}>●</span><span className="font-medium truncate" title={k}>{k}</span>{s.label !== d.monitoring_active && <span className={`tone-${s.tone} shrink-0`}>{s.label}</span>}</li>)}
+            <ul className="grid gap-0.5 max-h-[calc(180px*var(--ui))] overflow-auto" aria-label={d.repositories}>
+              {repoLines.map(({ k, s }) => <li key={k} className="flex items-center gap-2 min-w-0"><span aria-hidden className={`tone-${s.tone} text-[calc(9px*var(--ui))] w-[calc(10px*var(--ui))] shrink-0 text-center`}>●</span><span className="font-medium truncate" title={k}>{k}</span>{s.label !== d.monitoring_active && <span className={`tone-${s.tone} shrink-0`}>{s.label}</span>}</li>)}
             </ul>
-            <Link href="/settings#repositories" className="text-ink2 hover:text-ink underline w-fit">{d.manage_repos}</Link>
+            {/* Indented by the status dot's width plus the row gap, so the link lines up with the repository names. */}
+            <Link href="/settings#repositories" className="text-ink2 hover:text-ink underline w-fit ml-[calc(10px*var(--ui)_+_0.5rem*var(--ui))]">{d.manage_repos}</Link>
           </div>
         )}
       </header>
@@ -139,8 +140,8 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
 function Empty({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) {
   return (
     <div className="border hair rounded-[10px] bg-raised px-6 py-12 grid justify-items-center text-center gap-2">
-      <div className="text-[15px] font-semibold">{title}</div>
-      <p className="text-[14px] text-ink2 max-w-[440px]">{body}</p>
+      <div className="text-[calc(15px*var(--ui))] font-semibold">{title}</div>
+      <p className="text-[calc(14px*var(--ui))] text-ink2 max-w-[calc(440px*var(--ui))]">{body}</p>
       {action && <div className="mt-3">{action}</div>}
     </div>
   );

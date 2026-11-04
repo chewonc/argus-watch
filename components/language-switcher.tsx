@@ -27,9 +27,9 @@ export const withCurrent = (current: string, languages: Lang[]) => (languages.so
 export function LanguageSwitcher({ current, languages, compact = false }: { current: string; languages: Lang[]; compact?: boolean }) {
   const { value, pending, choose } = useLocaleSwitch(current);
   return (
-    <label className="flex items-center gap-1 text-[14px]" aria-busy={pending} title="Language / 언어">
+    <label className="flex items-center gap-1 text-[calc(14px*var(--ui))]" aria-busy={pending} title="Language / 언어">
       <span className="sr-only">Language</span>
-      <select value={value} onChange={(e) => choose(e.target.value)} className={`border hair rounded-[6px] bg-transparent ${compact ? "px-1 h-8 text-[13px] max-w-[110px] sm:max-w-[150px]" : "px-2 h-9 text-[14px] max-w-[260px]"}`} disabled={pending}>
+      <select value={value} onChange={(e) => choose(e.target.value)} className={`border hair rounded-[6px] bg-transparent ${compact ? "px-1 h-8 text-[calc(13px*var(--ui))] max-w-[calc(110px*var(--ui))] sm:max-w-[calc(150px*var(--ui))]" : "px-2 h-9 text-[calc(14px*var(--ui))] max-w-[calc(260px*var(--ui))]"}`} disabled={pending}>
         {withCurrent(current, languages).map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
       </select>
     </label>

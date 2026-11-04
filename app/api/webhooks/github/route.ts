@@ -7,7 +7,21 @@ import { itemFromGHSA, verifyGitHubSignature } from "@/lib/sources/ghsa";
 import { env } from "@/lib/env";
 import { ingest } from "@/lib/pipeline";
 import { forgetInstallations, refreshRepo } from "@/lib/repo";
-import { store } from "@/lib/store";
+import { ALERT_HISTORY, store } from "@/lib/store";
+import { refreshChecks } from "@/lib/fix-apply";
+
+/** Open Argus pull requests on this repository, refreshed from GitHub. Returns how many are now merged. */
+async function syncOpenFixes(fullName: string): Promise<number> {
+  let merged = 0;
+  const aids = [...new Set((await store.listAssessments(ALERT_HISTORY)).filter((a) => a.repo === fullName || a.repo.startsWith(`${fullName}/`)).map((a) => a.id))];
+  for (const aid of aids) for (const fx of await store.listFixes(aid)) {
+    if (!fx.pr_number || !["pr_created", "blocked_by_protection", "merging"].includes(fx.status)) continue;
+    const inst = (await store.getRepo(fx.repo_key))?.installation_id ?? (await store.getUserRepo(fx.user_id, fx.repo_key))?.installation_id;
+    if (!inst) continue;
+    if ((await refreshChecks(fx, inst)).status === "merged") merged++;
+  }
+  return merged;
+}
 
 export const maxDuration = 30;
 
@@ -59,6 +73,9 @@ export async function POST(req: Request) {
       let refreshed = 0;
       for (const w of await store.listRepos()) if (w.repo === full.full_name) { try { const r = await refreshRepo(w); if (r !== w) { await store.putRepo(r); refreshed++; } } catch (e) { await store.log({ kind: "error", source: "webhook", detail: `push refresh failed for ${w.repo}: ${String(e).slice(0, 120)}`, ref: delivery }); } }
       await store.log({ kind: "webhook", source: "github", detail: `push ${full.full_name}@${String(payload.after ?? "").slice(0, 7)}: refreshed ${refreshed} watched entr${refreshed === 1 ? "y" : "ies"}`, ref: delivery });
+      // A push to the default branch may be the merge of an Argus pull request: re-read open Argus PRs (read-only).
+      const merged = await syncOpenFixes(full.full_name).catch((e) => { void store.log({ kind: "error", source: "webhook", detail: `PR sync failed for ${full.full_name}: ${String(e).slice(0, 120)}`, ref: delivery }); return 0; });
+      if (merged) await store.log({ kind: "webhook", source: "github", detail: `${merged} Argus pull request(s) on ${full.full_name} recorded as merged`, ref: delivery });
     }
     return Response.json({ ok: true });
   }

@@ -109,6 +109,8 @@ export function explainGitHubError(e: unknown, account: string): string {
 }
 
 /** Which permissions this installation currently has (after the owner accepted an upgrade, write perms appear here). */
+export { installationCanWrite } from "./pull-state";
+
 export async function installationPermissions(installationId: number): Promise<Record<string, string>> {
   const r = await githubApp().octokit.request("GET /app/installations/{installation_id}", { installation_id: installationId });
   return (r.data.permissions ?? {}) as Record<string, string>;

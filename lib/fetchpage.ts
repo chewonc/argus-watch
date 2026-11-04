@@ -4,7 +4,8 @@ const lastHit = new Map<string, number>();
 const robotsCache = new Map<string, string[]>(); // host -> disallowed prefixes for *
 const UA = "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)";
 
-async function disallowed(url: URL): Promise<boolean> {
+/** True when robots.txt disallows this path for all crawlers (or for Argus). Unreachable robots.txt counts as allowed. */
+export async function disallowed(url: URL): Promise<boolean> {
   let rules = robotsCache.get(url.host);
   if (!rules) {
     rules = [];

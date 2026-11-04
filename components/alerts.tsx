@@ -40,8 +40,8 @@ export function AlertCard({ c, labels }: { c: CardData; labels: ActionLabels }) 
       <SelectBox id={c.a.id} label={c.title} />
       <div className="grid gap-1.5 min-w-0">
         <div className="flex flex-wrap items-center gap-2"><StatusPill s={c.status} /><CredibilityChip c={c.f?.credibility} compact /><SparkBadge a={c.a} label={labels.spark} /></div>
-        <Link href={c.caseHref} className="text-[15px] font-semibold leading-snug no-underline hover:underline">{c.title}</Link>
-        <div className={`text-[13px] truncate ${c.where.kind === "file" || c.where.kind === "package" ? "mono text-ink2" : "text-ink2"}`}>
+        <Link href={c.caseHref} className="text-[calc(15px*var(--ui))] font-semibold leading-snug no-underline hover:underline">{c.title}</Link>
+        <div className={`text-[calc(13px*var(--ui))] truncate ${c.where.kind === "file" || c.where.kind === "package" ? "mono text-ink2" : "text-ink2"}`}>
           {c.where.kind === "file" || c.where.kind === "package" ? <span aria-label="Affected file">{c.where.text}</span> : c.where.text}
         </div>
       </div>

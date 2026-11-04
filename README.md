@@ -72,7 +72,7 @@ Create a token in Settings → Connect AI agent. Order of preference:
 3. **ChatGPT Codex**: `[mcp_servers.argus-watch]` with `url` and `bearer_token_env_var` in `~/.codex/config.toml`.
 4. Any client that speaks Streamable HTTP MCP.
 
-The consumer Meta AI app does not support third-party MCP servers, so it is not listed. Tools: `list_findings`, `get_finding` (incl. report credibility), `get_file_context`, `report_result` (evidence is re-read; it never changes Argus's own verdict).
+The consumer Meta AI app does not support third-party MCP servers, so it is not listed. Tools: `list_findings`, `get_finding` (incl. report credibility), `get_file_context`, `report_result` (evidence is re-read; it never changes Argus's own verdict). End-to-end check over HTTP with a real token: `ARGUS_MCP_URL=… ARGUS_MCP_TOKEN=aw_… node --import tsx scripts/checks/mcp-live.mts [--report]` (auth refusals, all four tools, and a fabricated `report_result` that must be rejected).
 
 ## Security boundary
 

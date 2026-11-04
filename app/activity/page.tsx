@@ -19,14 +19,14 @@ export default async function Activity() {
   const d = await getDict(locale);
   const fmt = (iso: string) => new Date(iso).toLocaleString(locale === "en" ? "en-US" : locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return (
-    <div className="mx-auto max-w-[760px] px-4 sm:px-6 py-8 sm:py-10 grid gap-8">
+    <div className="mx-auto max-w-[calc(760px*var(--ui))] px-4 sm:px-6 py-8 sm:py-10 grid gap-8">
       <div className="grid gap-1">
-        <h1 className="text-[28px] font-semibold tracking-[-0.02em]">{d.act_title}</h1>
-        <p className="text-[15px] text-ink2">{d.act_intro}</p>
+        <h1 className="text-[calc(28px*var(--ui))] font-semibold tracking-[-0.02em]">{d.act_title}</h1>
+        <p className="text-[calc(15px*var(--ui))] text-ink2">{d.act_intro}</p>
       </div>
-      {rows.length === 0 ? <p className="text-[14px] text-ink2">{d.act_empty}</p> : (
+      {rows.length === 0 ? <p className="text-[calc(14px*var(--ui))] text-ink2">{d.act_empty}</p> : (
         <ol className="border hair rounded-[10px] bg-raised overflow-hidden">
-          {rows.slice(0, 80).map((r, i) => <li key={i} className="flex items-baseline justify-between gap-4 px-5 py-3 border-b hair last:border-0 text-[14px]"><span>{r.text}{r.n > 1 && <span className="text-ink2"> · {r.n} {d.act_times}</span>}</span><time className="text-[12px] text-ink2 shrink-0" dateTime={r.at}>{fmt(r.at)}</time></li>)}
+          {rows.slice(0, 80).map((r, i) => <li key={i} className="flex items-baseline justify-between gap-4 px-5 py-3 border-b hair last:border-0 text-[calc(14px*var(--ui))]"><span>{r.text}{r.n > 1 && <span className="text-ink2"> · {r.n} {d.act_times}</span>}</span><time className="text-[calc(12px*var(--ui))] text-ink2 shrink-0" dateTime={r.at}>{fmt(r.at)}</time></li>)}
         </ol>
       )}
     </div>

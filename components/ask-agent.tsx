@@ -20,9 +20,9 @@ export function AskAgent({ id, verified, labels = DEFAULT }: { id: string; conne
   const pid = useId();
   const prompt = agentPrompt(id, verified);
   return (
-    <div className="grid gap-3 text-[13px]">
+    <div className="grid gap-3 text-[calc(13px*var(--ui))]">
       <div className="grid gap-1">
-        <h3 className="text-[14px] font-semibold">{labels.title}</h3>
+        <h3 className="text-[calc(14px*var(--ui))] font-semibold">{labels.title}</h3>
         <p className="text-ink2">{labels.lead}</p>
       </div>
       <div>
@@ -32,7 +32,7 @@ export function AskAgent({ id, verified, labels = DEFAULT }: { id: string; conne
         <span className="sr-only" role="status" aria-live="polite">{copied ? labels.copied : ""}</span>
       </div>
       {/* Exactly the text Copy puts on the clipboard (same variable), always visible and selectable. */}
-      <pre id={pid} className="mono text-[12px] whitespace-pre-wrap [overflow-wrap:anywhere] border hair rounded-[8px] bg-[var(--sunken)] p-3 max-h-[160px] overflow-auto">{prompt}</pre>
+      <pre id={pid} className="mono text-[calc(12px*var(--ui))] whitespace-pre-wrap [overflow-wrap:anywhere] border hair rounded-[8px] bg-[var(--sunken)] p-3 max-h-[calc(160px*var(--ui))] overflow-auto">{prompt}</pre>
       <p className="text-ink2">{labels.mcp} <a href="/settings#connect-agent" target="_blank" rel="noreferrer">{labels.setup} <span aria-hidden>↗</span><span className="sr-only"> (opens in a new tab)</span></a></p>
       <p className="text-ink2">{labels.foot}</p>
     </div>

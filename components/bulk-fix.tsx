@@ -17,7 +17,7 @@ const Ctx = createContext<Sel | null>(null);
 export function SelectBox({ id, label }: { id: string; label: string }) {
   const c = useContext(Ctx);
   if (!c) return null;
-  return <input type="checkbox" className="w-4 h-4 mt-1 cursor-pointer" aria-label={`Select: ${label}`} checked={c.selected.has(id)} onChange={() => c.toggle(id)} />;
+  return <input type="checkbox" className="w-4 h-4 self-center cursor-pointer" aria-label={`Select: ${label}`} checked={c.selected.has(id)} onChange={() => c.toggle(id)} />;
 }
 
 /** Wraps the Threats list: selection state, the contextual action bar, "Fix available", and the bulk modal. `ids` = findings shown in the current filter scope. */
@@ -30,7 +30,7 @@ export function BulkFix({ ids, mode, children }: { ids: string[]; mode: Remediat
   useEffect(() => { const r = requestAnimationFrame(() => setSelected((s) => new Set([...s].filter((x) => ids.includes(x))))); return () => cancelAnimationFrame(r); }, [ids]);
   return (
     <Ctx.Provider value={{ selected, toggle }}>
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[13px]">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[calc(13px*var(--ui))]">
         <label className="flex items-center gap-2"><input type="checkbox" className="w-4 h-4" checked={all} onChange={() => setSelected(all ? new Set() : new Set(ids))} /> Select all ({ids.length} shown)</label>
         {selected.size > 0
           ? <div className="flex items-center gap-2" role="toolbar" aria-label="Selected issues"><span>{selected.size} selected</span><button className="btn" onClick={() => setOpen([...selected])}>Fix selected</button><button className="btn-ghost" onClick={() => setSelected(new Set())}>Clear</button></div>
@@ -117,10 +117,10 @@ function BulkModal({ ids, defaultMode, onClose }: { ids: string[]; defaultMode: 
   return (
     <dialog ref={ref} aria-labelledby={tid} onClick={(e) => { if (e.target === ref.current) close(); }} className="m-auto w-[min(640px,calc(100vw-32px))] max-h-[min(86vh,820px)] rounded-[12px] border hair bg-raised text-ink p-0 backdrop:bg-black/40">
       <div className="flex items-center justify-between gap-3 px-4 sm:px-5 pt-4 pb-3 border-b hair">
-        <h2 id={tid} className="text-[16px] font-semibold">{phase === "preview" ? "Prepare fixes" : phase === "running" ? "Preparing fixes…" : phase === "done" ? "Done" : "Fixes ready"}</h2>
-        <button type="button" aria-label="Close" className="text-ink2 text-[22px] w-10 h-10 -mr-2 grid place-items-center" onClick={close}>×</button>
+        <h2 id={tid} className="text-[calc(16px*var(--ui))] font-semibold">{phase === "preview" ? "Prepare fixes" : phase === "running" ? "Preparing fixes…" : phase === "done" ? "Done" : "Fixes ready"}</h2>
+        <button type="button" aria-label="Close" className="text-ink2 text-[calc(22px*var(--ui))] w-10 h-10 -mr-2 grid place-items-center" onClick={close}>×</button>
       </div>
-      <div className="px-4 sm:px-5 py-4 grid gap-4 overflow-auto max-h-[calc(min(86vh,820px)-70px)] text-[13px]">
+      <div className="px-4 sm:px-5 py-4 grid gap-4 overflow-auto max-h-[calc(min(86vh,820px)-70px)] text-[calc(13px*var(--ui))]">
         {err && <p role="alert" className="tone-bad">{err}</p>}
         {phase === "preview" && !preview && !err && <p className="text-ink2">Checking what can be fixed…</p>}
 
@@ -129,7 +129,7 @@ function BulkModal({ ids, defaultMode, onClose }: { ids: string[]; defaultMode: 
           const nVerify = included.filter((i) => i.cls === "needs_verification").length;
           return (
             <>
-              <p className="text-[14px]">{preview.items.length} issue{preview.items.length === 1 ? "" : "s"} selected{repos.size ? ` across ${repos.size} repositor${repos.size === 1 ? "y" : "ies"}` : ""}.</p>
+              <p className="text-[calc(14px*var(--ui))]">{preview.items.length} issue{preview.items.length === 1 ? "" : "s"} selected{repos.size ? ` across ${repos.size} repositor${repos.size === 1 ? "y" : "ies"}` : ""}.</p>
               <ul className="grid gap-0.5">
                 <li>{included.filter((i) => i.cls === "ready").length} ready for a fix attempt</li>
                 <li>{nVerify} need verification first</li>
@@ -139,7 +139,7 @@ function BulkModal({ ids, defaultMode, onClose }: { ids: string[]; defaultMode: 
                 <ul className="grid gap-2 mt-2">{preview.items.map((i) => (
                   <li key={i.assessment_id} className="flex items-start gap-2">
                     {i.cls !== "ineligible" ? <input type="checkbox" className="w-4 h-4 mt-0.5" aria-label={`Include ${i.title}`} checked={!excluded.has(i.assessment_id)} onChange={() => setExcluded((s) => { const n = new Set(s); if (n.has(i.assessment_id)) n.delete(i.assessment_id); else n.add(i.assessment_id); return n; })} /> : <span className="w-4" aria-hidden />}
-                    <span className="grid min-w-0"><span className="[overflow-wrap:anywhere]">{i.title}</span><span className="text-ink2 text-[12px] [overflow-wrap:anywhere]">{i.repo.split("/").pop()} · {i.cls === "ready" ? "Ready" : i.cls === "needs_verification" ? "Needs verification" : i.reason}</span></span>
+                    <span className="grid min-w-0"><span className="[overflow-wrap:anywhere]">{i.title}</span><span className="text-ink2 text-[calc(12px*var(--ui))] [overflow-wrap:anywhere]">{i.repo.split("/").pop()} · {i.cls === "ready" ? "Ready" : i.cls === "needs_verification" ? "Needs verification" : i.reason}</span></span>
                   </li>))}</ul>
               </details>
               <div className="grid gap-0.5 text-ink2">
@@ -148,7 +148,7 @@ function BulkModal({ ids, defaultMode, onClose }: { ids: string[]; defaultMode: 
                 <span>Each verification and fix uses Meta AI analysis{preview.estimate.hosted_cap >= 0 ? ` (${preview.estimate.hosted_used} of ${preview.estimate.hosted_cap} hosted analyses used this month)` : ""}. Nothing is written to your repositories in this step.</span>
               </div>
               {included.length === 0
-                ? <div className="grid gap-2"><p className="text-[14px] font-semibold">No fixes available</p><p className="text-ink2">These issues can&apos;t be fixed automatically right now.</p><button className="btn-ghost w-fit" onClick={close}>Close</button></div>
+                ? <div className="grid gap-2"><p className="text-[calc(14px*var(--ui))] font-semibold">No fixes available</p><p className="text-ink2">These issues can&apos;t be fixed automatically right now.</p><button className="btn-ghost w-fit" onClick={close}>Close</button></div>
                 : <div className="flex justify-end gap-2"><button className="btn-ghost" onClick={close}>Cancel</button><button className="btn" onClick={run}>{included.every((i) => i.cls === "needs_verification") ? "Verify and prepare" : "Prepare fixes"}</button></div>}
             </>
           );
@@ -163,13 +163,13 @@ function BulkModal({ ids, defaultMode, onClose }: { ids: string[]; defaultMode: 
 
         {phase === "results" && (
           <>
-            <p className="text-[14px]">{ready.length} fix{ready.length === 1 ? "" : "es"} prepared.{notOk.length ? ` ${notOk.length} need${notOk.length === 1 ? "s" : ""} attention.` : ""}</p>
+            <p className="text-[calc(14px*var(--ui))]">{ready.length} fix{ready.length === 1 ? "" : "es"} prepared.{notOk.length ? ` ${notOk.length} need${notOk.length === 1 ? "s" : ""} attention.` : ""}</p>
             {groups.map((g, gi) => (
               <div key={gi} className="grid gap-1.5 border-t hair pt-3">
                 <div className="font-semibold">{g.repo}</div>
                 <div className="text-ink2">{g.fixes.length} fix{g.fixes.length === 1 ? "" : "es"} {g.combined ? "combined into one change" : "prepared"}{g.reason ? `. ${g.reason}` : ""}</div>
                 <ul className="grid gap-0.5">{fixChecks({ files: g.fixes.flatMap((f) => f.files), runner: null, agent: "muse-code", syntax_check: [] } as unknown as Fix).filter((c) => !/tests|Not tested|No tests/.test(c.text)).map((c) => <li key={c.text} className={c.tone === "warn" ? "tone-warn" : ""}>{c.tone === "ok" ? "✓" : "⚠"} {c.text}</li>)}</ul>
-                <details className="disclose"><summary>Review changes</summary><div className="grid gap-3 mt-2">{g.fixes.flatMap((f) => f.files).map((x, k) => <div key={k} className="border hair rounded-[6px] overflow-hidden"><div className="mono text-[12px] px-3 py-2 border-b hair [overflow-wrap:anywhere]">{x.path}</div><Diff patch={x.patch} /></div>)}</div></details>
+                <details className="disclose"><summary>Review changes</summary><div className="grid gap-3 mt-2">{g.fixes.flatMap((f) => f.files).map((x, k) => <div key={k} className="border hair rounded-[6px] overflow-hidden"><div className="mono text-[calc(12px*var(--ui))] px-3 py-2 border-b hair [overflow-wrap:anywhere]">{x.path}</div><Diff patch={x.patch} /></div>)}</div></details>
               </div>
             ))}
             {notOk.length > 0 && <details className="disclose"><summary>Couldn&apos;t fix {notOk.length} issue{notOk.length === 1 ? "" : "s"}</summary><ul className="grid gap-1 mt-2">{notOk.map((o) => <li key={o.id}><span className="[overflow-wrap:anywhere]">{o.title}</span><span className="block text-ink2">{o.note ?? o.state}</span></li>)}</ul></details>}
@@ -189,7 +189,7 @@ function BulkModal({ ids, defaultMode, onClose }: { ids: string[]; defaultMode: 
 
         {phase === "done" && approved && (
           <>
-            <p className="text-[14px]">{approved.filter((r) => r.ok).length} of {approved.length} {mode === "branch" ? "branches pushed" : "pull requests created"}.</p>
+            <p className="text-[calc(14px*var(--ui))]">{approved.filter((r) => r.ok).length} of {approved.length} {mode === "branch" ? "branches pushed" : "pull requests created"}.</p>
             <ul className="grid gap-1">{approved.map((r, i) => <li key={i}>{r.ok ? <>✓ {r.url ? <a href={r.url} target="_blank" rel="noreferrer">{mode === "branch" ? "View branch" : "View pull request"} ↗</a> : "Done"}</> : <span className="tone-bad">✗ {r.error}</span>}</li>)}</ul>
             <button className="btn-ghost w-fit" onClick={close}>Close</button>
           </>
