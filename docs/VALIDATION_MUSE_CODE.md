@@ -33,3 +33,19 @@ The final answer is `payload_type: "run.terminal.completed"` with `payload.termi
 - A run on the `ubuntu-latest` Actions runner (Linux sandbox) dispatched by production. This needs `RUNNER_DISPATCH_TOKEN`, `ARGUS_RUNNER_SECRET` and `FIX_ENABLED=1` on Vercel, plus the `META_API_KEY` and `ARGUS_RUNNER_SECRET` Actions secrets.
 - Argus's server-side validation and GitHub write after a real runner result. No pull request has been created yet.
 - Muse Code's MCP connection to Argus from inside the runner. It is configured as optional and was not reachable in the local mock.
+
+## Run 3: production, end to end (Nov 4 2026, 06:27–06:29 UTC)
+
+Target: a private, intentionally vulnerable demo repository `chewonc/argus-demo-api` (the JWT fixture plus an `npm test` smoke test). It was connected through the Argus GitHub App with Contents and Pull requests write access and "allow changes" on.
+
+1. The real advisory GHSA-qwph-4952-7xr6 (jsonwebtoken < 9.0.0) was replayed through the production pipeline with the admin route. Argus marked the repo **Affected** at `src/auth.ts:5`.
+2. In the signed-in UI: Fix → preview → **Fix & create PR** → authorization dialog (allowed files `src/auth.ts`, `package.json`; tests `npm test`) → authorized.
+3. GitHub Actions run 41785694121 (`remediate.yml`): Muse Code installed and ran sandboxed. `npm test` ran in the runner and **exited 0**.
+4. Argus validated the result and opened **draft PR chewonc/argus-demo-api#1** (branch `argus/fix-4e3ee12c`) from the App bot. It changed only the two allowed files. It pins `algorithms: ["HS256"]`, fails closed when `JWT_KEY` is missing, and bumps the declared jsonwebtoken to 9.0.0, noting that the lockfile must be regenerated. The PR body carries the test result and the audit trail (authorized → dispatched → runner started → validated). Nothing was merged.
+
+Issues found and fixed during this run:
+- The workflow piped the bash installer to `sh`. It now uses `bash`.
+- A runner that died before calling back left the fix stuck. Setup failures now report back, and a stale run can be re-authorized.
+- The commit message always said "not executed". It now states the real test result.
+- The PR listed Muse Code's files as "0 hunk(s)". They now show line counts.
+- Connecting a new private repository returned a 404. It now uses the installation being connected.

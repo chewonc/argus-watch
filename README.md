@@ -53,7 +53,7 @@ Legend: **live** = observed on the production deployment; **local** = exercised 
 | Threat timeline (registries + Muse Spark, optional Muse Wonder conflict review) | **live** (Nov 4: case page on production built from GitHub Advisory DB, NVD and OSV records with a Muse Spark summary); Muse Wonder conflict review **local only** (off on production) (`docs/VALIDATION_TIMELINE.md`) |
 | User-impact simulation | local, in English and Korean |
 | Korean and other languages | local (Korean static dictionary; others via Muse Spark) |
-| Fix & create PR / Fix & push with Muse Code | **local**: Muse Code 1.4.14 ran headless and sandboxed (no shell, no web) through the full runner script and produced the correct fix (`docs/VALIDATION_MUSE_CODE.md`). Not yet run on Actions or production: needs `FIX_ENABLED`, `RUNNER_DISPATCH_TOKEN`, `ARGUS_RUNNER_SECRET` and Actions secrets (SETUP §1b). No pull request created yet. |
+| Fix & create PR / Fix & push with Muse Code | **live** (PR mode): production run opened draft PR chewonc/argus-demo-api#1. Muse Code edited 2 allowed files and `npm test` passed in the isolated Actions runner (`docs/VALIDATION_MUSE_CODE.md`). Push mode (merge after checks) not yet exercised. |
 | MCP server for coding agents | live (personal tokens, 4 tools) |
 | Email, X, LinkedIn, Threads | not available: no email provider configured; X API is paid; LinkedIn has no search API; Threads keyword search needs App Review |
 
