@@ -158,3 +158,5 @@ dialog.modal::backdrop { background: rgba(0,0,0,.35); }
 /* Grid children may shrink below their content (long source links wrap instead of widening the page). */
 .tl-item > * { min-width: 0; }
 details.disclose .grid > * { min-width: 0; }
+/* Long repository paths and identifiers break instead of widening the page on phones. */
+.tl-item, details.disclose .mono { overflow-wrap: anywhere; }
