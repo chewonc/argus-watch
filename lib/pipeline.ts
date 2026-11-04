@@ -10,6 +10,7 @@ import { refreshRepo } from "./repo";
 import type { Finding, Item, WatchedRepo } from "./schema";
 import { store } from "./store";
 import { chargeHosted, hostedBudgetLeft } from "./usage";
+import { verifyFinding } from "./verify";
 
 /** Stage 1 entry for every source. Returns whether a (new or changed) finding was queued. */
 export async function ingest(item: Item, opts: { enqueue?: boolean; replayed?: boolean } = {}): Promise<{ finding: Finding; queued: boolean; created: boolean }> {
@@ -54,8 +55,13 @@ export async function processFinding(id: string, opts: { replayed?: boolean } = 
       await store.log({ kind: "process", source: "prefilter", detail: `checked, not relevant to watched stacks: ${f.title.slice(0, 60)}`, ref: f.id, ms: Date.now() - t0 });
       return;
     }
-    // Claim extraction, cached by text hash
+    // Credibility of the report (artefact lookups + Meta web-search adjudication), cached per text version.
     const version = sha(text);
+    if (f.credibility?.version !== version) {
+      f.credibility = await verifyFinding(f, items, text, version, { useModel: !!process.env.META_API_KEY && process.env.AW_VERIFY_MODEL !== "0" }).catch((e) => { void store.log({ kind: "error", source: "verify", detail: String(e).slice(0, 200), ref: f.id }); return f.credibility ?? null; });
+      if (f.credibility) await store.log({ kind: "process", source: "verify", detail: `credibility ${f.credibility.label}: ${f.credibility.reason}`.slice(0, 200), ref: f.id });
+    }
+    // Claim extraction, cached by text hash
     if (f.claim_version !== version || !f.claim) {
       const { claim } = await extractClaim(text);
       f.claim = claim; f.claim_version = version; f.extracted_at = new Date().toISOString();
@@ -83,7 +89,10 @@ export async function processFinding(id: string, opts: { replayed?: boolean } = 
       const aid = `${f.id}:${r.repo}${r.subdir ? "/" + r.subdir : ""}:${r.sha!.slice(0, 12)}:${f.claim_version}`;
       if (!opts.replayed && (await store.getAssessment(aid))) return;
       const key = store.repoKey(r);
-      let a = await assess(f, f.claim!, r, { replayed: opts.replayed, items, budget: await hostedBudgetLeft(key) });
+      // A disputed or likely-false report is assessed at the lowest tier: it can never become "Affected".
+      const cred = f.credibility?.label;
+      const fx = cred === "disputed" || cred === "likely_false" || (cred === "unverified" && f.tier === "corroborated") ? { ...f, tier: "signal" as const } : f;
+      let a = await assess(fx, f.claim!, r, { replayed: opts.replayed, items, budget: await hostedBudgetLeft(key) });
       if (a.hosted === "model" && a.model !== "none") await chargeHosted(key);
       if (a.verdict === "Affected" || a.verdict === "Unclear") a = await sendAlert(a); else await store.putAssessment(a);
       await notifyAssessment(a, f, items).catch((e) => store.log({ kind: "error", source: "notify", detail: String(e).slice(0, 200), ref: a.id }));

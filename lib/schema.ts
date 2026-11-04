@@ -75,6 +75,17 @@ export const Finding = z.object({
   status: z.enum(["new", "not_relevant", "not_actionable", "analyzing", "assessed", "error"]),
   relevant_repos: z.array(z.string()),
   error: z.string().nullable().optional(),
+  // Credibility of the REPORT (lib/verify.ts), independent of repository impact.
+  credibility: z.object({
+    label: z.enum(["verified", "corroborated", "unverified", "disputed", "likely_false"]),
+    reason: z.string(),
+    evidence: z.array(z.object({ kind: z.string(), text: z.string(), url: z.string().nullable() })),
+    artefacts: z.array(z.object({ id: z.string(), kind: z.string(), status: z.string(), registry: z.string(), url: z.string(), title: z.string().nullable() })),
+    publishers: z.array(z.string()),
+    model: z.object({ used: z.boolean(), suggested: z.string().nullable(), searches: z.number(), queries: z.array(z.string()), discarded_urls: z.number(), tokens: z.number(), ms: z.number(), error: z.string().nullable(), name: z.string().nullable() }),
+    checked_at: z.string(),
+    version: z.string(),
+  }).nullable().optional(),
 });
 export type Finding = z.infer<typeof Finding>;
 
