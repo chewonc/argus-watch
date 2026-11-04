@@ -10,15 +10,15 @@ export function ConnectAgent({ endpoint, create }: { endpoint: string; create: (
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const cmd = !token ? "" : agent === "Meta Muse Code"
-    ? `// ~/.config/muse/settings.json  (merge into "mcp_servers"; see dev.meta.ai/docs/muse-code/extending)
+    ? `// ~/.config/muse/settings.json  (merge into "mcpServers"; header values are literal)
 {
   "schema_version": 1,
-  "mcp_servers": {
+  "mcpServers": {
     "argus-watch": {
-      "transport": "streamable_http",
+      "type": "streamable-http",
       "url": "${endpoint}",
       "headers": { "Authorization": "Bearer ${token}" },
-      "mode": "optional"
+      "required": false
     }
   }
 }`

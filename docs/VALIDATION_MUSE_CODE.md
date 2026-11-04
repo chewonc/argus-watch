@@ -1,51 +1,82 @@
-# Validation: Meta Muse Code as the remediation agent (Nov 4 2026)
+# Validation: Meta Muse Code remediation (Nov 4 2026)
 
-**Result: Muse Code runs headless and sandboxed, and the remediation runner works end to end locally. Not yet run on GitHub Actions or against production.**
+Status levels used below:
+- **Production-verified**: observed on argus-watch-three.vercel.app against real GitHub.
+- **Locally tested**: run end to end on this machine with real Muse Code and npm, against a mock of the Argus endpoints or a local Argus server.
+- **Implemented**: code exists and is unit-tested at most; never run end to end.
+- **Not implemented**.
 
-## Setup
+## Summary
 
-- Muse Code 1.4.14 (1.4.14-R7309.1), installed with the official installer (`dev.meta.ai/install.ps1`) on Windows 11, authenticated with the project's `META_API_KEY` (pay-as-you-go).
-- Flags used by the runner: `muse exec --json --max-model-steps N --workspace <clone> --approval-mode never --disable-shell --disable-web-tools --user-input-auto-resolve --no-session-log --no-foreign-personal-context --prompt-file <file>`. Approvals are off for unattended runs, but Muse Code's sandbox stays on and it has no shell and no web access, so it can only read and edit workspace files. It cannot run commands that could leak the API key. This replaces the earlier `--yolo` default.
+| Capability | Status | Evidence |
+|---|---|---|
+| Muse Code edits code headless, sandboxed, no shell, no web | Production-verified | Run 3 |
+| Runner on GitHub Actions dispatched by production | Production-verified | Run 3, Actions run 41785694121 |
+| Allowlist: only authorized files change | Production-verified | Run 3, PR #1 changed only `src/auth.ts` and `package.json` |
+| Draft PR created by the App after explicit authorization | Production-verified | Run 3, chewonc/argus-demo-api#1, not merged |
+| Connecting a new private repository | Production-verified | Run 3 setup (after the 404 fix in `3cadf75`) |
+| Lockfile regenerated after a dependency upgrade | Locally tested | Run 4. **Not in production yet; PR #1 has no lockfile change** |
+| Install result reported separately; tests skipped if install fails | Locally tested | Run 4 |
+| Which tests ran (count, names) | Locally tested | Run 4 |
+| Honest validation label ("Tests passed (n/m); security fix not verified") | Implemented (unit tests) | `lib/runner-gates.ts` `validationSummary`, `tests/remediate-lib.test.ts` |
+| Muse Code → Argus MCP tool call | Locally tested | Run 5 (local Argus; not from inside the Actions runner) |
+| Setup failure reported to Argus; stale queued run re-authorizable | Implemented | Workflow step and `lib/run-stale.ts`; never triggered in production |
+| Approve the exact validated patch before any write; cancel | Implemented (other session's work, uncommitted) | `lib/runner.ts` `approveValidated`, `cancelRun` |
+| Permission enforcement on authorize (owner, allow_pr, App write, FIX_ENABLED) | Partly production-verified | Unauthenticated calls refused (401) in production; owner and permission refusals are code paths only |
+| Fix & push (merge after checks pass) | **Implemented, not verified** | Never run anywhere |
 
-## Run 1: Muse Code alone
+## What PR #1 does and does not show (production, Run 3)
 
-Scratch git copy of `feasibility/cases/c4_jwt_affected`, prompt allowing only `src/auth.ts`. Exit 0 after 72 s. `git status` showed only `src/auth.ts` changed. The diff adds a fail-closed check when `JWT_KEY` is missing and pins `jwt.verify` to `{ algorithms: ["HS256"] }`.
+- `npm test` ran and exited 0. The only test was a smoke test that reads `src/auth.ts` and checks that `requireUser` is exported. It does not load jsonwebtoken and does not exercise token verification.
+- The runner ran `npm ci` first, but at that time the install result was not recorded separately and its exit code was ignored. The demo repo's lockfile was a minimal hand-written file, so the install very likely failed. The test passed anyway because it needs no dependencies. **PR #1 therefore shows that the edit didn't break a trivial check. It does not show that dependencies install or that the vulnerability is fixed.**
+- `package.json` was bumped to jsonwebtoken 9.0.0 but `package-lock.json` was not regenerated. Two things caused this: Muse Code is forbidden from editing lockfiles and has no shell, and the runner had no lockfile step. Run 4 shows the fix.
+- PR #1 is left unchanged, as requested.
 
-## Run 2: the full runner script (`scripts/remediate/run.mjs`)
+## Run 4 (local): lockfile regeneration, install and real test
 
-A local mock served the two Argus runner endpoints (`/api/fix/:id/runner` and `/runner/result`, with secret and nonce checks). The runner:
+A throwaway local git repository: `package.json` with jsonwebtoken 8.5.1, an npm-generated `package-lock.json`, and a test that requires jsonwebtoken and verifies an HS256 token. The runner script cloned it through `RUNNER_CLONE_URL` (a local-testing override) and talked to a local mock of the Argus endpoints.
 
-1. fetched the brief,
-2. shallow-cloned `chewonc/argus-watch` at `d774d83`,
-3. ran Muse Code with the flags above (52 s, 248 JSONL events, 23 tool steps),
-4. found exactly one changed file, `feasibility/cases/c4_jwt_affected/src/auth.ts`, which is on the allowlist,
-5. found no test command for the fixture, so `tests.executed=false`,
-6. posted the result.
+```
+muse exit 0; 183 JSONL events          changed: package.json, src/auth.ts
+lockfile: npm install --package-lock-only in . exit 0     -> package-lock.json by runner, jsonwebtoken 9.0.0
+install: npm ci --no-audit --no-fund exit 0
+tests: npm test exit 0; 1/1 passed (node:test): "jsonwebtoken is installed and verifies an HS256 token"
+```
 
-Muse Code's own summary stated that it could not run tests because shell was disabled. The UI and PR label such a fix "no tests executed".
+- Muse Code changed only the two allowed files. The lockfile was regenerated by the runner, not by Muse Code. Install scripts were not run during regeneration, and secrets were removed from the environment.
+- On the server, `lockfileAllowed()` accepts a lockfile only if the runner regenerated it next to a changed `package.json`. It is added to the patch the user approves (other session's wiring in `acceptResult`).
+- If `npm ci` fails, tests are skipped and validation fails ("dependencies failed to install").
 
-## JSONL format observed (Muse Session Protocol)
+## Run 5 (local): Muse Code → Argus MCP
 
-The final answer is `payload_type: "run.terminal.completed"` with `payload.terminal == "completed"` and `payload.text`. Each tool step is a `task.lifecycle.started` event. The runner parses these.
+A local Argus (`next dev` on :3109) ran with a personal agent token created in local Settings. Muse Code 1.4.14 ran headless in a scratch workspace with `--trust-workspace` and this `.mcp.json`:
 
-## Not verified (as of Run 2; see Run 3)
+```json
+{ "mcpServers": { "argus-watch": { "type": "streamable-http", "url": "http://localhost:3109/api/mcp",
+  "headers": { "Authorization": "Bearer aw_…" }, "required": false } } }
+```
 
-- Done in Run 3 below: the Actions run dispatched by production, and Argus's validation and GitHub write.
-- Push mode (merge after the repository's checks pass).
-- Muse Code's MCP connection to Argus from inside the runner. It is configured as optional and was not reachable in the local mock.
+Result: Muse Code called `list_findings` and received the findings JSON (`tool.result` event). It answered "4 findings. First: Possible security issue with AI tool connections (MCP)". The Argus server logged `POST /api/mcp` 200 for initialize, tools/list and the tool call.
 
-## Run 3: production, end to end (Nov 4 2026, 06:27–06:29 UTC)
+Earlier attempts failed silently: Muse Code ran but reported "tool not available". Two causes:
+- **Legacy names in `.mcp.json`.** `mcp_servers` and `"transport": "streamable_http"` are accepted only in `settings.json`; `.mcp.json` needs `mcpServers` and `"type": "streamable-http"`.
+- **Unexpanded variables.** Header values are literal, and `${VAR}` is not expanded.
 
-Target: a private, intentionally vulnerable demo repository `chewonc/argus-demo-api` (the JWT fixture plus an `npm test` smoke test). It was connected through the Argus GitHub App with Contents and Pull requests write access and "allow changes" on.
+The runner and the Settings snippet now use the canonical form. Not verified: the MCP call from inside the GitHub Actions runner to production.
 
-1. The real advisory GHSA-qwph-4952-7xr6 (jsonwebtoken < 9.0.0) was replayed through the production pipeline with the admin route. Argus marked the repo **Affected** at `src/auth.ts:5`.
-2. In the signed-in UI: Fix → preview → **Fix & create PR** → authorization dialog (allowed files `src/auth.ts`, `package.json`; tests `npm test`) → authorized.
-3. GitHub Actions run 41785694121 (`remediate.yml`): Muse Code installed and ran sandboxed. `npm test` ran in the runner and **exited 0**.
-4. Argus validated the result and opened **draft PR chewonc/argus-demo-api#1** (branch `argus/fix-4e3ee12c`) from the App bot. It changed only the two allowed files. It pins `algorithms: ["HS256"]`, fails closed when `JWT_KEY` is missing, and bumps the declared jsonwebtoken to 9.0.0, noting that the lockfile must be regenerated. The PR body carries the test result and the audit trail (authorized → dispatched → runner started → validated). Nothing was merged.
+## Earlier runs
 
-Issues found and fixed during this run:
-- The workflow piped the bash installer to `sh`. It now uses `bash`.
-- A runner that died before calling back left the fix stuck. Setup failures now report back, and a stale run can be re-authorized.
-- The commit message always said "not executed". It now states the real test result.
-- The PR listed Muse Code's files as "0 hunk(s)". They now show line counts.
-- Connecting a new private repository returned a 404. It now uses the installation being connected.
+- **Run 1 (local):** Muse Code alone on a copy of the JWT fixture. Exit 0 after 72 s; only `src/auth.ts` changed.
+- **Run 2 (local):** the full runner script against a mock. 23 tool steps; only the allowed file changed; no test command.
+- **Run 3 (production):** the first PR, as above. Issues found and fixed: installer piped to `sh` (now `bash`); a runner dying before callback left the fix stuck (now reported, and retryable after 20 minutes); the commit message always said "not executed"; files were listed as "0 hunk(s)"; private repository connect returned 404.
+
+## JSONL format (Muse Session Protocol)
+
+The final answer is `payload_type: "run.terminal.completed"` (`payload.terminal == "completed"`, `payload.text`). Each tool step is a `task.lifecycle.started` event. MCP results arrive as `tool.result`.
+
+## To reach production-verified (needs owner approval)
+
+1. Deploy the uncommitted runner, lockfile and approval changes.
+2. Run a second Fix & create PR on `chewonc/argus-demo-api`, after replacing its hand-written lockfile with a real one and adding a test that loads jsonwebtoken. Confirm the PR contains the regenerated lockfile and the install and test results.
+3. Trigger a failure (for example cancel during the run) and confirm the fix ends as cancelled or failed, not stuck.
+4. Fix & push on the demo repo, only if you want automatic merge verified.

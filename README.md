@@ -53,7 +53,9 @@ Legend: **live** = observed on the production deployment; **local** = exercised 
 | Threat timeline (registries + Muse Spark, optional Muse Wonder conflict review) | **live** (Nov 4: case page on production built from GitHub Advisory DB, NVD and OSV records with a Muse Spark summary); Muse Wonder conflict review **local only** (off on production) (`docs/VALIDATION_TIMELINE.md`) |
 | User-impact simulation | local, in English and Korean |
 | Korean and other languages | local (Korean static dictionary; others via Muse Spark) |
-| Fix & create PR / Fix & push with Muse Code | **live** (PR mode): production run opened draft PR chewonc/argus-demo-api#1. Muse Code edited 2 allowed files and `npm test` passed in the isolated Actions runner (`docs/VALIDATION_MUSE_CODE.md`). Push mode (merge after checks) not yet exercised. |
+| Fix & create PR with Muse Code | **live**: draft PR chewonc/argus-demo-api#1 created in production. Only a trivial smoke test ran there, and the lockfile was not regenerated. Lockfile regeneration and separate install and test reporting are tested locally only (`docs/VALIDATION_MUSE_CODE.md`). |
+| Fix & push (automatic merge after checks) | **implemented, not verified**: never run |
+| Muse Code → Argus MCP | **local**: Muse Code 1.4.14 called `list_findings` on a local Argus. Not verified from the Actions runner or against production. |
 | MCP server for coding agents | live (personal tokens, 4 tools) |
 | Email, X, LinkedIn, Threads | not available: no email provider configured; X API is paid; LinkedIn has no search API; Threads keyword search needs App Review |
 
@@ -61,7 +63,7 @@ Legend: **live** = observed on the production deployment; **local** = exercised 
 
 Create a token in Settings → Connect AI agent. Order of preference:
 
-1. **Meta Muse Code**: add to `~/.config/muse/settings.json` under `mcp_servers` a `streamable_http` server with `url: https://argus-watch-three.vercel.app/api/mcp` and header `Authorization: Bearer <token>`.
+1. **Meta Muse Code**: add to `~/.config/muse/settings.json` under `mcpServers` an entry `"argus-watch": { "type": "streamable-http", "url": "https://argus-watch-three.vercel.app/api/mcp", "headers": { "Authorization": "Bearer <token>" } }`. Header values are literal; `${VAR}` is not expanded. Verified locally with Muse Code 1.4.14 calling `list_findings` (docs/VALIDATION_MUSE_CODE.md).
 2. **Claude Code**: `claude mcp add --transport http argus-watch https://argus-watch-three.vercel.app/api/mcp --header "Authorization: Bearer <token>"`
 3. **ChatGPT Codex**: `[mcp_servers.argus-watch]` with `url` and `bearer_token_env_var` in `~/.codex/config.toml`.
 4. Any client that speaks Streamable HTTP MCP.

@@ -9,6 +9,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { dependenciesChanged, lockfilesToRegenerate, parseTestSummary } from "./lib.mjs";
 import { join } from "node:path";
 
 // Headless and sandboxed: no approval prompts, but Muse Code's sandbox stays ON and it gets no shell and no web tools,
@@ -74,7 +75,8 @@ async function main() {
   const repoDir = join(work, "repo");
   // clone at the exact assessed commit; the token never touches disk or git config
   git(work, "init", "-q", repoDir);
-  const authUrl = b.clone_token ? `https://x-access-token:${b.clone_token}@github.com/${b.repo}.git` : `https://github.com/${b.repo}.git`;
+  // RUNNER_CLONE_URL: local testing only (a path or file:// URL); never set on GitHub Actions.
+  const authUrl = process.env.RUNNER_CLONE_URL || (b.clone_token ? `https://x-access-token:${b.clone_token}@github.com/${b.repo}.git` : `https://github.com/${b.repo}.git`);
   const f = run("git", ["fetch", "-q", "--depth", "1", authUrl, b.base_sha], { cwd: repoDir, env: scrubbed(false) });
   if (f.status !== 0) throw new Error(`fetch failed: ${(b.clone_token ? f.stderr.replaceAll(b.clone_token, "***") : f.stderr).slice(0, 300)}`);
   git(repoDir, "checkout", "-q", "FETCH_HEAD");
@@ -85,7 +87,7 @@ async function main() {
   // Muse Code configuration in an isolated config home: Argus MCP server (optional; the run continues if unreachable)
   const cfgHome = join(work, "cfg");
   mkdirSync(join(cfgHome, "muse"), { recursive: true });
-  writeFileSync(join(cfgHome, "muse", "settings.json"), JSON.stringify({ schema_version: 1, mcp_servers: { "argus-watch": { transport: "streamable_http", url: b.mcp.url, headers: { Authorization: `Bearer ${b.mcp.token}` }, mode: "optional", enabled: true } } }, null, 2));
+  writeFileSync(join(cfgHome, "muse", "settings.json"), JSON.stringify({ schema_version: 1, mcpServers: { "argus-watch": { type: "streamable-http", url: b.mcp.url, headers: { Authorization: `Bearer ${b.mcp.token}` }, required: false } } }, null, 2));
   const version = run(MUSE[0], [...MUSE.slice(1), "--version"], { env: scrubbed(true) }).stdout.trim() || null;
   log(`muse ${version ?? "(version unknown)"}`);
 
@@ -108,20 +110,45 @@ async function main() {
   const bad = changed.filter((p) => !b.allowed_files.includes(toRepoPath(p)) || FORBIDDEN.test(p));
   const files = changed.filter((p) => !bad.includes(p)).map((p) => ({ path: p, after: readFileSync(join(repoDir, p), "utf8") }));
 
-  // tests: only if nothing out of bounds; secrets (incl. META_API_KEY) are removed from the environment
-  let tests = { command: null, executed: false, exit_code: null, log: "", duration_ms: null };
+  // Lockfiles: Muse Code may not touch them (no shell, forbidden paths). When it changed the dependencies in a
+  // manifest, the RUNNER regenerates the lockfile next to it from the registry without running install scripts.
+  const lockfiles = [];
+  let install = { command: null, executed: false, exit_code: null, log: "" };
+  if (!bad.length) {
+    const tracked = git(repoDir, "ls-files").split("\n").filter(Boolean);
+    for (const r of lockfilesToRegenerate(files.map((f) => f.path), tracked)) {
+      const before = git(repoDir, "show", `HEAD:${r.manifest}`);
+      const after = files.find((f) => f.path === r.manifest)?.after ?? "";
+      if (!dependenciesChanged(before, after)) continue;
+      const cwd = r.dir ? join(repoDir, r.dir) : repoDir;
+      const g = run("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd, env: scrubbed(false), timeout: 5 * 60e3, shell: process.platform === "win32" });
+      log(`lockfile: npm install --package-lock-only in ${r.dir || "."} exit ${g.status}`);
+      if (g.status !== 0) throw new Error(`could not regenerate ${r.lockfile} after the dependency change (npm exit ${g.status}): ${(g.stderr || g.stdout).slice(-400)}`);
+      lockfiles.push({ path: r.lockfile, after: readFileSync(join(repoDir, r.lockfile), "utf8"), regenerated_by: "runner", manifest: r.manifest });
+    }
+  }
+
+  // install + tests: only if nothing out of bounds; secrets (incl. META_API_KEY) are removed from the environment.
+  // Install and test results are reported separately: tests that ran without their dependencies prove little.
+  let tests = { command: null, executed: false, exit_code: null, log: "", duration_ms: null, summary: null };
   const det = bad.length ? null : detectTests(projectDir);
   if (det) {
     const s0 = Date.now();
-    let out = "";
-    if (det.install) { const i = run(det.install[0], det.install[1], { cwd: projectDir, env: scrubbed(false), timeout: 8 * 60e3 }); out += `$ ${det.install[0]} ${det.install[1].join(" ")}\n${(i.stdout + i.stderr).slice(-3000)}\n`; }
-    const t = run(det.cmd[0], det.cmd[1], { cwd: projectDir, env: { ...scrubbed(false), CI: "1" }, timeout: b.limits.test_timeout_s * 1000 });
-    out += `$ ${det.label}\n${(t.stdout + t.stderr).slice(-6000)}`;
-    tests = { command: det.label, executed: true, exit_code: t.status ?? -1, log: out, duration_ms: Date.now() - s0 };
-    log(`tests: ${det.label} exit ${tests.exit_code}`);
+    if (det.install) {
+      const i = run(det.install[0], det.install[1], { cwd: projectDir, env: scrubbed(false), timeout: 8 * 60e3, shell: process.platform === "win32" });
+      install = { command: `${det.install[0]} ${det.install[1].join(" ")}`, executed: true, exit_code: i.status ?? -1, log: (i.stdout + i.stderr).slice(-3000) };
+      log(`install: ${install.command} exit ${install.exit_code}`);
+    }
+    if (install.executed && install.exit_code !== 0) log("tests: skipped because dependencies could not be installed");
+    else {
+      const t = run(det.cmd[0], det.cmd[1], { cwd: projectDir, env: { ...scrubbed(false), CI: "1" }, timeout: b.limits.test_timeout_s * 1000, shell: process.platform === "win32" });
+      const out = (t.stdout + t.stderr);
+      tests = { command: det.label, executed: true, exit_code: t.status ?? -1, log: out.slice(-6000), duration_ms: Date.now() - s0, summary: parseTestSummary(out) };
+      log(`tests: ${det.label} exit ${tests.exit_code}; ${tests.summary ? `${tests.summary.passed}/${tests.summary.total} passed (${tests.summary.framework})` : "summary not recognised"}`);
+    }
   } else log("tests: no test command detected (or changes out of bounds)");
 
-  const res = await argus(`/api/fix/${FIX_ID}/runner/result`, { ok: true, muse_version: version, steps, summary, run_url: RUN_URL, files, changed_files: changed, tests });
+  const res = await argus(`/api/fix/${FIX_ID}/runner/result`, { ok: true, muse_version: version, steps, summary, run_url: RUN_URL, files, changed_files: changed, lockfiles, install, tests });
   log(`Argus: ${JSON.stringify(res)}`);
 }
 
