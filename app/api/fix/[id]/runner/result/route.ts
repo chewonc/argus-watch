@@ -1,6 +1,6 @@
 // POST ?nonce=… with header x-argus-runner-secret — the runner's result (changed file contents, Muse Code summary,
 // test execution). Argus validates (allowlist, syntax, static assessment, tests gate) and only then writes to GitHub.
-import { acceptResult, checkRunnerAuth, RunnerError, type RunnerResult } from "@/lib/runner";
+import { runnerSecretOk, acceptResult, checkRunnerAuth, RunnerError, type RunnerResult } from "@/lib/runner";
 import { store } from "@/lib/store";
 
 export const maxDuration = 120;
@@ -8,6 +8,7 @@ export const maxDuration = 120;
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const url = new URL(req.url);
+    if (!runnerSecretOk(req)) throw new RunnerError("unauthorized", 401); // before any lookup: no fix-id oracle
     const fix = await store.getFix((await ctx.params).id);
     if (!fix) throw new RunnerError("not found", 404);
     checkRunnerAuth(fix, req, url.searchParams.get("nonce"));

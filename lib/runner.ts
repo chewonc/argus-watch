@@ -10,7 +10,7 @@ import { createHash, randomBytes } from "node:crypto";
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 const now = () => new Date().toISOString();
 import { FORBIDDEN_PATH, RunnerError, event, mergeDecision, outsideAllowlist } from "./runner-gates";
-export { FORBIDDEN_PATH, RunnerError, checkRunnerAuth, event, mergeDecision, outsideAllowlist } from "./runner-gates";
+export { FORBIDDEN_PATH, RunnerError, checkRunnerAuth, event, mergeDecision, outsideAllowlist, runnerSecretOk } from "./runner-gates";
 import { env, hasQStash, hasRunner } from "./env";
 import { applyFix } from "./fix-apply";
 import { assessFix } from "./fixassess";

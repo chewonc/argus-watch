@@ -29,6 +29,12 @@ export function mergeDecision(runs: { status: string; conclusion: string | null 
   return "merge";
 }
 
+/** Constant-length comparison of the shared runner secret header. */
+export function runnerSecretOk(req: Request): boolean {
+  const secret = req.headers.get("x-argus-runner-secret") ?? "";
+  return !!env.ARGUS_RUNNER_SECRET && secret.length === env.ARGUS_RUNNER_SECRET.length && sha256(secret) === sha256(env.ARGUS_RUNNER_SECRET);
+}
+
 export function checkRunnerAuth(fix: Fix, req: Request, nonce: string | null): void {
   const secret = req.headers.get("x-argus-runner-secret") ?? "";
   if (!env.ARGUS_RUNNER_SECRET || secret.length !== env.ARGUS_RUNNER_SECRET.length || sha256(secret) !== sha256(env.ARGUS_RUNNER_SECRET)) throw new RunnerError("runner secret mismatch", 401);
