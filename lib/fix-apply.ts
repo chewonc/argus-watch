@@ -36,7 +36,7 @@ export async function applyFix(fix: Fix, a: Assessment, f: Finding | null, insta
 > Audit trail: ${(fix.events ?? []).map((e) => `${e.at} ${e.actor} ${e.action}`).join(" · ")}
 
 ${pt.body}` : pt.body;
-  const { data: commit } = await ok.rest.git.createCommit({ owner, repo, message: `${title}\n\n${fix.summary}\n\nSyntax-checked only; not executed; remediation not verified. Drafted by Argus Watch from assessment ${a.id}.`, tree: newTree.sha, parents: [headSha] });
+  const { data: commit } = await ok.rest.git.createCommit({ owner, repo, message: `${title}\n\n${fix.summary}\n\n${opts.testsNote ?? "Syntax-checked only; not executed."} Remediation not verified. ${opts.author ? `Edited by ${opts.author}; ` : "Drafted by "}Argus Watch, assessment ${a.id}.`, tree: newTree.sha, parents: [headSha] });
   let branch = `argus/fix-${fix.id.slice(0, 8)}`;
   try { await ok.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commit.sha }); }
   catch (e) { if ((e as { status?: number }).status === 422) { branch = `${branch}-${Date.now().toString(36).slice(-4)}`; await ok.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commit.sha }); } else throw e; }

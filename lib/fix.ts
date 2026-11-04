@@ -119,7 +119,7 @@ export function prText(fix: Fix, a: Assessment, f: Finding | null, appUrl: strin
 **Repository:** ${fix.repo} at \`${fix.base_sha}\` · **Verdict:** ${a.verdict} (${a.tier}) · **Case:** ${caseUrl}
 
 ### What changes
-${fix.files.map((x) => `- \`${x.path}\`: ${x.hunks.length} hunk(s) — ${x.hunks.map((h) => h.rationale).join("; ")}`).join("\n")}
+${fix.files.map((x) => x.hunks.length ? `- \`${x.path}\`: ${x.hunks.length} hunk(s) — ${x.hunks.map((h) => h.rationale).join("; ")}` : `- \`${x.path}\`: edited by ${fix.agent === "muse-code" ? "Meta Muse Code" : "the drafting model"} (+${(x.patch.match(/^\+(?!\+\+)/gm) ?? []).length} / -${(x.patch.match(/^-(?!--)/gm) ?? []).length} lines)`).join("\n")}
 
 ${fix.summary}
 
