@@ -33,24 +33,26 @@ export async function notifyAssessment(a: Assessment, f: Finding | null, items: 
     const prev = prevId ? await store.getNotification(prevId) : null;
     const now = new Date().toISOString();
     if (prev) {
-      const changed = prev.verdict !== a.verdict || prev.severity.level !== sev.level;
+      const changed = prev.verdict !== a.verdict || prev.severity.level !== sev.level || !!a.withdrawn_at !== !!prev.withdrawn;
       if (!changed) { skipped++; continue; }
       if (a.verdict === "Not Affected" && prev.verdict === "Not Affected") { skipped++; continue; }
-      const n: Notification = { ...prev, kind: prev.verdict !== a.verdict ? "verdict_changed" : "severity_changed", assessment_id: a.id, title, verdict: a.verdict, severity: sev, updated_at: now, read_at: null, published_at: a.timestamps.published_at, notified_at: now, pushed_at: null, received_at: null };
+      const n: Notification = { ...prev, credibility: f?.credibility?.label ?? null, withdrawn: !!a.withdrawn_at, kind: prev.verdict !== a.verdict || !!a.withdrawn_at !== !!prev.withdrawn ? "verdict_changed" : "severity_changed", assessment_id: a.id, title, verdict: a.verdict, severity: sev, updated_at: now, read_at: null, published_at: a.timestamps.published_at, notified_at: now, pushed_at: null, received_at: null };
       await store.putNotification(n, false); updated++;
       if (user.settings.inapp !== false) pushTargets.push({ uid, n });
       continue;
     }
-    if (a.verdict === "Not Affected") { skipped++; continue; } // a first assessment that is Not Affected is not an alert
+    if (a.verdict === "Not Affected" || a.withdrawn_at) { skipped++; continue; } // a first assessment that is Not Affected or withdrawn is not an alert
+    if (user.settings.inapp === false) { skipped++; continue; } // in-app alerts turned off in Settings: no record, no push, no webhook
     const id = createHash("sha256").update(`${uid}:${a.finding_id}:${a.repo}:${a.id}`).digest("hex").slice(0, 20);
-    const n: Notification = { id, user_id: uid, kind: "alert", assessment_id: a.id, finding_id: a.finding_id, repo: a.repo, title, verdict: a.verdict, severity: sev, created_at: now, updated_at: now, read_at: null, published_at: a.timestamps.published_at, notified_at: now, pushed_at: null, received_at: null };
+    const n: Notification = { id, user_id: uid, kind: "alert", credibility: f?.credibility?.label ?? null, assessment_id: a.id, finding_id: a.finding_id, repo: a.repo, title, verdict: a.verdict, severity: sev, created_at: now, updated_at: now, read_at: null, published_at: a.timestamps.published_at, notified_at: now, pushed_at: null, received_at: null };
     await store.putNotification(n, true); await store.notifDedupSet(uid, a.finding_id, a.repo, id); created++;
     pushTargets.push({ uid, n });
     // per-user chat webhook (in addition to the global one handled in sendAlert)
     if (user.settings.webhook_url) {
       const isDiscord = /discord(app)?\.com\/api\/webhooks/.test(user.settings.webhook_url);
       const text = fmtAlert(a);
-      await fetch(user.settings.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(isDiscord ? { content: text.slice(0, 1900) } : { text }) }).catch(() => {});
+      // Bounded: a slow or dead webhook must not hold up the pipeline (the in-app record is already stored).
+      await fetch(user.settings.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(isDiscord ? { content: text.slice(0, 1900) } : { text }), signal: AbortSignal.timeout(8000) }).catch((e) => store.log({ kind: "error", source: "notify", detail: `user webhook failed: ${String(e).slice(0, 120)}`, ref: a.id }));
     }
   }
   // Web Push: inline when the fan-out is small (one process call), else one QStash job
@@ -68,6 +70,8 @@ export async function notifyAssessment(a: Assessment, f: Finding | null, items: 
 }
 
 export async function notifyFix(uid: string, kind: "fix_pr_created" | "fix_failed", a: Assessment, f: Finding | null, detail: string) {
+  const user = await store.getUser(uid);
+  if (user?.settings.inapp === false) return; // in-app notifications turned off in Settings
   const now = new Date().toISOString();
   const id = createHash("sha256").update(`${uid}:fix:${a.id}:${kind}:${now}`).digest("hex").slice(0, 20);
   const n: Notification = { id, user_id: uid, kind, assessment_id: a.id, finding_id: a.finding_id, repo: a.repo, title: `${kind === "fix_pr_created" ? "Pull request opened" : "Fix stopped"}: ${detail}`.slice(0, 160), verdict: a.verdict, severity: a.severity ?? deriveSeverity(a, []), created_at: now, updated_at: now, read_at: null, published_at: a.timestamps.published_at, notified_at: now, pushed_at: null, received_at: null };

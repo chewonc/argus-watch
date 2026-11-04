@@ -17,7 +17,7 @@ import { getDict, getLocale, tr } from "@/lib/i18n";
 import { caseHref, discoveredAt, location, plainTitle, repoStatus, statusOf, localized, whereLine } from "@/lib/labels";
 import { deriveSeverity } from "@/lib/severity";
 import { currentUser, visibleRepoKeys } from "@/lib/session";
-import { store } from "@/lib/store";
+import { ALERT_HISTORY, store } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 const FILTERS = ["all", "urgent", "resolved"] as const;
@@ -34,7 +34,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
 
   const keys = await visibleRepoKeys(user.id);
   const [assessmentsAll, findings, reposAll, resolvedSet, mine] = await Promise.all([
-    store.listAssessments(400), store.listFindings(), store.listRepos(), store.resolvedSet(user.id), store.listUserRepos(user.id),
+    store.listAssessments(ALERT_HISTORY), store.listFindings(), store.listRepos(), store.resolvedSet(user.id), store.listUserRepos(user.id),
   ]);
   const repos = reposAll.filter((r) => keys.has(store.repoKey(r)));
   const fmap = new Map(findings.map((f) => [f.id, f]));
@@ -103,11 +103,11 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
         </div>
         {repoLines.length > 0 && (
           <div className="grid gap-1 text-[13px]">
-            <div className="label">Monitored repositories</div>
+            <div className="label">{d.monitored_repos}</div>
             <ul className="grid gap-0.5 max-h-[180px] overflow-auto" aria-label={d.repositories}>
               {repoLines.map(({ k, s }) => <li key={k} className="flex items-center gap-2 min-w-0"><span aria-hidden className={`tone-${s.tone} text-[9px]`}>●</span><span className="font-medium truncate" title={k}>{k}</span>{s.label !== d.monitoring_active && <span className={`tone-${s.tone} shrink-0`}>{s.label}</span>}</li>)}
             </ul>
-            <Link href="/settings#repositories" className="text-ink2 hover:text-ink underline w-fit">Manage repositories</Link>
+            <Link href="/settings#repositories" className="text-ink2 hover:text-ink underline w-fit">{d.manage_repos}</Link>
           </div>
         )}
       </header>
@@ -123,7 +123,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
               {FILTERS.map((f) => { const q = new URLSearchParams(); if (f !== "all") q.set("f", f); if (noneSelected) q.set("repo", "none"); else if (selectedRepos.length) q.set("repo", selectedRepos.join(",")); return <Link key={f} href={`/alerts${q.toString() ? `?${q}` : ""}`} aria-current={f === filter ? "page" : undefined}>{d[`filter_${f}` as keyof typeof d]}</Link>; })}
             </nav>
           </div>
-          {noneSelected ? <Empty title="No repositories selected" body="Choose at least one repository in the filter to see its findings." action={<Link href="/alerts" className="btn">Show all repositories</Link>} />
+          {noneSelected ? <Empty title={d.no_repos_selected} body={d.no_repos_selected_body} action={<Link href="/alerts" className="btn">{d.show_all_repos}</Link>} />
           : shown.length === 0 ? (
             filter === "resolved" ? <Empty title={d.empty_resolved_title} body={d.empty_resolved_body} />
               : <Empty title={d.empty_clear_title} body={d.empty_clear_body} />

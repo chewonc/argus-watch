@@ -57,6 +57,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const failed = { ...fresh, status: "failed" as const, error: msg, grant: revoke(fresh.grant) }; // a retry needs a new approval
     await store.putFix(failed);
     await store.log({ kind: "fix", source: "apply", detail: `failed (${status ?? "?"}): ${msg}`, ref: fix.assessment_id });
+    await notifyFix(user.id, "fix_failed", a, f, msg.slice(0, 100)).catch(() => {});
     if (e instanceof WriteAuthError) return Response.json({ error: `write refused: ${e.message}`, fix: failed }, { status: e.status });
     return Response.json({ error: status === 403 ? `GitHub refused the write (${msg}). The App installation may not have accepted Contents/Pull requests write permission yet.` : msg, fix: failed }, { status: status === 409 ? 409 : 502 });
   }

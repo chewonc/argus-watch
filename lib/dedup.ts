@@ -22,9 +22,22 @@ export function canonicalUrl(u: string | null): string | null {
 
 const OFFICIAL: SourceId[] = ["ghsa", "ghadv", "kev", "nvd", "osv"];
 
-export function tierFor(f: Pick<Finding, "sources" | "ids" | "items">): Tier {
+/** Who published an item: the URL host (www. stripped), else the source id. Two posts on one site are one publisher. */
+export const publisherOf = (item: Pick<Item, "url" | "source">): string => { try { return item.url ? new URL(item.url).hostname.toLowerCase().replace(/^www\./, "") : item.source; } catch { return item.source; } };
+
+/** Withdrawal time stated by a registry record carried in the item (GitHub Advisory DB / GHSA webhook / OSV). */
+export function withdrawnAt(item: Pick<Item, "raw">): string | null {
+  const r = (item.raw ?? {}) as Record<string, unknown>;
+  const adv = (r.security_advisory ?? r) as Record<string, unknown>;
+  const w = adv.withdrawn_at ?? adv.withdrawn ?? r.withdrawn;
+  return typeof w === "string" && w ? w : null;
+}
+
+export function tierFor(f: Pick<Finding, "sources" | "ids" | "items" | "publishers">): Tier {
   if (f.sources.some((s) => OFFICIAL.includes(s))) return "official";
-  if (f.items.length >= 2) return "corroborated"; // ≥2 independent items merged into one finding
+  // Corroborated needs at least two distinct publishers; several posts or feed entries from one site are one voice.
+  // Records created before publishers were tracked keep the old item count.
+  if ((f.publishers ? f.publishers.length : f.items.length) >= 2) return "corroborated";
   return "signal";
 }
 
@@ -53,6 +66,8 @@ export async function upsertFinding(item: Item): Promise<{ finding: Finding; cha
       claim_version: null,
       status: "new",
       relevant_repos: [],
+      publishers: [publisherOf(item)],
+      withdrawn_at: withdrawnAt(item),
     };
     f.tier = tierFor(f);
     await store.putFinding(f);
@@ -62,14 +77,21 @@ export async function upsertFinding(item: Item): Promise<{ finding: Finding; cha
 
   const f = (await store.getFinding(fid))!;
   if (f.items.includes(item.id)) return { finding: f, changed: false, created: false };
-  const before = JSON.stringify([f.tier, f.ids, f.published_at]);
+  const before = JSON.stringify([f.tier, f.ids, f.published_at, f.withdrawn_at ?? null]);
+  // Older records: rebuild the publisher list from the stored items once.
+  if (!f.publishers) f.publishers = [...new Set((await Promise.all(f.items.map((i) => store.getItem(i)))).filter((x): x is Item => !!x).map(publisherOf))];
   f.items.push(item.id);
+  const pub = publisherOf(item); if (!f.publishers.includes(pub)) f.publishers.push(pub);
+  const w = withdrawnAt(item); if (w && !f.withdrawn_at) f.withdrawn_at = w;
   if (!f.sources.includes(item.source)) f.sources.push(item.source);
   f.ids = [...new Set([...f.ids, ...item.ids])];
   if (item.published_at && (!f.published_at || item.published_at < f.published_at)) f.published_at = item.published_at;
   f.tier = tierFor(f);
   await store.putFinding(f);
   if (url) await store.setUrl(url, f.id);
-  const changed = before !== JSON.stringify([f.tier, f.ids, f.published_at]);
+  // A new item with substantive text changes what the claim is extracted from (the claim version is a hash of all item
+  // text), so the finding is re-processed: re-extraction, new assessments and a fresh timeline. Withdrawal also counts.
+  const newText = (item.text ?? "").trim().length >= 200;
+  const changed = newText || before !== JSON.stringify([f.tier, f.ids, f.published_at, f.withdrawn_at ?? null]);
   return { finding: f, changed, created: false };
 }

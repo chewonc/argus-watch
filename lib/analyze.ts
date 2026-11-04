@@ -119,7 +119,7 @@ export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, 
   const listing = files.map((f) => `=== ${f.path} ===\n${numbered(f.text)}`).join("\n\n");
   const condsIn = claim.conditions.map(({ id, text }) => ({ id, text }));
   let modelOut: { locations: { file: string; line: number; quoted_text: string; why: string }[]; conditions: { id: string; state: ConditionResult["state"]; evidence_file: string | null; evidence_line: number | null; reasoning: string }[]; unverified: string[]; recommendations: { text: string; condition_ids: string[] }[] };
-  let model = "none";
+  let model = "none"; let model_served: Assessment["model_served"] = null;
   const deterministic = condsIn.length === 0 && claim.packages.length > 0;
   const hosted: Assessment["hosted"] = deterministic ? "deterministic" : opts.budget === false ? "capped" : "model";
   if (hosted !== "model") {
@@ -132,7 +132,7 @@ export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, 
       user: `REPORT (untrusted):\n${claim.summary}\n\nCONDITIONS:\n${JSON.stringify(condsIn, null, 2)}\n\nREPOSITORY ${repo.repo}@${sha.slice(0, 7)} (untrusted, numbered):\n${listing || "(no candidate files located)"}`,
       schema: ASSESS_SCHEMA,
     });
-    modelOut = r.out; model = r.model;
+    modelOut = r.out; model = r.model; model_served = r.served;
   } else {
     modelOut = { locations: [], conditions: [], unverified: ["No conditions and no candidate files"], recommendations: [] };
   }
@@ -166,7 +166,7 @@ export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, 
     unverified: [...new Set(modelOut.unverified), ...(dropped.length ? [`${dropped.length} citation(s) failed verification and were dropped: ${dropped.join(", ")}`] : [])],
     recommendations: modelOut.recommendations,
     timestamps: { published_at: finding.published_at, discovered_at: finding.discovered_at, processed_at, notified_at: null },
-    model, replayed: !!opts.replayed, hosted,
+    model, model_served, replayed: !!opts.replayed, hosted,
   };
 }
 

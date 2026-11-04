@@ -80,8 +80,10 @@ export async function POST(req: Request) {
       return Response.json({ ok: true, finding: finding.id, status: f?.status, relevant_repos: f?.relevant_repos, replayed: true, ms: Date.now() - t0 });
     }
     case "requeue_stuck": {
-      // Re-queue findings left in "new" or "error" (e.g. after a queue outage). Same pipeline; not replays.
-      const stuck = (await store.listFindings()).filter((f) => f.status === "new" || f.status === "error");
+      // Re-queue findings left in "new" or "error" (e.g. after a queue outage), and "analyzing" ones whose run died
+      // (older than 15 minutes, or older records without a start time). Same pipeline; not replays.
+      const cutoff = Date.now() - 15 * 60e3;
+      const stuck = (await store.listFindings()).filter((f) => f.status === "new" || f.status === "error" || (f.status === "analyzing" && (!f.analyzing_at || Date.parse(f.analyzing_at) < cutoff)));
       for (const f of stuck) await enqueueProcess(f.id);
       await store.log({ kind: "process", source: "admin", detail: `re-queued ${stuck.length} stuck finding(s)` });
       return Response.json({ ok: true, requeued: stuck.length });

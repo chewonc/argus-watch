@@ -63,7 +63,7 @@ export async function RepositoriesPanel({ sp, embedded = false }: { sp: Record<s
             : <form action={beginConnect}>{back}<button className={insts.length ? "btn-ghost" : "btn"} type="submit">{insts.length ? "+ Add another account or organization" : d.connect_github}</button></form>}
         </div>
         <div className="text-[14px] grid gap-2">
-          <p className="text-ink2">Argus Watch only reads your code. Changes happen only as draft pull requests you approve.</p>
+          <p className="text-ink2">Argus Watch reads your code to check it. A change is written only after you approve that exact change, as a draft pull request or a new branch.</p>
           <details className="disclose">
             <summary>What Argus Watch reads, stores and writes</summary>
             <dl className="grid gap-3 mt-3 text-[13px] [&_dt]:font-semibold [&_dd]:text-ink2">

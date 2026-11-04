@@ -6,7 +6,7 @@ import { CredibilityChip } from "./credibility";
 import { FindingActions, type ActionLabels } from "./finding-actions";
 import { SelectBox } from "./bulk-fix";
 import type { FindingAction } from "@/lib/actions";
-import { location as loc0, type Status } from "@/lib/labels";
+import { analysedBySpark, location as loc0, type Status } from "@/lib/labels";
 import type { Assessment, Finding, Severity } from "@/lib/schema";
 
 export const location = loc0;
@@ -17,6 +17,15 @@ export function suggestedFix(a: Assessment): string | null {
   const observed = new Set(a.conditions.filter((c) => c.state === "Observed" || c.state === "Inferred").map((c) => c.id));
   const recs = [...a.recommendations].sort((x, y) => Number(y.condition_ids.some((id) => observed.has(id))) - Number(x.condition_ids.some((id) => observed.has(id))));
   return recs[0]?.text ?? null;
+}
+
+/**
+ * "Analysed by Muse Spark": shown only when the stored assessment records an actual Muse Spark call on the Meta Model
+ * API (lib/labels.ts analysedBySpark). Never shown for code-only, budget-capped, other-model or agent-reported results.
+ */
+export function SparkBadge({ a, label = "Analysed by Muse Spark" }: { a: Assessment; label?: string }) {
+  if (a.agent || !analysedBySpark(a)) return null;
+  return <span className="chip text-ink2" title={`Model recorded for this analysis: ${a.model_served?.model ?? a.model}${a.model_served ? ` (served by ${a.model_served.host})` : ""}`}>{label}</span>;
 }
 
 export function StatusPill({ s }: { s: Pick<Status, "label" | "glyph" | "tone"> }) {
@@ -30,7 +39,7 @@ export function AlertCard({ c, labels }: { c: CardData; labels: ActionLabels }) 
     <li className="fade grid grid-cols-[auto_1fr_auto] items-start gap-x-3 sm:gap-x-4 gap-y-1 px-4 sm:px-5 py-4 border-b hair last:border-0">
       <SelectBox id={c.a.id} label={c.title} />
       <div className="grid gap-1.5 min-w-0">
-        <div className="flex flex-wrap items-center gap-2"><StatusPill s={c.status} /><CredibilityChip c={c.f?.credibility} compact /></div>
+        <div className="flex flex-wrap items-center gap-2"><StatusPill s={c.status} /><CredibilityChip c={c.f?.credibility} compact /><SparkBadge a={c.a} label={labels.spark} /></div>
         <Link href={c.caseHref} className="text-[15px] font-semibold leading-snug no-underline hover:underline">{c.title}</Link>
         <div className={`text-[13px] truncate ${c.where.kind === "file" || c.where.kind === "package" ? "mono text-ink2" : "text-ink2"}`}>
           {c.where.kind === "file" || c.where.kind === "package" ? <span aria-label="Affected file">{c.where.text}</span> : c.where.text}

@@ -147,7 +147,7 @@ export async function approveValidated(fix: Fix, a: Assessment, f: Finding | nul
   // Atomic approval with a grant bound to this exact patch and destination (lib/write-auth.ts); the write boundary checks it.
   const w = await store.getRepo(fix.repo_key);
   let next: Fix = await recordApproval(fix.id, { userId: fix.user_id, userLogin: opts.userLogin, reviewedVersion: opts.patchVersion, action: opts.mode === "push" ? "pr_then_merge" : opts.mode, defaultBranch: w?.default_branch ?? "main",
-    check: checkApprovable, event, detail: `approved patch ${opts.patchVersion} (${opts.mode === "push" ? "PR, merge after CI passes" : opts.mode === "branch" ? "push to a new branch, no pull request" : "draft pull request"})` });
+    check: checkApprovable, event, detail: `approved patch ${opts.patchVersion} (${opts.mode === "push" ? "PR, merge after CI passes" : opts.mode === "branch" ? "push to a new branch, no pull request" : "draft pull request (or a pull request marked [DRAFT] where drafts are unavailable)"})` });
   next = { ...next, mode: opts.mode };
   await store.putFix(next);
   const tests = fix.runner?.tests ?? null;

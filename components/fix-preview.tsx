@@ -81,7 +81,7 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
             <div className="flex flex-wrap items-center gap-3">
               <button className="btn" onClick={() => dlg.current?.showModal()} disabled={!allowPr || isDemoRepo} title={isDemoRepo ? "Shared demo repositories never receive pull requests" : !allowPr ? "Enable draft pull requests for this repository on the Repos page first" : ""}>{labels.approve}</button>
               <button className="btn-ghost" onClick={() => draft(true)} disabled={busy === "draft"}>{busy === "draft" ? labels.drafting : labels.re_draft}</button>
-              {(!allowPr || isDemoRepo) && <span className="text-[12px] text-ink2">{isDemoRepo ? "Demo repository: preview only." : <>Draft PRs are off for this repository. <a href="/repos">Enable on Repos</a> or use the remediation prompt below.</>}</span>}
+              {(!allowPr || isDemoRepo) && <span className="text-[12px] text-ink2">{isDemoRepo ? "Demo repository: preview only." : <>Draft PRs are off for this repository. <a href="/settings#repositories">Enable in Settings → Repositories</a> or use the remediation prompt below.</>}</span>}
             </div>
           )}
           {fix.status === "pr_created" && !fix.mode && (

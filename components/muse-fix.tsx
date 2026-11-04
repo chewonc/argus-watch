@@ -99,7 +99,7 @@ export function RunLadder({ fix }: { fix: Fix }) {
   const t = r?.tests;
   const st = fix.status;
   const final = st === "merged" ? { tone: "var(--observed)", text: "Merged", url: fix.commit_url, link: "View commit ↗" }
-    : st === "pr_created" ? { tone: "var(--observed)", text: "Pull request opened", url: fix.pr_url, link: `${fix.repo}#${fix.pr_number} ↗` }
+    : st === "pr_created" ? { tone: "var(--observed)", text: fix.pr_draft ? "Draft pull request opened" : "Pull request opened", url: fix.pr_url, link: `${fix.repo}#${fix.pr_number} ↗` }
     : st === "merging" ? { tone: "var(--inferred)", text: "Pull request opened, waiting for checks before merging", url: fix.pr_url, link: `${fix.repo}#${fix.pr_number} ↗` }
     : st === "blocked_by_protection" ? { tone: "var(--inferred)", text: fix.error ?? "Merge refused", url: fix.pr_url, link: "Review PR ↗" }
     : st === "validation_failed" || st === "failed" ? { tone: "var(--contradicted)", text: fix.error ?? "Failed; nothing was written", url: r?.run_url ?? null, link: "Runner log ↗" }

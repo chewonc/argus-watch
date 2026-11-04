@@ -17,7 +17,7 @@ export async function sparkJSON<T>(opts: {
   name: string;
   temperature?: number;
   model?: string;
-}): Promise<{ out: T; ms: number; model: string }> {
+}): Promise<{ out: T; ms: number; model: string; served: { model: string | null; host: string } }> {
   if (!env.META_API_KEY) throw new SparkError("META_API_KEY not configured");
   const t0 = Date.now();
   const res = await metaFetch("/chat/completions", {
@@ -33,9 +33,11 @@ export async function sparkJSON<T>(opts: {
   await countUsage(opts.name, Number(body?.usage?.total_tokens ?? 0));
   const content = body?.choices?.[0]?.message?.content;
   if (typeof content !== "string") throw new SparkError("Meta API returned no content");
-  return { out: parseJSON<T>(content), ms: Date.now() - t0, model: opts.model ?? env.META_MODEL };
+  // `served` is what the API itself reported (response `model` field) and which host answered: provenance for the UI badge.
+  return { out: parseJSON<T>(content), ms: Date.now() - t0, model: opts.model ?? env.META_MODEL, served: { model: typeof body?.model === "string" ? body.model : null, host: apiHost() } };
 }
 
+export const apiHost = () => { try { return new URL(env.META_BASE_URL).hostname; } catch { return "unknown"; } };
 const parseJSON = <T,>(s: string): T => { try { return JSON.parse(s) as T; } catch { throw new SparkError(`Meta API returned invalid JSON: ${s.slice(0, 120)}`); } };
 
 /** POST to the Meta Model API with a timeout and up to 2 retries on 429/5xx/network errors (Retry-After honoured, capped). */

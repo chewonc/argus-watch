@@ -25,9 +25,14 @@ export async function chargeHosted(repoKey: string) {
   for (const u of await store.repoUsers(repoKey)) await kv.incr(key(u));
 }
 
-export async function usageSummary(m = month()): Promise<Record<string, { calls: number; tokens: number }>> {
-  const names = ["claim", "assessment", "fix"];
-  const out: Record<string, { calls: number; tokens: number }> = {};
-  for (const n of names) out[n] = { calls: (await kv.get<number>(`usage:${m}:${n}:calls`)) ?? 0, tokens: (await kv.get<number>(`usage:${m}:${n}:tokens`)) ?? 0 };
+/** Every Meta Model API call site, by the usage name it is counted under in lib/spark.ts. */
+export const USAGE_NAMES = ["claim", "verify", "investigate", "assessment", "fix", "simulate", "translate", "timeline", "timeline_summary", "timeline_wonder"] as const;
+
+export async function usageSummary(m = month(), names: readonly string[] = ["claim", "assessment", "fix"]): Promise<Record<string, { calls: number; tokens: number; searches?: number }>> {
+  const out: Record<string, { calls: number; tokens: number; searches?: number }> = {};
+  for (const n of names) {
+    out[n] = { calls: (await kv.get<number>(`usage:${m}:${n}:calls`)) ?? 0, tokens: (await kv.get<number>(`usage:${m}:${n}:tokens`)) ?? 0 };
+    const s = await kv.get<number>(`usage:${m}:${n}:searches`); if (s) out[n].searches = s;
+  }
   return out;
 }

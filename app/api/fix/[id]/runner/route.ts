@@ -1,6 +1,7 @@
 // POST ?nonce=… with header x-argus-runner-secret — called once by the isolated GitHub Actions runner to fetch its
 // brief (allowed files, conditions, preview, a short-lived clone token and a per-fix MCP token). Not for browsers.
 import { runnerSecretOk, briefFor, checkRunnerAuth, RunnerError } from "@/lib/runner";
+import { env } from "@/lib/env";
 import { store } from "@/lib/store";
 
 export const maxDuration = 30;
@@ -9,6 +10,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   try {
     const url = new URL(req.url);
     if (!runnerSecretOk(req)) throw new RunnerError("unauthorized", 401); // before any lookup: no fix-id oracle
+    if (!env.FIX_ENABLED) throw new RunnerError("fixes are turned off on this deployment", 403);
     const fix = await store.getFix((await ctx.params).id);
     if (!fix) throw new RunnerError("not found", 404);
     checkRunnerAuth(fix, req, url.searchParams.get("nonce"));

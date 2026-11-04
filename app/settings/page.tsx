@@ -82,10 +82,15 @@ export default async function Settings({ searchParams }: { searchParams: Promise
             <label className="grid gap-1">{d.webhook_label}
               <input name="webhook_url" defaultValue={masked} placeholder="https://hooks.slack.com/services/…" aria-describedby="webhook-help" className="border hair rounded-[6px] px-3 h-9 bg-transparent text-[14px]" />
             </label>
+            <label className="grid gap-1 w-fit">{d.push_threshold_label}
+              <select name="push_min_severity" defaultValue={user.settings.push_min_severity ?? "low"} className="border hair rounded-[6px] px-2 h-9 bg-transparent text-[14px]">
+                <option value="low">{d.push_threshold_all}</option><option value="moderate">{d.push_threshold_moderate}</option><option value="high">{d.push_threshold_high}</option><option value="critical">{d.push_threshold_critical}</option>
+              </select>
+            </label>
             <button className="btn w-fit" type="submit">{d.save}</button>
           </form>
           <div className="grid gap-1 text-[14px]"><div className="font-medium">{d.browser_push}</div><PushToggle vapidPublicKey={env.VAPID_PUBLIC_KEY} enabled={user.settings.push && subs.length > 0} />{subs.length > 0 && <p className="text-[12px] text-ink2">{subs.length} {d.devices_subscribed}</p>}</div>
-          <More><div id="webhook-help" className="grid gap-1"><p>The webhook is optional, stored server-side and shown masked; only Slack and Discord incoming-webhook URLs are accepted.</p><p>Browser push needs VAPID keys on this deployment{env.VAPID_PUBLIC_KEY ? "" : " (not set here)"}. Once enabled, alerts arrive while the browser is running, even with the tab in the background.</p></div></More>
+          <More><div id="webhook-help" className="grid gap-1"><p>The webhook is optional, stored server-side and shown masked; only Slack and Discord incoming-webhook URLs are accepted.</p><p>Browser push needs VAPID keys on this deployment{env.VAPID_PUBLIC_KEY ? "" : " (not set here)"}. Once enabled, alerts arrive while the browser is running, even with the tab in the background. If the browser is fully closed, the notification is delivered the next time it starts, as long as that is within one hour; after that it is dropped and the alert stays in Argus.</p></div></More>
         </Section>
 
         {env.DEMO_SHARED_REPOS && (

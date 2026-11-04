@@ -119,12 +119,17 @@ const K = {
 };
 export const SYSTEM_USER = "system";
 
+/** How many recent assessments the Threats page and MCP read (was 400, which hid older alerts on busy deployments). */
+export const ALERT_HISTORY = 3000;
+
 export const store = {
   // items
   putItem: (i: Item) => kv.set(K.item(i.id), i),
   getItem: (id: string) => kv.get<Item>(K.item(id)),
   /** returns true the first time a (source,key) pair is seen */
   markSeen: (source: string, key: string) => kv.setnx(K.seen(source, key), new Date().toISOString()),
+  /** Undo markSeen after a failed ingest so the next run retries the item instead of losing it. */
+  unmarkSeen: (source: string, key: string) => kv.del(K.seen(source, key)),
 
   // findings
   async putFinding(f: Finding) {

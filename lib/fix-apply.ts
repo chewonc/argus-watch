@@ -48,7 +48,8 @@ ${pt.body}` : pt.body;
   const { data: commit } = await ok.rest.git.createCommit({ owner, repo, message: `${title}\n\n${fix.summary}\n\n${opts.testsNote ?? "Syntax-checked only; not executed."} Remediation not verified. ${opts.author ? `Edited by ${opts.author}; ` : "Drafted by "}Argus Watch, assessment ${a.id}.`, tree: newTree.sha, parents: [headSha] });
   // Blobs, tree and commit above are unreferenced objects; creating the branch is the first visible write.
   await assertWrite(fix.id, { kind: "create_branch", ...target });
-  try { await ok.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commit.sha }); }
+  let createdBranch = false;
+  try { await ok.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commit.sha }); createdBranch = true; }
   catch (e) {
     if ((e as { status?: number }).status !== 422) throw e;
     // The branch exists (an earlier approved attempt). Reuse it only if it already holds exactly this patch; never force-update.
@@ -66,11 +67,22 @@ ${pt.body}` : pt.body;
   // 3. draft PR (non-draft fallback on plans that do not allow drafts on private repos)
   await assertWrite(fix.id, { kind: "create_pr", ...target });
   let pr: { html_url: string; number: number; draft: boolean };
-  try { const r = await ok.rest.pulls.create({ owner, repo, head: branch, base, title, body, draft }); pr = { html_url: r.data.html_url, number: r.data.number, draft }; }
-  catch (e) {
-    const msg = String((e as { message?: string }).message ?? e);
-    if (draft && (e as { status?: number }).status === 422 && /draft/i.test(msg)) { const r = await ok.rest.pulls.create({ owner, repo, head: branch, base, title: `[DRAFT – do not merge] ${title}`, body: `> Draft pull requests are not available on this repository's plan; treat this as a draft.\n\n${body}`, draft: false }); pr = { html_url: r.data.html_url, number: r.data.number, draft: false }; }
-    else throw e;
+  try {
+    try { const r = await ok.rest.pulls.create({ owner, repo, head: branch, base, title, body, draft }); pr = { html_url: r.data.html_url, number: r.data.number, draft }; }
+    catch (e) {
+      const msg = String((e as { message?: string }).message ?? e);
+      if (draft && (e as { status?: number }).status === 422 && /draft/i.test(msg)) { const r = await ok.rest.pulls.create({ owner, repo, head: branch, base, title: `[DRAFT – do not merge] ${title}`, body: `> Draft pull requests are not available on this repository's plan; treat this as a draft.\n\n${body}`, draft: false }); pr = { html_url: r.data.html_url, number: r.data.number, draft: false }; }
+      else throw e;
+    }
+  } catch (e) {
+    // The pull request could not be opened: remove the branch this attempt just created so no orphan branch is left.
+    // Only a branch created in this call is deleted (never a pre-existing one, never the default branch).
+    if (createdBranch && branch !== base) {
+      await ok.rest.git.deleteRef({ owner, repo, ref: `heads/${branch}` })
+        .then(() => store.log({ kind: "fix", source: "apply", detail: `pull request failed; removed branch ${branch} created by this attempt`, ref: a.id }))
+        .catch((d) => store.log({ kind: "error", source: "apply", detail: `pull request failed and branch ${branch} could not be removed: ${String(d).slice(0, 120)}`, ref: a.id }));
+    }
+    throw e;
   }
   const done: Fix = { ...fix, status: "pr_created", branch, pr_url: pr.html_url, pr_number: pr.number, pr_draft: pr.draft, approved_at: new Date().toISOString(), error: null };
   await store.putFix(done);

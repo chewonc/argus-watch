@@ -8,7 +8,7 @@ export const en = {
   needs_action: "needs action", critical: "critical", high: "high", moderate: "moderate", low: "low", new_unread: "new (unread)", resolved: "resolved / fix proposed", not_affected: "not affected",
   alerts: "Alerts", filter_needs_action: "needs action", filter_new: "new", filter_resolved_old: "resolved", filter_not_affected: "not affected",
   no_alerts: "No alerts yet. Alerts appear here automatically when a discovered finding matches a watched repository.", nothing_in_filter: "Nothing in this filter.",
-  problem: "Problem", suggested_fix: "Suggested fix", where: "Where", what_if_approve: "What happens if you approve a fix", approve_explainer: "A draft pull request on a new branch; nothing is merged and the default branch is untouched. Changes are syntax-checked only, never executed.",
+  problem: "Problem", suggested_fix: "Suggested fix", where: "Where", what_if_approve: "What happens if you approve a fix", approve_explainer: "A draft pull request on a new branch; nothing is merged and the default branch is untouched. Nothing from your repository runs on our servers; automated fixes are tested in an isolated runner.",
   no_fix: "No concrete fix produced; see missing evidence.", no_location: "exact location not available: no source line could be cited",
   view_code: "View code", preview_fix: "Preview fix", apply_fix: "Apply fix…", view_pr: "View draft PR", open_in: "Open in…", generate_prompt: "Generate fix prompt", technical_details: "Technical details",
   coverage: "Coverage", latency: "Latency (live, backlog excluded)", watched: "Watched", manage_repos: "Manage repositories →", live_log: "Live log",
@@ -38,7 +38,7 @@ export const en = {
   not_confirmed_long: "Not yet confirmed in your project. We saw this in security news about {tech}, but couldn't find affected code in your repository.",
   not_confirmed_code_found: "Not yet confirmed in your project. Related code was found at {where}, but the evidence so far does not establish that this issue applies.",
   could_be_serious: "Could be serious, but not yet confirmed in your project.",
-  read_only_footer: "Argus Watch only reads your code. Nothing in your repository changes without your approval.",
+  read_only_footer: "Argus Watch reads your code to check it. Nothing in your repository changes without your approval.",
   // Landing (Nov 4)
   landing_eyebrow: "AI threats evolve every day. Your defenses should keep up.",
   landing_h1: "Know when new security threats affect your code, and fix them.",
@@ -55,7 +55,14 @@ export const en = {
   loop_threat: "Threat", loop_code: "Your code", loop_alert: "Alert", loop_fix: "Fix", loop_ago: "Security advisory · 12 min ago", loop_threat_title: "Token verification bypass in a popular JWT library",
   loop_checked: "acme/api · checked against your repository", loop_example: "Example", loop_alert_title: "Your login tokens could be forged", loop_fix_text: "Upgrade the library and pin the allowed algorithm.", loop_ask_agent: "Ask your AI agent",
   // Status labels (lib/labels.ts)
-  st_serious: "Serious", st_important: "Important", st_moderate: "Moderate", st_minor: "Minor", st_affects: "Affects you", st_possible: "Possible issue", st_not_affected: "You're not affected", st_fix_ready: "Fix ready to review", st_resolved: "Resolved",
+  st_serious: "Serious", st_important: "Important", st_moderate: "Moderate", st_minor: "Minor", st_affects: "Affects you", st_possible: "Possible issue", st_not_affected: "You're not affected", st_fix_ready: "Fix ready to review", st_resolved: "Resolved", st_withdrawn: "Advisory withdrawn", analysed_by_spark: "Analysed by Muse Spark", see_demo: "See real findings (no sign-in)",
+  act_title: "Activity log", act_intro: "What Argus Watch has been doing in the background.", act_empty: "No activity yet.", act_times: "times",
+  mon_title: "Monitoring status", mon_ok: "Argus Watch is checking new security threats against your repositories.", mon_errors: "Some checks had problems in the last hour. Monitoring continues and retries automatically.",
+  mon_your_repos: "Your repositories", mon_last_check: "Last check", mon_waiting: "Waiting for first check", mon_no_repos: "No repositories yet.", mon_add_one: "Add one",
+  mon_ai_month: "AI analysis this month", mon_threats_read: "Threats read by Meta Muse Spark", mon_code_checks: "Code checks by Meta Muse Spark", mon_included: "Your included code checks", mon_unlimited: "Unlimited", mon_used_of: "{n} of {cap} used",
+  mon_cleared: "Threats checked that don't affect you", mon_none_yet: "None yet.", mon_advanced: "Advanced diagnostics", mon_raw_log: "Raw pipeline log", mon_not_affected: "Not affected",
+  monitored_repos: "Monitored repositories", no_repos_selected: "No repositories selected", no_repos_selected_body: "Choose at least one repository in the filter to see its findings.", show_all_repos: "Show all repositories",
+  push_threshold_label: "Browser push for", push_threshold_all: "All alerts", push_threshold_moderate: "Moderate and above", push_threshold_high: "High and critical only", push_threshold_critical: "Critical only",
   // Notifications page
   all_caught_up: "You're all caught up.", n_unread: "{n} unread", show_all: "All", show_unread: "Unread", no_unread: "No unread notifications.", no_notifications: "No notifications yet. We'll notify you when a new threat matches your code.",
   // New case-page sections

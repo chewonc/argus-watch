@@ -7,7 +7,7 @@ import { FixButton } from "./fix-modal";
 // Actions that open the Fix modal in place (no navigation) when an assessment id is given.
 const IN_MODAL = new Set(["fix_now", "retry", "verify", "review_fix", "approve", "view_progress"]);
 
-export type ActionLabels = Record<"fix_now" | "retry" | "approve" | "verify" | "review_fix" | "view_pr" | "view_fix" | "view_progress" | "details", string>
+export type ActionLabels = Record<"fix_now" | "retry" | "approve" | "verify" | "review_fix" | "view_pr" | "view_fix" | "view_progress" | "details", string> & { spark?: string }
   & Record<"st_awaiting" | "st_preparing" | "st_in_progress" | "st_patch_ready" | "st_creating_pr" | "st_checks" | "st_pr" | "st_blocked" | "st_failed" | "st_stalled" | "st_cancelled" | "st_merged" | "st_pushed", string>;
 
 export function FindingActions({ act, labels, secondary, showNote = true, align = "start", modalFor, autoOpen = false }: { act: FindingAction; labels: ActionLabels; secondary?: { href: string; label: string } | null; showNote?: boolean; align?: "start" | "end"; modalFor?: string; autoOpen?: boolean }) {

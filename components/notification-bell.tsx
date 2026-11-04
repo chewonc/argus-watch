@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type N = { id: string; display_title: string; title: string; repo: string; notified_at: string; read_at: string | null; href: string; status: { label: string; glyph: string; tone: string } | null };
+type N = { id: string; display_title: string; title: string; repo: string; notified_at: string; read_at: string | null; href: string; status: { label: string; glyph: string; tone: string } | null; report?: { label: string; tone: string } | null };
 
 const ago = (iso: string) => { const s = (Date.now() - Date.parse(iso)) / 1000; return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} d ago`; };
 const post = (body: unknown) => fetch("/api/notifications/read", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => (r.ok ? r.json() : null));
@@ -67,6 +67,7 @@ export function NotificationBell({ label }: { label: string }) {
                     <span className={`text-[13px] leading-snug [overflow-wrap:anywhere] ${n.read_at ? "text-ink2" : "font-semibold"}`}>{n.display_title}</span>
                     <span className="text-[12px] text-ink2 flex flex-wrap gap-x-2">
                       {n.status && <span className={`tone-${n.status.tone}`}>{n.status.glyph} {n.status.label}</span>}
+                      {n.report && <span className={`tone-${n.report.tone}`}>{n.report.label}</span>}
                       <span>{n.repo.split("/").slice(0, 2).join("/")}</span><span>{ago(n.notified_at)}</span>
                     </span>
                     {!n.read_at && <span className="sr-only">Unread</span>}

@@ -4,7 +4,7 @@ import { assessmentFor } from "@/lib/authz";
 import { fixesFor } from "@/lib/authz";
 import { notFound } from "next/navigation";
 import { codeToHtml } from "shiki";
-import { StatusPill, firstSentence, lineAnchor, suggestedFix } from "@/components/alerts";
+import { SparkBadge, StatusPill, firstSentence, lineAnchor, suggestedFix } from "@/components/alerts";
 import { CredibilityChip, CredibilityPanel } from "@/components/credibility";
 import { SimulateImpact } from "@/components/simulate-impact";
 import { cachedSimulation } from "@/lib/simulate";
@@ -105,7 +105,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
       <MarkRead assessmentId={a.id} />
       <div className="grid gap-3">
         <BackToThreats label={d.nav_threats} />
-        <div className="flex flex-wrap items-center gap-2"><StatusPill s={status} /><CredibilityChip c={f?.credibility} l={{ none: d.report_not_checked, prefix: d.report_prefix }} /></div>
+        <div className="flex flex-wrap items-center gap-2"><StatusPill s={status} /><CredibilityChip c={f?.credibility} l={{ none: d.report_not_checked, prefix: d.report_prefix }} /><SparkBadge a={a} label={d.analysed_by_spark} /></div>
         <h1 className="text-[26px] sm:text-[30px] font-semibold tracking-[-0.02em] leading-tight">{T.title}</h1>
         {loc && a.verdict !== "Not Affected" && <div className="text-[13px] text-ink2"><span>{verified ? d.affected_at : d.potentially_affected}: </span>{ghUrl ? <a href={ghUrl} target="_blank" rel="noreferrer" className="mono [overflow-wrap:anywhere]" title={d.open_in_github}>{`${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}`} ↗</a> : <span className="mono [overflow-wrap:anywhere]">{`${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}`}</span>}</div>}
         {!loc && (where.kind === "package") && <div className="mono text-[13px] text-ink2 [overflow-wrap:anywhere]">{where.text}</div>}

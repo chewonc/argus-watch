@@ -72,6 +72,9 @@ export const Finding = z.object({
   claim: Claim.nullable(), // null until extracted
   claim_version: z.string().nullable(), // hash of the text the claim was extracted from
   extracted_at: z.string().nullable().optional(), // when the claim was (last) extracted; latency stage L2
+  publishers: z.array(z.string()).optional(), // distinct publishers (URL host, or source id) of the merged items; tierFor
+  analyzing_at: z.string().nullable().optional(), // when status became "analyzing" (requeue_stuck)
+  withdrawn_at: z.string().nullable().optional(), // a registry withdrew the advisory (GHSA/OSV withdrawn); alerts are retracted
   status: z.enum(["new", "not_relevant", "not_actionable", "analyzing", "assessed", "error"]),
   relevant_repos: z.array(z.string()),
   error: z.string().nullable().optional(),
@@ -147,8 +150,10 @@ export const Assessment = z.object({
     processed_at: z.string(),
     notified_at: z.string().nullable(),
   }),
-  model: z.string(),
+  model: z.string(), // model id requested for the assessment call ("none" when no model ran)
+  model_served: z.object({ model: z.string().nullable(), host: z.string() }).nullable().optional(), // what the API reported serving, and which host answered (newer records)
   replayed: z.boolean().default(false),
+  withdrawn_at: z.string().nullable().optional(), // advisory withdrawn by its registry when this assessment was made
   severity: Severity.optional(), // computed in lib/severity.ts for new assessments; derived at render time for older ones
   investigation: z.object({ added: z.array(z.string()), steps: z.number(), tools: z.array(z.string()), rationale: z.string(), tokens: z.number(), ms: z.number(), model: z.string() }).nullable().optional(), // agentic file discovery (lib/investigate.ts)
   hosted: z.enum(["model", "deterministic", "capped"]).optional(), // how the hosted analysis ran (cost control); absent = model (older records)
@@ -169,6 +174,7 @@ export type Assessment = z.infer<typeof Assessment>;
 export const UserSettings = z.object({
   inapp: z.boolean().default(true),
   push: z.boolean().default(false),
+  push_min_severity: z.enum(["low", "moderate", "high", "critical"]).optional(), // absent = "low" (all alerts); // browser push only for alerts at or above this severity
   webhook_url: z.string().nullable().default(null), // per-user Slack/Discord incoming webhook
   locale: z.string().default("en"),
   // Automatic remediation behavior (lib/remediation-mode.ts). Chooses the destination only; each write still needs approval of the exact patch.
@@ -217,6 +223,8 @@ export const Notification = z.object({
   id: z.string(),
   user_id: z.string(),
   kind: z.enum(["alert", "verdict_changed", "severity_changed", "fix_pr_created", "fix_failed"]),
+  credibility: z.enum(["verified", "corroborated", "unverified", "disputed", "likely_false"]).nullable().optional(), // report credibility when notified
+  withdrawn: z.boolean().optional(),
   assessment_id: z.string(),
   finding_id: z.string(),
   repo: z.string(),

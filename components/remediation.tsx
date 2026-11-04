@@ -19,6 +19,23 @@ function Checks({ items }: { items: Check[] }) {
   return <ul className="grid gap-0.5 text-[13px]">{items.map((c) => <li key={c.text} className={c.tone === "ok" ? "" : c.tone === "bad" ? "tone-bad" : "tone-warn"}><span aria-hidden>{c.tone === "ok" ? "✓" : c.tone === "bad" ? "✗" : "⚠"}</span> {c.text}</li>)}</ul>;
 }
 
+/** The repository's own CI on the fix branch (read-only). CI results are build health, not proof the vulnerability is fixed. */
+function RepoCI({ fix }: { fix: Fix }) {
+  const [runs, setRuns] = useState(fix.check_runs ?? []);
+  const [at, setAt] = useState(fix.checks_at);
+  const [busy, setBusy] = useState(false);
+  if (!fix.pr_url) return null;
+  const refresh = async () => { setBusy(true); try { const r = await fetch(`/api/fix/${fix.id}/checks`, { method: "POST" }); const j = await r.json().catch(() => ({})); if (j.fix) { setRuns(j.fix.check_runs ?? []); setAt(j.fix.checks_at ?? null); } } finally { setBusy(false); } };
+  return (
+    <div>
+      <div className="label">Repository CI (GitHub)</div>
+      {runs.length ? <ul className="grid gap-0.5">{runs.map((r) => <li key={r.name}>{r.url ? <a href={r.url} target="_blank" rel="noreferrer">{r.name}</a> : r.name}: {r.conclusion ?? r.status}</li>)}</ul> : <p>{at ? "No checks reported for this branch." : "Not read yet."}</p>}
+      <p className="text-ink2 mt-1">CI results come from your repository and do not show that the vulnerability is fixed.</p>
+      <button className="btn-ghost mt-1" disabled={busy} onClick={refresh}>{busy ? "Reading…" : "Refresh CI status"}</button>
+    </div>
+  );
+}
+
 function TechnicalDetails({ fix }: { fix: Fix }) {
   return (
     <details className="disclose"><summary>Technical details</summary>
@@ -28,6 +45,7 @@ function TechnicalDetails({ fix }: { fix: Fix }) {
         <StatusLadder fix={fix} />
         {fix.assessment && <Assessment fix={fix} />}
         {fix.caveats.length > 0 && <div><div className="label">Caveats</div><ul className="list-disc pl-5">{fix.caveats.map((c, i) => <li key={i}>{c}</li>)}</ul></div>}
+        <RepoCI fix={fix} />
         {fix.agent === "muse-code" && <RunLadder fix={fix} />}
         {fix.runner?.run_url && <a href={fix.runner.run_url} target="_blank" rel="noreferrer">Job log ↗</a>}
       </div>
@@ -120,7 +138,7 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
 
   // 4. Completed
   if (status === "pr_created" || status === "merging" || status === "blocked_by_protection" || status === "merged" || status === "branch_pushed") {
-    const h = status === "branch_pushed" ? "Branch pushed" : status === "merged" ? "Merged" : status === "merging" ? "Waiting for checks before merging" : status === "blocked_by_protection" ? "Pull request open, not merged" : "Pull request created";
+    const h = status === "branch_pushed" ? "Branch pushed" : status === "merged" ? "Merged" : status === "merging" ? "Waiting for checks before merging" : status === "blocked_by_protection" ? "Pull request open, not merged" : fix.pr_draft === false ? "Pull request created (marked [DRAFT])" : "Draft pull request created";
     const text = status === "branch_pushed" ? `Your fix is on branch ${fix.branch} in ${repo}. Open a pull request on GitHub when you're ready.` : status === "merged" ? "Your repository's checks passed and the change was merged." : status === "merging" ? "The change will merge only if your repository's checks pass." : status === "blocked_by_protection" ? "The pull request stays open for your review." : "Your proposed fix is ready to review on GitHub.";
     return (
       <div className="grid gap-3">

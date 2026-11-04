@@ -73,7 +73,11 @@ export function ground(sim: Omit<Simulation, "downgraded" | "model" | "ms" | "cr
     downgraded++; return "hypothetical";
   };
   const cleanEv = (ev: Step["evidence"]) => ev.filter((e) => (e.condition_id && states.has(e.condition_id)) || (e.file && (citedFiles.has(e.file) || repoFiles.has(e.file)))).slice(0, 4);
-  const scrub = (t: string) => (FAKE_DATA.test(t) ? "[removed]" : t).slice(0, 300);
+  // Personas and screen data must be fictional: the repository owner's real account name and real-looking email
+  // addresses are replaced, and credential-like strings are removed.
+  const owner = (a.repo ?? "").split("/")[0] ?? "";
+  const ownerRe = owner.length >= 3 ? new RegExp(`\\b${owner.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi") : null;
+  const scrub = (t: string) => { let s = FAKE_DATA.test(t) ? "[removed]" : t; if (ownerRe) s = s.replace(ownerRe, "[fictional user]"); return s.replace(/\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g, "user@example.com").slice(0, 300); };
   const steps: Step[] = sim.steps.slice(0, 6).map((s, i) => {
     const evidence = cleanEv(s.evidence);
     return { ...s, n: i + 1, evidence, basis: fixBasis(s.basis, evidence), narration: scrub(s.narration), screen: { ...s.screen, title: scrub(s.screen.title), lines: s.screen.lines.slice(0, 5).map((l) => ({ ...l, text: scrub(l.text) })) } };

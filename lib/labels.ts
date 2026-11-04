@@ -3,7 +3,7 @@
 // finding that is not established for this repository is never shown with a severity word.
 import type { Assessment, Finding, Severity } from "./schema";
 
-export type StatusKind = "serious" | "important" | "moderate" | "minor" | "affects" | "possible" | "not_affected" | "fix_ready" | "resolved";
+export type StatusKind = "serious" | "important" | "moderate" | "minor" | "affects" | "possible" | "not_affected" | "fix_ready" | "resolved" | "withdrawn";
 export type Status = { kind: StatusKind; label: string; glyph: string; tone: string };
 
 const S: Record<StatusKind, Omit<Status, "kind">> = {
@@ -16,6 +16,7 @@ const S: Record<StatusKind, Omit<Status, "kind">> = {
   not_affected: { label: "You're not affected", glyph: "✓", tone: "ok" },
   fix_ready: { label: "Fix ready to review", glyph: "✓", tone: "muted" },
   resolved: { label: "Resolved", glyph: "✓", tone: "muted" },
+  withdrawn: { label: "Advisory withdrawn", glyph: "⊘", tone: "muted" },
 };
 const mk = (kind: StatusKind): Status => ({ kind, ...S[kind] });
 /** Status with its label taken from a translated UI dictionary (keys st_<kind>). */
@@ -23,11 +24,12 @@ const mk = (kind: StatusKind): Status => ({ kind, ...S[kind] });
 export const localized = <T extends { kind: StatusKind; label: string }>(st: T, d: Record<string, string>): T => ({ ...st, label: st.label === S[st.kind].label ? d[`st_${st.kind}`] ?? st.label : d[`st_agent_not_affected`] && st.kind === "resolved" ? d.st_agent_not_affected : st.label });
 
 /** Verified = the deterministic verdict rule (lib/verdict.ts) returned Affected for this repository. */
-export const isVerified = (a: Pick<Assessment, "verdict"> & { agent?: Assessment["agent"] }) => a.verdict === "Affected" || (a.verdict !== "Not Affected" && a.agent?.status === "confirmed" && a.agent.evidence.length > 0);
+export const isVerified = (a: Pick<Assessment, "verdict"> & { agent?: Assessment["agent"]; withdrawn_at?: string | null }) => !a.withdrawn_at && (a.verdict === "Affected" || (a.verdict !== "Not Affected" && a.agent?.status === "confirmed" && a.agent.evidence.length > 0));
 
-export function statusOf(a: Pick<Assessment, "verdict"> & { agent?: Assessment["agent"] }, sev: Severity, state: { resolved: boolean; prOpen: boolean }): Status {
+export function statusOf(a: Pick<Assessment, "verdict"> & { agent?: Assessment["agent"]; withdrawn_at?: string | null }, sev: Severity, state: { resolved: boolean; prOpen: boolean }): Status {
   if (state.prOpen || a.agent?.status === "fix_proposed") return mk("fix_ready");
   if (state.resolved) return mk("resolved");
+  if (a.withdrawn_at) return mk("withdrawn"); // the registry withdrew the advisory: never shown as a live threat
   if (a.verdict === "Not Affected") return mk("not_affected");
   // An agent "not affected" moves the alert to Resolved with its own label; it never hides it.
   if (a.agent?.status === "not_affected") return { ...mk("resolved"), label: "Not affected (checked by your AI agent)" };
@@ -118,4 +120,18 @@ export const caseHref = (aid: string) => `/case/${aid.split("/").map(encodeURICo
 export function modelName(id: string): string {
   const m = /^muse-([a-z]+)-([\d.]+)$/.exec(id);
   return m ? `Meta Muse ${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}` : id === "none" ? "No model" : id;
+}
+
+/**
+ * True only when backend metadata shows Meta Muse Spark produced this assessment: a model call actually ran (not the
+ * deterministic version check, not the budget-capped path), the recorded model id is a Muse Spark id, and, for records
+ * that carry it, the API reported serving a Muse Spark model from the Meta Model API host. Records without a recorded
+ * model, other models, other hosts or agent-reported results get no badge. Nothing is inferred from configuration.
+ */
+export function analysedBySpark(a: Pick<Assessment, "model" | "hosted" | "model_served">): boolean {
+  if (a.hosted === "deterministic" || a.hosted === "capped") return false;
+  if (!/^muse-spark(-|$)/.test(a.model ?? "")) return false;
+  const s = a.model_served;
+  if (s) return s.host === "api.meta.ai" && (s.model === null || /^muse-spark(-|$)/.test(s.model));
+  return true; // older records: `model` was written from the successful call at assessment time, not from settings
 }

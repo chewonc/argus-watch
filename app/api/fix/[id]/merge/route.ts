@@ -1,7 +1,8 @@
 // Push mode: QStash-delayed merge attempts (or the fix owner on demand). Merges only when the repository's own
-// check-runs pass (or the runner executed tests and the repo has no checks); refuses otherwise. Never bypasses protection.
+// check-runs pass; a repository with no check-runs is refused (lib/runner-gates.ts). Never bypasses protection.
+// Refused entirely when fixes are turned off on this deployment (FIX_ENABLED).
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
-import { hasQStash } from "@/lib/env";
+import { env, hasQStash } from "@/lib/env";
 import { tryMerge } from "@/lib/runner";
 import { currentUser } from "@/lib/session";
 import { store } from "@/lib/store";
@@ -9,6 +10,7 @@ import { store } from "@/lib/store";
 export const maxDuration = 60;
 
 async function handler(req: Request, ctx?: { params?: Promise<{ id: string }> }) {
+  if (!env.FIX_ENABLED) return Response.json({ error: "fixes are turned off on this deployment" }, { status: 403 });
   const id = (await ctx?.params)?.id ?? "";
   const fix = await store.getFix(id);
   if (!fix) return Response.json({ error: "not found" }, { status: 404 });

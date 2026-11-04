@@ -81,9 +81,9 @@ export async function runSource(id: string): Promise<{ ok: boolean; source: stri
         const cutoff = new Date(Date.now() - 3 * 86400e3).toISOString().slice(0, 10);
         for (const it of items.filter((i) => st.cursor || i.published_at!.slice(0, 10) >= cutoff)) {
           if (!(await store.markSeen("kev", it.id))) continue;
-          // One failing item must not abort the whole source run (the item is logged; the cursor still advances).
+          // One failing item must not abort the whole source run. It is logged and un-marked as seen so the next run retries it.
           try { const res = await ingest(it); ingested++; if (res.created) created++; }
-          catch (err) { await store.log({ kind: "error", source: "kev", detail: `ingest failed for ${it.ids[0] ?? it.id}: ${String(err).slice(0, 160)}`, ref: it.id }); }
+          catch (err) { await store.unmarkSeen("kev", it.id); await store.log({ kind: "error", source: "kev", detail: `ingest failed for ${it.ids[0] ?? it.id}: ${String(err).slice(0, 160)}`, ref: it.id }); }
         }
         st.cursor = r.kev!.vulnerabilities.reduce((m, v) => (v.dateAdded > m ? v.dateAdded : m), st.cursor ?? "");
       }
@@ -99,7 +99,7 @@ export async function runSource(id: string): Promise<{ ok: boolean; source: stri
           const it = itemFromAdvisory(a, now);
           if (!(await store.markSeen("ghadv", it.id))) continue;
           try { const res = await ingest(it); ingested++; if (res.created) created++; }
-          catch (err) { await store.log({ kind: "error", source: "ghadv", detail: `ingest failed for ${a.ghsa_id}: ${String(err).slice(0, 160)}`, ref: it.id }); }
+          catch (err) { await store.unmarkSeen("ghadv", it.id); await store.log({ kind: "error", source: "ghadv", detail: `ingest failed for ${a.ghsa_id}: ${String(err).slice(0, 160)}`, ref: it.id }); }
         }
         st.cursor = r.advisories.reduce((m, a) => (a.updated_at > m ? a.updated_at : m), st.cursor ?? floor);
       }
@@ -114,7 +114,7 @@ export async function runSource(id: string): Promise<{ ok: boolean; source: stri
         if (!it) { skipped++; continue; }
         if (!(await store.markSeen("nvd", it.id))) continue;
         try { const res = await ingest(it); ingested++; if (res.created) created++; }
-        catch (err) { await store.log({ kind: "error", source: "nvd", detail: `ingest failed for ${c.id}: ${String(err).slice(0, 160)}`, ref: it.id }); }
+        catch (err) { await store.unmarkSeen("nvd", it.id); await store.log({ kind: "error", source: "nvd", detail: `ingest failed for ${c.id}: ${String(err).slice(0, 160)}`, ref: it.id }); }
       }
       note = `${cves.length} CVE change(s), ${skipped} outside software/AI scope`;
       st.cursor = until;
@@ -130,11 +130,11 @@ export async function runSource(id: string): Promise<{ ok: boolean; source: stri
           if (fetched >= 25) break; // bounded per run; the rest is picked up next hour
           const key = `${vid}:${modified}`;
           if (!(await store.markSeen("osv", key))) continue;
-          const v = await getVuln(vid); fetched++;
-          if (!v) continue;
+          const v = await getVuln(vid).catch(() => null); fetched++;
+          if (!v) { await store.unmarkSeen("osv", key); continue; }
           const it = itemFromOsv(v, now);
           try { const r2 = await ingest(it); ingested++; if (r2.created) created++; }
-          catch (err) { await store.log({ kind: "error", source: "osv", detail: `ingest failed for ${vid}: ${String(err).slice(0, 160)}`, ref: it.id }); }
+          catch (err) { await store.unmarkSeen("osv", key); await store.log({ kind: "error", source: "osv", detail: `ingest failed for ${vid}: ${String(err).slice(0, 160)}`, ref: it.id }); }
         }
         note = `${qs.length} package version(s) queried, ${ids.size} known vulnerability id(s), ${fetched} fetched`;
       }

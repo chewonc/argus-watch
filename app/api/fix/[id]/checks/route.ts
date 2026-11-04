@@ -8,7 +8,7 @@ import { store } from "@/lib/store";
 async function handler(_req: Request, ctx?: { params?: Promise<{ id: string }> }) {
   const id = (await ctx?.params)?.id ?? "";
   const fix = await store.getFix(id);
-  if (!fix || fix.status !== "pr_created") return Response.json({ error: "no pull request for this fix" }, { status: 404 });
+  if (!fix || !fix.branch || !["pr_created", "merging", "blocked_by_protection", "merged"].includes(fix.status)) return Response.json({ error: "no pull request for this fix" }, { status: 404 });
   const w = await store.getRepo(fix.repo_key);
   const inst = w?.installation_id ?? (await store.getUserRepo(fix.user_id, fix.repo_key))?.installation_id;
   if (!inst) return Response.json({ error: "no installation" }, { status: 400 });

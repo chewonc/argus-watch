@@ -38,6 +38,7 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
                   <span className={`text-[14px] leading-snug ${n.read_at ? "" : "font-semibold"}`}>{n.display_title}{!n.read_at && <span className="sr-only"> (unread)</span>}</span>
                   <span className="text-[12px] text-ink2 flex flex-wrap gap-x-2">
                     {n.status && <span className={`tone-${n.status.tone}`}><span aria-hidden>{n.status.glyph}</span> {n.status.label}</span>}
+                    {n.report && <span className={`tone-${n.report.tone}`}>{n.report.label}</span>}
                     <span>{n.repo.split("/").slice(0, 2).join("/")}</span>
                   </span>
                 </span>

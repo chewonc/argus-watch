@@ -30,7 +30,9 @@ export function prefilter(text: string, repos: WatchedRepo[]): { relevant: boole
   const names = new Set<string>();
   for (const r of repos) { r.packages.forEach((p) => names.add(p.name.toLowerCase())); r.tech_tags.forEach((t) => names.add(t)); }
   const generic = new Set(["react", "next", "docker", "vercel", "jwt", "axios", "express"]); // still count, but require word boundary
-  const hits = [...names].filter((n) => n.length >= 3 && (generic.has(n) ? new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\.js)?\\b`, "i").test(l) : l.includes(n)));
+  // Short names ("ws", "ms", "next", "jose") and the generic list match whole words only, so "news" does not hit "ws".
+  const word = (n: string) => new RegExp(`(^|[^a-z0-9_-])${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\.js)?($|[^a-z0-9_-])`, "i").test(l);
+  const hits = [...names].filter((n) => n.length >= 3 && (generic.has(n) || n.length <= 5 ? word(n) : l.includes(n)));
   // AI-agent / prompt-injection reports are relevant to any repo tagged with an LLM/MCP SDK
   const aiTerms = /prompt injection|tool[- ]use|mcp server|model context protocol|agent(ic)? (framework|sdk)|function calling/i.test(l);
   if (aiTerms && repos.some((r) => r.tech_tags.some((t) => /mcp|openai-sdk|anthropic-sdk|langchain/.test(t)))) hits.push("ai-agent");
@@ -96,7 +98,7 @@ export async function processFinding(id: string, opts: { replayed?: boolean; onl
         return;
       }
     }
-    f.status = "analyzing"; await store.putFinding(f);
+    f.status = "analyzing"; f.analyzing_at = new Date().toISOString(); await store.putFinding(f);
     // Stack matching per repo
     const matched: WatchedRepo[] = [];
     for (const r0 of repos) {
@@ -119,6 +121,8 @@ export async function processFinding(id: string, opts: { replayed?: boolean; onl
       const cred = f.credibility?.label;
       const fx = cred === "disputed" || cred === "likely_false" || (cred === "unverified" && f.tier === "corroborated") ? { ...f, tier: "signal" as const } : f;
       let a = await assess(fx, f.claim!, r, { replayed: opts.replayed, items, budget: await hostedBudgetLeft(key) });
+      // Withdrawn by its registry: the alert is retracted. It can never stay "Affected"; users see "Advisory withdrawn".
+      if (f.withdrawn_at) a = { ...a, withdrawn_at: f.withdrawn_at, verdict: a.verdict === "Affected" ? "Unclear" : a.verdict, verdict_reason: `Advisory withdrawn by its registry on ${f.withdrawn_at.slice(0, 10)}. ${a.verdict_reason}` };
       if (a.hosted === "model" && a.model !== "none") await chargeHosted(key);
       if (a.verdict === "Affected" || a.verdict === "Unclear") a = await sendAlert(a); else await store.putAssessment(a);
       await notifyAssessment(a, f, items).catch((e) => store.log({ kind: "error", source: "notify", detail: String(e).slice(0, 200), ref: a.id }));

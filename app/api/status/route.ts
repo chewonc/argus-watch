@@ -1,3 +1,5 @@
+import { apiHost } from "@/lib/spark";
+import { USAGE_NAMES, usageSummary } from "@/lib/usage";
 // Public read-only status: source coverage classes with measured intervals, per-stage latency and counts. Aggregates only.
 import { computeLatency } from "@/lib/latency";
 import { POLLERS, TICK_MIN, type PollState, type TickState } from "@/lib/poll";
@@ -48,6 +50,8 @@ export async function GET() {
     } },
     // Which optional capabilities this deployment has configured (booleans only, never values).
     features: { meta_model: !!env.META_API_KEY, model: env.META_MODEL, sign_in: hasAuth(), github_app: hasGitHubApp(), fix_enabled: env.FIX_ENABLED, muse_code_runner: hasRunner(), web_push: hasPush(), google_translate: hasTranslate(), translation: env.META_API_KEY ? (hasTranslate() ? "google" : "meta-muse-spark") : (hasTranslate() ? "google" : "none") },
+    // Meta Model API usage this month per call site (counts only; no prompts, outputs or keys).
+    meta: { month: new Date().toISOString().slice(0, 7), host: apiHost(), by_stage: await usageSummary(undefined, USAGE_NAMES) },
     sources,
     counts: { findings: findings.length, by_status: Object.fromEntries(["new", "not_relevant", "not_actionable", "analyzing", "assessed", "error"].map((s) => [s, findings.filter((f) => f.status === s).length])), assessments: assessments.length, live_assessments: live.length, replayed_assessments: assessments.length - live.length, watched_repos: repos.length },
     latency,

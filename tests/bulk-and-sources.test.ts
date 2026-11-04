@@ -73,6 +73,7 @@ test("navigation and filters: Repositories lives in Settings; empty filter selec
   assert.ok(nav.indexOf('href="/settings"') < nav.indexOf('href="/monitoring"'), "Settings first after the account label");
   assert.match(readFileSync("app/settings/page.tsx", "utf8"), /id="repositories"/);
   const page = readFileSync("app/alerts/page.tsx", "utf8");
-  assert.match(page, /sp\.repo === "none"/); assert.match(page, /No repositories selected/);
+  assert.match(page, /sp\.repo === "none"/); assert.match(page, /d\.no_repos_selected/);
+  assert.match(readFileSync("lib/i18n/dictionary.ts", "utf8"), /no_repos_selected: "No repositories selected"/);
   assert.match(readFileSync("components/repo-filter.tsx", "utf8"), /p\.set\("repo", "none"\)/);
 });

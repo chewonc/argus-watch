@@ -23,6 +23,7 @@ export function Landing({ signin, next, authReady, signedIn = false, d, monitor 
           {signin && <p className="text-[14px] tone-warn">{d.signin_continue}{next ? ` → ${next}` : ""}.</p>}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {signedIn ? <Link href="/alerts" className="btn btn-primary">{d.open_your_alerts}</Link> : authReady ? <SignInButton next={next ?? "/alerts"} label={d.sign_in} /> : <span className="text-[13px] text-ink2">{d.signin_unconfigured}</span>}
+            <Link href="/demo" className="text-[14px]">{d.see_demo}</Link>
             <span className="text-[13px] text-ink2">{d.read_only_note}</span>
           </div>
         </div>
