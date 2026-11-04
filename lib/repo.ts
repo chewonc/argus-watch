@@ -29,9 +29,11 @@ async function installationFor(repo: string): Promise<number | null> {
     for (const w of await store.listRepos()) if (w.installation_id) map.set(w.repo, w.installation_id);
     repoInstMemo = { at: Date.now(), map };
   }
-  return repoInstMemo.map.get(repo) ?? null;
+  return repoInstMemo.map.get(repo) ?? pendingInst.get(repo) ?? null;
 }
 export const forgetInstallations = () => { repoInstMemo = null; };
+/** Repositories being connected are not stored yet: remember their installation so their first reads use it. */
+const pendingInst = new Map<string, number>();
 async function hdr(repo: string): Promise<Record<string, string>> {
   const base: Record<string, string> = { Accept: "application/vnd.github+json", "User-Agent": "ArgusWatch/0.1" };
   const inst = hasGitHubApp() ? await installationFor(repo) : null;
@@ -117,6 +119,7 @@ const inSub = (w: { subdir?: string }, p: string) => !w.subdir || p.startsWith(w
 const depth = (w: { subdir?: string }, p: string) => p.split("/").length - (w.subdir ? w.subdir.replace(/\/$/, "").split("/").length : 0);
 
 export async function refreshRepo(w: WatchedRepo): Promise<WatchedRepo> {
+  if (w.installation_id) pendingInst.set(w.repo, w.installation_id);
   const sha = await headSha(w.repo, w.default_branch);
   if (sha === w.sha && w.refreshed_at) return w;
   const entries = (await tree(w.repo, sha)).filter((e) => inSub(w, e.path));
