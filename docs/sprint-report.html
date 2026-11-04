@@ -1,0 +1,135 @@
+<title>Argus Watch Sprint Report</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,600&display=swap">
+<style>
+/* Layout: a single reading column of a security audit record; status encoded as chips, tables scroll in place. */
+:root{
+  --bg:#f6f7f5; --surface:#ffffff; --ink:#1b1f1d; --ink2:#5b635f; --line:#dde2de; --accent:#2f6b57;
+  --ok:#2c7a4b; --warn:#9a6a12; --bad:#b0402f; --muted:#6c7470;
+  --display:"Fraunces", Georgia, serif; --body:"IBM Plex Sans", system-ui, sans-serif; --mono:"IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#121514;--surface:#1a1e1c;--ink:#e6ebe8;--ink2:#9ca6a1;--line:#2c322f;--accent:#7cc4a7;--ok:#6fcf97;--warn:#e0b25a;--bad:#ef8a78;--muted:#8b948f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121514;--surface:#1a1e1c;--ink:#e6ebe8;--ink2:#9ca6a1;--line:#2c322f;--accent:#7cc4a7;--ok:#6fcf97;--warn:#e0b25a;--bad:#ef8a78;--muted:#8b948f;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--body)}
+.wrap{max-width:900px;margin:0 auto;padding-block:40px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:36px}
+h1{font:600 clamp(28px,5vw,40px)/1.1 var(--display);margin:0;text-wrap:balance}
+h2{font:600 22px/1.25 var(--display);margin:0 0 12px;text-wrap:balance}
+h3{font:600 15px/1.4 var(--body);margin:16px 0 6px}
+p{margin:0 0 10px;max-width:68ch}
+.lede{color:var(--ink2);font-size:16px}
+.meta{font:12px var(--mono);color:var(--ink2);letter-spacing:.02em}
+a{color:var(--accent)}
+code,.mono{font-family:var(--mono);font-size:.9em}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:640px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 11px var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
+tr:last-child td{border-bottom:0}
+.chip{display:inline-block;font:500 11.5px var(--body);padding:1px 8px;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+.live{color:var(--ok)}.local{color:var(--accent)}.blocked{color:var(--warn)}.no{color:var(--bad)}.na{color:var(--muted)}
+ul{margin:0;padding-left:20px;display:grid;gap:4px}
+.callout{border-left:3px solid var(--warn);background:var(--surface);padding:14px 16px;border-radius:0 8px 8px 0}
+.callout h3{margin-top:0}
+ol.walk{padding-left:22px;display:grid;gap:6px}
+section{min-width:0}
+</style>
+<div class="wrap">
+<header>
+  <div class="meta">chewonc/argus-watch · main @ b4deb77 · Nov 4 2026 · Meta Global AI Developer Hackathon</div>
+  <h1>Argus Watch: final sprint report</h1>
+  <p class="lede">What changed in the last 24 hours, what is verified on production, what was only verified locally, and what still needs the owner. Statuses are evidence-based: <span class="chip live">live</span> observed on production, <span class="chip local">local</span> exercised end to end against real APIs and Meta models, <span class="chip blocked">needs setup</span> implemented but waiting on credentials, <span class="chip no">not built</span>.</p>
+</header>
+
+<section class="callout">
+  <h3>Two things only you can unblock</h3>
+  <ul>
+    <li><b>Muse Code remediation is not verified.</b> I could not install Muse Code on this machine (the install script was blocked by the session's permission policy) and I have no GitHub token to set Actions secrets. Fix &amp; create PR / Fix &amp; push stay hidden until you set the variables in SETUP §1b. No Muse Code run has completed.</li>
+    <li><b>A real pull request has never been created.</b> It needs <code>FIX_ENABLED=1</code> plus a repository with the App's write permission and changes enabled.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>A. Original plan vs. final implementation</h2>
+  <div class="tbl"><table>
+    <tr><th>Feature</th><th>Requirement</th><th>Before sprint</th><th>Now</th><th>Production</th></tr>
+    <tr><td>Advisory and feed ingestion</td><td>GHSA, KEV, research and news feeds, scheduled</td><td>live</td><td>unchanged</td><td><span class="chip live">live</span></td></tr>
+    <tr><td>NVD</td><td>Poll CVEs</td><td>missing</td><td>30-min poller, paginated, AI/software gate</td><td><span class="chip blocked">first run 503 from NVD</span></td></tr>
+    <tr><td>OSV</td><td>Repository-specific vulns</td><td>enrichment only</td><td>hourly querybatch with lockfile versions</td><td><span class="chip live">live</span></td></tr>
+    <tr><td>Report credibility</td><td>Verified … Likely false, evidence recorded</td><td>missing</td><td>registry lookups + Muse Spark web search + rule</td><td><span class="chip live">live</span></td></tr>
+    <tr><td>Agentic code investigation</td><td>Reachability, files and lines</td><td>fixed listing</td><td>Spark tool calling, ≤6 rounds</td><td><span class="chip local">local</span></td></tr>
+    <tr><td>Initial scan on connect</td><td>Analyze new repos</td><td>missing</td><td>30-day backfill, bounded</td><td><span class="chip local">local</span></td></tr>
+    <tr><td>Notifications</td><td>Badge, read state, priority, history</td><td>local</td><td>priority order, fix events notify</td><td><span class="chip live">live</span></td></tr>
+    <tr><td>Web Push</td><td>Browser notifications</td><td>code</td><td>unchanged</td><td><span class="chip blocked">needs VAPID keys</span></td></tr>
+    <tr><td>Email</td><td>Optional</td><td>missing</td><td>missing</td><td><span class="chip no">not built</span></td></tr>
+    <tr><td>Multilingual UI</td><td>Selector, Korean, identifiers kept</td><td>no key, settings only</td><td>header selector, Korean dictionary, Spark translation</td><td><span class="chip live">landing verified</span></td></tr>
+    <tr><td>User-impact simulation</td><td>Grounded, visual, before/after</td><td>new request</td><td>built</td><td><span class="chip local">local</span></td></tr>
+    <tr><td>Fix preview, diff</td><td>Show code, diff, assessment</td><td>local</td><td>fix link bug fixed, flag enforced server-side</td><td><span class="chip blocked">FIX_ENABLED off</span></td></tr>
+    <tr><td>Fix &amp; create PR / Fix &amp; push</td><td>Muse Code edits, tests, PR or merge</td><td>missing</td><td>runner, routes, dialog, audit trail</td><td><span class="chip blocked">needs setup, unverified</span></td></tr>
+    <tr><td>MCP</td><td>Muse Code first, honest compatibility</td><td>Claude/Codex only</td><td>Muse Code first; credibility in get_finding</td><td><span class="chip live">auth verified</span></td></tr>
+    <tr><td>Sign-in, App install</td><td>GitHub</td><td>sign-in live</td><td>unchanged</td><td><span class="chip live">sign-in</span></td></tr>
+    <tr><td>Open source</td><td>Public, licensed, runnable</td><td>public, Apache-2.0</td><td>.env.example, CONTRIBUTING, provenance, licences</td><td><span class="chip live">public</span></td></tr>
+    <tr><td>Loading / error states</td><td>UX</td><td>missing</td><td>added</td><td><span class="chip live">deployed</span></td></tr>
+  </table></div>
+</section>
+
+<section>
+  <h2>B. Built during this sprint</h2>
+  <div class="tbl"><table>
+    <tr><th>Feature</th><th>Main files</th><th>Tests</th></tr>
+    <tr><td>Muse Code remediation runner</td><td class="mono">lib/runner.ts, lib/runner-gates.ts, scripts/remediate/run.mjs, .github/workflows/remediate.yml, app/api/fix/[id]/{run,runner,merge}, components/muse-fix.tsx</td><td>tests/runner.test.ts (unit)</td></tr>
+    <tr><td>Report credibility</td><td class="mono">lib/verify.ts, lib/spark.ts (Responses + web_search), components/credibility.tsx</td><td>tests/verify.test.ts (unit); scripts/checks/verify-live.mts (live, 3/3)</td></tr>
+    <tr><td>NVD + OSV pollers, backfill</td><td class="mono">lib/sources/nvd.ts, lib/sources/osv.ts, lib/poll.ts, lib/pipeline.ts</td><td>scripts/checks/sources-live.mts (live)</td></tr>
+    <tr><td>Agentic investigation</td><td class="mono">lib/investigate.ts, lib/spark.ts (sparkTools), lib/analyze.ts</td><td>scripts/checks/agentic-live.mts (live, 3 fixtures)</td></tr>
+    <tr><td>User-impact simulation</td><td class="mono">lib/simulate.ts, components/simulate-impact.tsx, app/api/simulate</td><td>tests/simulate.test.ts (unit); simulate-live.mts (live, 2)</td></tr>
+    <tr><td>Multilingual</td><td class="mono">lib/i18n/translate.ts, lib/i18n/ko.ts, components/landing.tsx, header</td><td>tests/i18n.test.ts (unit); browser check</td></tr>
+    <tr><td>Notifications, states, docs</td><td class="mono">lib/notif-view.ts, app/{loading,error,not-found}.tsx, README, SETUP, USER_GUIDE, DEMO</td><td>—</td></tr>
+  </table></div>
+  <p class="meta">Suite: 57 unit tests passing (was 25 at the start of the Nov 2 audit, 39 before this sprint). Lint and typecheck clean. Production build green. CI green on pushed commits.</p>
+</section>
+
+<section>
+  <h2>C. Remaining gaps</h2>
+  <ul>
+    <li>Muse Code headless run not exercised anywhere. If it cannot run unattended, the feature stays disabled and says why; no other agent is substituted.</li>
+    <li>No real pull request or merge has been created by Argus.</li>
+    <li>NVD's first production run returned HTTP 503; local calls succeed.</li>
+    <li>Agentic investigation compared on 3 fixtures only; the 16-case harness was not rerun with it.</li>
+    <li>Some deep technical panels and the fix dialog remain English; first Korean view of a case takes about 40 s until translations are cached.</li>
+    <li>Web Push needs VAPID keys; email, X, LinkedIn, Threads not available.</li>
+    <li>Simulation, agentic investigation and the Korean case page were verified locally, not on production with a signed-in session.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>D. Production verification</h2>
+  <p>Live URL: <a href="https://argus-watch-three.vercel.app">argus-watch-three.vercel.app</a> · Repository: <a href="https://github.com/chewonc/argus-watch">github.com/chewonc/argus-watch</a> (public, Apache-2.0).</p>
+  <div class="tbl"><table>
+    <tr><th>Check</th><th>Result</th></tr>
+    <tr><td>Deploy of new code</td><td><code>/api/status</code> shows the new features block, NVD/OSV pollers and fact-check stage</td></tr>
+    <tr><td>Scheduled ingestion</td><td>tick every 5 min; ghadv, rss, kev, osv ok</td></tr>
+    <tr><td>Scenario A (real advisory)</td><td>Next.js GHSA assessed against 4 repos and notified (log 03:08 UTC); report verified as official</td></tr>
+    <tr><td>Scenarios B–D</td><td>local with real APIs: control repo Not Affected; fabricated CVE Likely false; rumour Unverified; arXiv source live in feeds</td></tr>
+    <tr><td>Scenario E (Korean)</td><td>production landing served in Korean via cookie; full flow checked locally at desktop and 375px, no horizontal scroll</td></tr>
+    <tr><td>Auth checks</td><td>simulate, fix run → 401; runner callbacks without secret → 401; MCP without token → 401; admin → 401; merge without signature → 403</td></tr>
+    <tr><td>Secrets</td><td>git history scanned for key patterns: none; <code>.env*</code> ignored; secrets only in Vercel</td></tr>
+  </table></div>
+  <h3>Remaining security risks</h3>
+  <ul>
+    <li>In the runner, Muse Code runs with <code>--yolo</code> and holds the Meta API key, so a prompt-injected repository could exfiltrate that key from the ephemeral VM. The clone token is short-lived, the runner secret and nonce are not in its environment, and tests run without the key.</li>
+    <li>Push mode merges automatically once checks pass; branch protection is respected but not required.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>E. Walkthrough for a new user</h2>
+  <ol class="walk">
+    <li>Open the site, pick a language with the 🌐 selector, click <b>Sign in with GitHub</b>.</li>
+    <li>Account menu → <b>Repositories</b> → <b>Connect GitHub</b>, install the App on chosen repositories.</li>
+    <li>Tick repositories → <b>Start monitoring</b>. Argus checks the last 30 days of matching threats right away.</li>
+    <li>Alerts arrive in <b>Alerts</b> and the bell, ordered by what needs you most, each with a report-credibility label.</li>
+    <li>Open an alert: what's wrong, exact file and lines, <b>Open file in GitHub</b>, <b>Is this threat real?</b>, and <b>Simulate user impact</b>.</li>
+    <li>Click <b>Fix</b>, review the diff, then <b>Fix &amp; create PR</b> or <b>Fix &amp; push</b> (once the runner is configured).</li>
+    <li>Settings → <b>Connect AI agent</b>: Meta Muse Code, Claude Code or Codex over MCP with a personal token.</li>
+  </ol>
+</section>
+</div>
