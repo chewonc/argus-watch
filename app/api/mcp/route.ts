@@ -1,11 +1,11 @@
-// Argus Watch MCP endpoint (Streamable HTTP, stateless, JSON responses). Auth: a personal agent token from
+// SaveBell MCP endpoint (Streamable HTTP, stateless, JSON responses). Auth: a personal agent token from
 // Settings → Connect AI agent, sent as `Authorization: Bearer aw_…`. Tools and boundaries: lib/mcp.ts.
 import { resolveAgentToken } from "@/lib/agent-token";
 import { handleRpc } from "@/lib/mcp";
 
 export const dynamic = "force-dynamic";
 
-const unauthorized = () => new Response(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32001, message: "Missing or invalid Argus Watch agent token. Create one in Settings → Connect AI agent." } }),
+const unauthorized = () => new Response(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32001, message: "Missing or invalid SaveBell agent token. Create one in Settings → Connect AI agent." } }),
   { status: 401, headers: { "content-type": "application/json", "www-authenticate": 'Bearer realm="argus-watch", error="invalid_token"' } });
 
 export async function POST(req: Request) {

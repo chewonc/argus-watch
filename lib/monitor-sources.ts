@@ -1,4 +1,4 @@
-// "What We Monitor": the threat-intelligence sources Argus Watch actually collects from, with status derived from real
+// "What We Monitor": the threat-intelligence sources SaveBell actually collects from, with status derived from real
 // collector state (lib/poll.ts poll state per source, per-feed results in the shared seen document, GitHub App webhook
 // deliveries in the log). Nothing here is hardcoded as "active": a source is Active only when its last successful
 // collection is recent for its schedule. Sources are polled on a schedule; nothing claims real-time streaming.

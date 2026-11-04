@@ -1,6 +1,6 @@
 // "What happens if you don't fix this?" — a hypothetical, user-centred walkthrough of how an end user of the
 // repository's application could experience the threat. Meta Muse Spark proposes the scenario as structured screens;
-// code then grounds it: every step that claims to be demonstrated or inferred must cite a condition Argus marked
+// code then grounds it: every step that claims to be demonstrated or inferred must cite a condition SaveBell marked
 // Observed/Inferred or a verified file:line from the assessment, otherwise it is downgraded to hypothetical. The
 // "application surface" must cite real repository files or it is labelled generic. Nothing is executed, and all
 // people, data and transactions are synthetic.
@@ -40,7 +40,7 @@ const SCHEMA = {
 const RULES = `Task: show a developer what an END USER of their application could experience if this vulnerability were exploited, as 3-6 short steps rendered as screens of the app.
 Ground rules (code verifies them; violations are downgraded or removed):
 - Derive the application surface (chatbot, agent, shop, API, CLI...) ONLY from the repository files shown. Cite the files/lines in surface.derived_from. If the files do not show a user-facing surface, set applicable=false and explain why; do not invent features.
-- Each step's basis: "demonstrated" only if a cited condition was Observed by Argus; "inferred" if Inferred; otherwise "hypothetical". Cite condition ids and/or file:line for every non-hypothetical step.
+- Each step's basis: "demonstrated" only if a cited condition was Observed by SaveBell; "inferred" if Inferred; otherwise "hypothetical". Cite condition ids and/or file:line for every non-hypothetical step.
 - Use fictional people and data only (e.g. "Mina", "order #4821", "mina@example.com"). Never real names, secrets, URLs or identifiers from the repository's users.
 - Describe consequences, never attack instructions: no payloads, no exploit strings, no step-by-step technique. The attacker step is described in plain words ("a product description contains hidden instructions").
 - The consequence must follow from the conditions; if impact beyond what the code shows is plausible, mark it hypothetical.
@@ -114,7 +114,7 @@ export async function simulate(a: Assessment, f: Finding | null, fix: Fix | null
   const fixText = fix && fix.files.length ? `FIX (${fix.agent === "muse-code" ? "made by Muse Code" : "proposed"}; status ${fix.status}${fix.runner?.tests?.executed ? `; tests ${fix.runner.tests.exit_code === 0 ? "passed" : "failed"}` : "; not tested"}):\n${fix.files.map((x) => x.patch).join("\n").slice(0, 12000)}` : "FIX: none provided";
   const langRule = lang !== "en" ? `\n- Write persona, narration, screen text, consequence and with_fix text in the language with code "${lang}". Keep file paths, identifiers and code in English.` : "";
   const r = await sparkJSON<Parameters<typeof ground>[0]>({ system: `${READ_ONLY}\n${UNTRUSTED}\n${RULES}${langRule}`, name: "simulate", schema: SCHEMA, temperature: 0.2,
-    user: `THREAT (untrusted): ${f?.title ?? a.finding_id}\nSUMMARY (untrusted): ${f?.claim?.summary ?? ""}\nARGUS VERDICT: ${a.verdict} (${a.verdict_reason})\nCONDITIONS AS ASSESSED BY ARGUS:\n${conds}\n\n${fixText}\n\nREPOSITORY FILES (untrusted, numbered):\n${listing.slice(0, 60000)}` });
+    user: `THREAT (untrusted): ${f?.title ?? a.finding_id}\nSUMMARY (untrusted): ${f?.claim?.summary ?? ""}\nSAVEBELL VERDICT: ${a.verdict} (${a.verdict_reason})\nCONDITIONS AS ASSESSED BY SAVEBELL:\n${conds}\n\n${fixText}\n\nREPOSITORY FILES (untrusted, numbered):\n${listing.slice(0, 60000)}` });
   const g = ground(r.out, a, new Set(texts.keys()), fix);
   const sim: Simulation = { ...g, model: r.model, ms: r.ms, created_at: new Date().toISOString(), version };
   await kv.set(key, sim);

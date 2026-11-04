@@ -18,7 +18,7 @@ export async function applyFix(fix: Fix, a: Assessment, f: Finding | null, insta
   const [owner, repo] = fix.repo.split("/");
   const w = await store.getRepo(fix.repo_key);
   const base = w?.default_branch ?? "main";
-  const branch = fixBranch(fix.id);
+  const branch = fix.grant?.branch ?? fixBranch(fix.id);
   const files = fix.files.map((x) => ({ path: x.path, after: x.after }));
   const target = { repo: fix.repo, branch, baseBranch: base, files };
   // 0. approval must be live before any write-capable token is even requested
@@ -42,12 +42,12 @@ export async function applyFix(fix: Fix, a: Assessment, f: Finding | null, insta
   const { data: newTree } = await ok.rest.git.createTree({ owner, repo, base_tree: headCommit.tree.sha, tree });
   const pt = prText(fix, a, f, env.APP_URL);
   const title = pt.title;
-  const body = opts.author ? `> Changes made by **${opts.author}** in an isolated runner and validated by Argus Watch before this write.
+  const body = opts.author ? `> Changes made by **${opts.author}** in an isolated runner and validated by SaveBell before this write.
 > ${opts.testsNote ?? ""}
 > Audit trail: ${(fix.events ?? []).map((e) => `${e.at} ${e.actor} ${e.action}`).join(" · ")}
 
 ${pt.body}` : pt.body;
-  const { data: commit } = await ok.rest.git.createCommit({ owner, repo, message: `${title}\n\n${fix.summary}\n\n${opts.testsNote ?? "Syntax-checked only; not executed."} Remediation not verified. ${opts.author ? `Edited by ${opts.author}; ` : "Drafted by "}Argus Watch, assessment ${a.id}.`, tree: newTree.sha, parents: [headSha] });
+  const { data: commit } = await ok.rest.git.createCommit({ owner, repo, message: `${title}\n\n${fix.summary}\n\n${opts.testsNote ?? "Syntax-checked only; not executed."} Remediation not verified. ${opts.author ? `Edited by ${opts.author}; ` : "Drafted by "}SaveBell, assessment ${a.id}.`, tree: newTree.sha, parents: [headSha] });
   // Blobs, tree and commit above are unreferenced objects; creating the branch is the first visible write.
   await assertWrite(fix.id, { kind: "create_branch", ...target });
   let createdBranch = false;

@@ -1,17 +1,17 @@
 "use client";
-// Threat Timeline on the case page: what happened to this threat in the world, and when Argus found it in your code.
+// Threat Timeline on the case page: what happened to this threat in the world, and when SaveBell found it in your code.
 // Every entry shows its source and how sure it is (Confirmed / Reported / Inferred: glyph + word, never colour alone).
 import { useEffect, useState } from "react";
 import type { ThreatTimeline as TL, TLEvent } from "@/lib/timeline";
 
 const CONF: Record<TLEvent["confidence"], { glyph: string; label: string; color: string; help: string }> = {
-  confirmed: { glyph: "■", label: "Confirmed", color: "var(--observed)", help: "From a registry, an official catalog, or Argus Watch's own record." },
+  confirmed: { glyph: "■", label: "Confirmed", color: "var(--observed)", help: "From a registry, an official catalog, or SaveBell's own record." },
   reported: { glyph: "◧", label: "Reported", color: "var(--inferred)", help: "Stated by this source; not independently confirmed." },
   inferred: { glyph: "□", label: "Inferred", color: "var(--ink-2)", help: "Date derived from a record, not stated for this event." },
 };
 const KIND: Partial<Record<TLEvent["kind"], string>> = {
   disclosure: "Disclosure", advisory_published: "Advisory", advisory_updated: "Update", withdrawn: "Withdrawn", patch: "Patch", exploitation: "Exploitation",
-  research: "Research", report: "Report", argus_discovered: "Argus Watch", argus_assessed: "Your code", argus_notified: "Alert", fix_drafted: "Fix", fix_pr: "Pull request", fix_merged: "Merged", agent_report: "Your agent",
+  research: "Research", report: "Report", argus_discovered: "SaveBell", argus_assessed: "Your code", argus_notified: "Alert", fix_drafted: "Fix", fix_pr: "Pull request", fix_merged: "Merged", agent_report: "Your agent",
 };
 const fmt = (e: TLEvent) => {
   const d = new Date(e.at);
@@ -20,11 +20,11 @@ const fmt = (e: TLEvent) => {
 };
 
 export type TimelineLabels = { showAll: string; showFewer: string; firstReported: string; argusDetected: string; argusPickedUp: string; recorded: string };
-const DEFAULT_LABELS: TimelineLabels = { showAll: "Show all events", showFewer: "Show fewer", firstReported: "First reported", argusDetected: "Argus Watch detected and assessed the threat", argusPickedUp: "Argus Watch picked up the threat", recorded: "Recorded by Argus Watch" };
-// Argus's own processing events are records of what the system did, not confirmation of the vulnerability.
+const DEFAULT_LABELS: TimelineLabels = { showAll: "Show all events", showFewer: "Show fewer", firstReported: "First reported", argusDetected: "SaveBell detected and assessed the threat", argusPickedUp: "SaveBell picked up the threat", recorded: "Recorded by SaveBell" };
+// SaveBell's own processing events are records of what the system did, not confirmation of the vulnerability.
 const isArgusRecord = (e: TLEvent) => e.basis === "argus_record" && (e.lane === "repo" || e.kind === "argus_discovered");
 
-/** Compact overview: the earliest dated external event, and Argus's detection/assessment milestone. Nothing is dropped from the full view. */
+/** Compact overview: the earliest dated external event, and SaveBell's detection/assessment milestone. Nothing is dropped from the full view. */
 export function overview(all: TLEvent[]): { first: TLEvent | null; argus: TLEvent | null; assessed: boolean } {
   const external = all.filter((e) => e.lane === "threat" && e.kind !== "argus_discovered" && !(e.basis === "argus_record"));
   const first = external[0] ?? null; // all is chronological
@@ -90,7 +90,7 @@ export function ThreatTimeline({ assessmentId, title = "Threat timeline", labels
       })()}
       {t && expanded && <div id="tl-full" className="contents">
         <p className="text-[calc(14px*var(--ui))] leading-relaxed">{t.summary}<span className="text-[calc(11px*var(--ui))] text-ink2 ml-2">{t.summary_basis === "model" ? "summary by Muse Spark, checked against the events" : "summary generated from the events"}</span></p>
-        {t.limited && <p className="text-[calc(13px*var(--ui))] text-ink2">Little history is known for this threat: only {t.events.filter((e) => e.kind !== "argus_discovered").length} dated record(s) in the sources Argus follows. Absence of events is not evidence that nothing happened.</p>}
+        {t.limited && <p className="text-[calc(13px*var(--ui))] text-ink2">Little history is known for this threat: only {t.events.filter((e) => e.kind !== "argus_discovered").length} dated record(s) in the sources SaveBell follows. Absence of events is not evidence that nothing happened.</p>}
         <ol className="tl-list">
           {shown.map((e) => {
             const c = CONF[e.confidence];
@@ -101,7 +101,7 @@ export function ThreatTimeline({ assessmentId, title = "Threat timeline", labels
                 <div className="grid gap-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[calc(12px*var(--ui))]">
                     <span className="label !text-[calc(11px*var(--ui))]">{e.lane === "repo" ? "Your repository · " : ""}{KIND[e.kind] ?? e.kind}</span>
-                    {isArgusRecord(e) ? <span className="text-ink2" title="An action Argus Watch recorded. It does not mean the vulnerability is confirmed in your repository.">{labels.recorded}</span>
+                    {isArgusRecord(e) ? <span className="text-ink2" title="An action SaveBell recorded. It does not mean the vulnerability is confirmed in your repository.">{labels.recorded}</span>
                       : <span className="chip" style={{ color: c.color }} title={c.help}>{c.glyph} {c.label}</span>}
                     {e.basis === "model_extracted" && <span className="text-ink2" title="Proposed by Meta Muse Spark; date and claim were found verbatim in the source">read by Muse Spark · quote checked</span>}
                     {conflict.length > 0 && <span style={{ color: "var(--unclear)" }}>⚠ dates differ between sources</span>}
@@ -118,7 +118,7 @@ export function ThreatTimeline({ assessmentId, title = "Threat timeline", labels
         <details className="disclose">
           <summary>How this timeline was built</summary>
           <ul className="text-[calc(12px*var(--ui))] text-ink2 grid gap-1 mt-2">
-            <li>{all.length} events from {sources} source(s). Dates come from source timestamps, registry records{t.registry.length ? ` (${t.registry.map((r) => `${r.id} ${r.registry}: ${r.status === "ok" ? "found" : r.status === "not_found" ? "not found" : "unreachable"}`).join("; ")})` : ""} and Argus Watch&apos;s own records.</li>
+            <li>{all.length} events from {sources} source(s). Dates come from source timestamps, registry records{t.registry.length ? ` (${t.registry.map((r) => `${r.id} ${r.registry}: ${r.status === "ok" ? "found" : r.status === "not_found" ? "not found" : "unreachable"}`).join("; ")})` : ""} and SaveBell&apos;s own records.</li>
             <li>{t.model.name ? `Meta ${t.model.name}` : "Meta Muse Spark"} read the reports and proposed {t.model.proposed} dated development(s); {t.model.accepted} were kept because their date and claim appear verbatim in the source{t.model.rejected.length ? `; ${t.model.rejected.length} rejected (${[...new Set(t.model.rejected.map((r) => r.reason))].join("; ")})` : ""}.{t.model.error ? ` Model unavailable: ${t.model.error}. Showing dated records only.` : ""}</li>
             <li>{t.wonder.enabled ? (t.wonder.reviews.length ? `Meta Muse Wonder reviewed a date conflict: ${t.wonder.reviews[0].resolution === "unresolved" ? "unresolved" : "a preference was accepted because it quoted the source"}. No event is ever removed.` : "Muse Wonder conflict review is on; no conflict needed review.") : "Conflicting dates are shown side by side (Muse Wonder review is off)."}</li>
             <li>Exploitation is &ldquo;Confirmed&rdquo; only from CISA&apos;s Known Exploited Vulnerabilities catalog. Built {t.built_at.replace("T", " ").slice(0, 16)} UTC; rebuilt automatically when new reports about this threat arrive.</li>

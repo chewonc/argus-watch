@@ -1,3 +1,4 @@
+// Product renamed to SaveBell on 2026-11-05; names and URLs below are historical.
 // Evaluation harness for the 12 + 4 case set (EVAL.md). Strictly read-only: fixture files are read as text and never
 // executed; the only network call is the Meta Model API. The version condition is computed in code from the lockfile
 // (as in the app) and the verdict is reported twice: the model's own choice and the app's deterministic rule

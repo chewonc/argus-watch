@@ -1,5 +1,5 @@
 // POST {assessment_id, force?} -> the Threat Timeline for the assessment's finding (lib/timeline.ts) plus the
-// repository lane (Argus's own records for this repository). Read-only; cached per finding version.
+// repository lane (SaveBell's own records for this repository). Read-only; cached per finding version.
 import { assessmentFor } from "@/lib/authz";
 import { fixesFor } from "@/lib/authz";
 import { canSee, currentUser } from "@/lib/session";

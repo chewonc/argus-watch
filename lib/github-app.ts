@@ -4,6 +4,7 @@ import { App } from "@octokit/app";
 import { Octokit } from "@octokit/rest";
 import { env, hasGitHubApp } from "./env";
 import { store } from "./store";
+import { USER_AGENT } from "./ua";
 
 let app: App | null = null;
 export function githubApp(): App {
@@ -41,10 +42,10 @@ export async function scopedRepoToken(installationId: number, repoName: string, 
   return r.data.token;
 }
 export const scopedRepoOctokit = async (installationId: number, repoName: string, permissions: Record<string, "read" | "write">) =>
-  new Octokit({ auth: await scopedRepoToken(installationId, repoName, permissions), userAgent: "ArgusWatch/0.1" });
+  new Octokit({ auth: await scopedRepoToken(installationId, repoName, permissions), userAgent: USER_AGENT });
 
-export const installationOctokit = async (installationId: number) => new Octokit({ auth: await installationToken(installationId), userAgent: "ArgusWatch/0.1" });
-export const userOctokit = (token: string) => new Octokit({ auth: token, userAgent: "ArgusWatch/0.1" });
+export const installationOctokit = async (installationId: number) => new Octokit({ auth: await installationToken(installationId), userAgent: USER_AGENT });
+export const userOctokit = (token: string) => new Octokit({ auth: token, userAgent: USER_AGENT });
 
 export type UserInstallation = { id: number; account: string; account_type: "User" | "Organization"; repository_selection: "all" | "selected"; permissions: Record<string, string> };
 /** Installations of this App that the signed-in user can see (GET /user/installations with the user token). */
@@ -102,9 +103,9 @@ export async function listInstallationReposApp(installationId: number): Promise<
 /** A GitHub error as an actionable sentence for the Repositories page (never a raw stack). */
 export function explainGitHubError(e: unknown, account: string): string {
   const status = (e as { status?: number }).status;
-  if (status === 401) return `GitHub rejected Argus Watch's credentials for ${account}. Reinstall or re-authorize the Argus Watch app on GitHub.`;
-  if (status === 403) return `The Argus Watch app no longer has access to ${account}'s repositories (permissions changed or the installation is suspended). Review its access on GitHub.`;
-  if (status === 404) return `The Argus Watch app installation for ${account} was not found; it may have been uninstalled. Connect the account again.`;
+  if (status === 401) return `GitHub rejected SaveBell's credentials for ${account}. Reinstall or re-authorize the SaveBell app on GitHub.`;
+  if (status === 403) return `The SaveBell app no longer has access to ${account}'s repositories (permissions changed or the installation is suspended). Review its access on GitHub.`;
+  if (status === 404) return `The SaveBell app installation for ${account} was not found; it may have been uninstalled. Connect the account again.`;
   return `GitHub did not answer for ${account} (${status ?? "network error"}). Try again in a moment.`;
 }
 

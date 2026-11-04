@@ -1,3 +1,4 @@
+// Product renamed to SaveBell on 2026-11-05; names and URLs below are historical.
 // Gate follow-up: precondition extraction without supplied condition IDs, then end-to-end
 // state assignment + deterministic verdict. Strictly read-only: fixtures are read as text, never executed.
 // Usage: RUNS=3 node extract.mjs   (key from META_API_KEY or feasibility/.env.local, never printed)

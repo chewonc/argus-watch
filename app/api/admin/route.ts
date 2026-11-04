@@ -1,6 +1,6 @@
 // Admin (ADMIN_TOKEN): manage watched repos, replay a stored real payload, trigger heartbeat.
 // Replays are labeled; they re-run the SAME pipeline but never count as live deliveries.
-import { env } from "@/lib/env";
+import { isAdminAuth } from "@/lib/env";
 import { ingest, processFinding } from "@/lib/pipeline";
 import { refreshRepo } from "@/lib/repo";
 import { WatchedRepo } from "@/lib/schema";
@@ -16,7 +16,7 @@ export const maxDuration = 300;
 const unauthorized = () => new Response("unauthorized", { status: 401 });
 
 export async function POST(req: Request) {
-  if (!env.ADMIN_TOKEN || req.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return unauthorized();
+  if (!isAdminAuth(req.headers.get("authorization"))) return unauthorized();
   const body = (await req.json()) as { op: string; [k: string]: unknown };
   const t0 = Date.now();
   switch (body.op) {

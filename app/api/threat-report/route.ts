@@ -3,7 +3,7 @@
 // never publishes it and never marks it verified; the operator reviews reports (GET with the admin token) and, if
 // relevant, ingests them through the existing admin replay/analyze path, which runs the normal credibility checks.
 import { createHash, randomBytes } from "node:crypto";
-import { env } from "@/lib/env";
+import { isAdminAuth } from "@/lib/env";
 import { currentUser } from "@/lib/session";
 import { store } from "@/lib/store";
 import { reportKey, validateReport } from "@/lib/threat-report";
@@ -25,8 +25,8 @@ export async function POST(req: Request) {
   return Response.json({ ok: true, message: "Thanks. We'll review it. Reports are checked before they become alerts." });
 }
 
-/** Operator review queue (admin token only). Reports are never exposed publicly. */
+/** Operator review queue (ADMIN_TOKEN only). Reports are never exposed publicly. */
 export async function GET(req: Request) {
-  if (!env.ADMIN_TOKEN || req.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("unauthorized", { status: 401 });
+  if (!isAdminAuth(req.headers.get("authorization"))) return new Response("unauthorized", { status: 401 });
   return Response.json({ reports: await store.listThreatReports(200) });
 }

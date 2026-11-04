@@ -7,7 +7,7 @@ export function fmtAlert(a: Assessment): string {
   const lat = a.timestamps.published_at ? `${Math.round((Date.parse(a.timestamps.processed_at) - Date.parse(a.timestamps.published_at)) / 1000)}s since publication` : "publication time unknown";
   const tag = a.replayed ? " [REPLAYED]" : "";
   const conds = a.conditions.map((c) => `• ${c.state}: ${c.text}`).join("\n");
-  return `Argus Watch${tag}: ${a.verdict} (${a.tier})\nRepo: ${a.repo}@${a.sha.slice(0, 7)}\n${a.verdict_qualifier}\n${conds}\nMissing evidence: ${a.missing_evidence.length ? a.missing_evidence.join("; ") : "none identified"}\nRecommended: ${a.recommendations.map((r) => r.text).join(" | ") || "monitor"}\n${lat}\n${env.APP_URL}/case/${a.id.split("/").map(encodeURIComponent).join("/")}\nRead-only analysis; nothing was executed or tested.`;
+  return `SaveBell${tag}: ${a.verdict} (${a.tier})\nRepo: ${a.repo}@${a.sha.slice(0, 7)}\n${a.verdict_qualifier}\n${conds}\nMissing evidence: ${a.missing_evidence.length ? a.missing_evidence.join("; ") : "none identified"}\nRecommended: ${a.recommendations.map((r) => r.text).join(" | ") || "monitor"}\n${lat}\n${env.APP_URL}/case/${a.id.split("/").map(encodeURIComponent).join("/")}\nRead-only analysis; nothing was executed or tested.`;
 }
 
 export async function sendAlert(a: Assessment): Promise<Assessment> {

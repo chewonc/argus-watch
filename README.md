@@ -1,8 +1,8 @@
-# Argus Watch
+# SaveBell
 
-**Continuous AI security threat intelligence, connected to your actual code.** Argus Watch follows security advisories, vulnerability databases, research papers and security news; fact-checks each report; decides whether it really applies to the GitHub repositories you connect, down to the file and line; tells you; and helps you fix it.
+**Continuous AI security threat intelligence, connected to your actual code.** SaveBell follows security advisories, vulnerability databases, research papers and security news; fact-checks each report; decides whether it really applies to the GitHub repositories you connect, down to the file and line; tells you; and helps you fix it.
 
-Live: https://argus-watch-three.vercel.app · Meta Global AI Developer Hackathon (Nov 2026), theme *Build for Your World* · Apache-2.0
+Live: https://save-bell.vercel.app · Meta Global AI Developer Hackathon (Nov 2026), theme *Build for Your World* · Apache-2.0
 
 > Built during the hackathon. Every commit in this repository is from Oct 31 – Nov 4 2026 (the event window), by the author. Nothing pre-existing was imported. Third-party code is used only as npm dependencies (MIT, Apache-2.0, ISC, BSD, MPL-2.0 and the LGPL-3.0 `sharp` image binaries pulled in by Next.js), none vendored or modified.
 
@@ -17,7 +17,7 @@ Threat published → Report fact-checked → Relevant repos found → Code inves
 3. **Investigate your code.** Lockfile versions are checked against affected ranges in code. Muse Spark explores the repository with read-only tools (list, search, read) to find the code that decides each condition, then judges each condition with file:line citations. Every citation is re-read from the real file; unverifiable, prose-only or comment-only evidence is downgraded. The verdict (Affected / Not Affected / Unclear) comes from a fixed rule, never from the model.
 4. **Notify.** In-app notifications with unread badge, priority order (unread, confirmed, severity, time), one entry per finding and repository updated in place, Slack/Discord webhook, Web Push when VAPID keys are set.
 5. **Show the impact.** "What happens if you don't fix this?" builds a short, hypothetical walkthrough of what a user of *your* app could experience, as screens of your app. Each step says whether it is shown in your code, inferred, or hypothetical; synthetic data only; nothing is executed.
-6. **Fix.** A preview diff with a static remediation assessment, then **Fix & create PR** (recommended) or **Fix & push**: Meta Muse Code edits a fresh clone inside an isolated GitHub Actions runner and the runner runs the repository's tests there; only after you approve that exact patch does Argus open a pull request (or, in push mode, merge it after the repository's own checks pass and branch protection allows). Fix & create PR has run on production (draft PR chewonc/argus-demo-api#2); Fix & push has not run yet. See Status. Or connect your own MCP-capable coding agent.
+6. **Fix.** A preview diff with a static remediation assessment, then **Fix & create PR** (recommended) or **Fix & push**: Meta Muse Code edits a fresh clone inside an isolated GitHub Actions runner and the runner runs the repository's tests there; only after you approve that exact patch does SaveBell open a pull request (or, in push mode, merge it after the repository's own checks pass and branch protection allows). Fix & create PR has run on production (draft PR chewonc/argus-demo-api#2); Fix & push has not run yet. See Status. Or connect your own MCP-capable coding agent.
 
 ## Where Meta's models do the work
 
@@ -59,7 +59,7 @@ Legend: **live** = observed on the production deployment; **local** = exercised 
 | Korean and other languages | local (Korean static dictionary; others via Muse Spark) |
 | Fix & create PR with Muse Code | **live**: draft PR chewonc/argus-demo-api#2 has Muse Code's edit, a runner-regenerated lockfile, and tests 2/2 passed. The patch was approved before any write; cancelling a run is also verified (`docs/VALIDATION_MUSE_CODE.md`). |
 | Fix & push (automatic merge after checks) | **implemented, not verified**: never run |
-| Muse Code → Argus MCP | **local**: Muse Code 1.4.14 called `list_findings` on a local Argus. Not verified from the Actions runner or against production. |
+| Muse Code → SaveBell MCP | **local**: Muse Code 1.4.14 called `list_findings` on a local SaveBell. Not verified from the Actions runner or against production. |
 | MCP server for coding agents | live (personal tokens, 4 tools) |
 | Email, X, LinkedIn, Threads | not available: no email provider configured; X API is paid; LinkedIn has no search API; Threads keyword search needs App Review |
 
@@ -67,12 +67,12 @@ Legend: **live** = observed on the production deployment; **local** = exercised 
 
 Create a token in Settings → Connect AI agent. Order of preference:
 
-1. **Meta Muse Code**: add to `~/.config/muse/settings.json` under `mcpServers` an entry `"argus-watch": { "type": "streamable-http", "url": "https://argus-watch-three.vercel.app/api/mcp", "headers": { "Authorization": "Bearer <token>" } }`. Header values are literal; `${VAR}` is not expanded. Verified locally with Muse Code 1.4.14 calling `list_findings` (docs/VALIDATION_MUSE_CODE.md).
-2. **Claude Code**: `claude mcp add --transport http argus-watch https://argus-watch-three.vercel.app/api/mcp --header "Authorization: Bearer <token>"`
-3. **ChatGPT Codex**: `[mcp_servers.argus-watch]` with `url` and `bearer_token_env_var` in `~/.codex/config.toml`.
+1. **Meta Muse Code**: add to `~/.config/muse/settings.json` under `mcpServers` an entry `"savebell": { "type": "streamable-http", "url": "https://save-bell.vercel.app/api/mcp", "headers": { "Authorization": "Bearer <token>" } }`. Header values are literal; `${VAR}` is not expanded. Verified locally with Muse Code 1.4.14 calling `list_findings` (docs/VALIDATION_MUSE_CODE.md).
+2. **Claude Code**: `claude mcp add --transport http savebell https://save-bell.vercel.app/api/mcp --header "Authorization: Bearer <token>"`
+3. **ChatGPT Codex**: `[mcp_servers.savebell]` with `url` and `bearer_token_env_var` in `~/.codex/config.toml`.
 4. Any client that speaks Streamable HTTP MCP.
 
-The consumer Meta AI app does not support third-party MCP servers, so it is not listed. Tools: `list_findings`, `get_finding` (incl. report credibility), `get_file_context`, `report_result` (evidence is re-read; it never changes Argus's own verdict). End-to-end check over HTTP with a real token: `ARGUS_MCP_URL=… ARGUS_MCP_TOKEN=aw_… node --import tsx scripts/checks/mcp-live.mts [--report]` (auth refusals, all four tools, and a fabricated `report_result` that must be rejected).
+The consumer Meta AI app does not support third-party MCP servers, so it is not listed. Tools: `list_findings`, `get_finding` (incl. report credibility), `get_file_context`, `report_result` (evidence is re-read; it never changes SaveBell's own verdict). End-to-end check over HTTP with a real token: `ARGUS_MCP_URL=… ARGUS_MCP_TOKEN=aw_… node --import tsx scripts/checks/mcp-live.mts [--report]` (auth refusals, all four tools, and a fabricated `report_result` that must be rejected).
 
 ## Security boundary
 

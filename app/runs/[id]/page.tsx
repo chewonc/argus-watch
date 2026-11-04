@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RunControls } from "@/components/run-controls";
 import { RUN_STATUS } from "@/components/remediation-windows";
+import { demoPath } from "@/lib/demo-path";
 import { caseHref } from "@/lib/labels";
 import { requireUser } from "@/lib/session";
 import { store } from "@/lib/store";
@@ -34,10 +35,10 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
   return (
     <div className="mx-auto max-w-[calc(980px*var(--ui))] px-4 sm:px-6 py-8 sm:py-10 grid gap-6">
       <header className="grid gap-2">
-        <Link href="/windows" className="text-[calc(13px*var(--ui))] text-ink2 underline w-fit">Remediation windows</Link>
+        <Link href="/settings#runs" className="text-[calc(13px*var(--ui))] text-ink2 underline w-fit">All runs</Link>
         <h1 className="text-[calc(26px*var(--ui))] font-semibold tracking-[-0.02em]">{run.label}</h1>
         <p className="text-[calc(14px*var(--ui))] text-ink2">{RUN_STATUS[run.status] ?? run.status} · {fmtLocal(run.tz, run.start_ms)} to {fmtLocal(run.tz, run.end_ms)} · {LEVEL_TEXT[run.level].title}</p>
-        <p className="text-[calc(13px*var(--ui))] text-ink2">Limits: {run.limits.max_issues} issues, {run.limits.max_jobs} parallel job(s), ${run.limits.budget_usd.toFixed(2)} budget. Estimated spend so far ${run.spent_usd.toFixed(2)}. Repositories: {run.repos.length ? run.repos.join(", ") : "none in scope"}.</p>
+        <p className="text-[calc(13px*var(--ui))] text-ink2">Issues to check: {run.limits.max_issues} · Fixes at once: {run.limits.max_jobs} · Spent ${run.spent_usd.toFixed(2)} of ${run.limits.budget_usd.toFixed(2)} · Repositories: {run.repos.length ? run.repos.map(demoPath).join(", ") : "none in scope"}</p>
         {run.stop_reason && <p className="text-[calc(13px*var(--ui))] tone-warn">Stopped starting new work: {run.stop_reason}.</p>}
         <RunControls id={run.id} status={run.status} />
       </header>

@@ -1,5 +1,5 @@
 // POST {patch_version, mode: "pr"|"push", reviewed: true} — the user's approval of the EXACT patch Muse Code produced
-// and Argus validated (status "validated"). Only now is anything written: branch + commit + pull request through the
+// and SaveBell validated (status "validated"). Only now is anything written: branch + commit + pull request through the
 // GitHub App. A patch_version that does not match the stored patch is refused (the user must review the current one).
 // The destination is the user's saved preference (lib/remediation-mode.ts): "preview" refuses every write, "branch" pushes a
 // branch without a PR, "pr" opens a draft PR ("push" = PR merged after CI, a separate per-fix opt-in). Never escalated.

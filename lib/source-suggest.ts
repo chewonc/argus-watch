@@ -1,4 +1,4 @@
-// "Suggest a source": users propose AI-safety or security feeds. Argus checks each suggestion automatically and adds it
+// "Suggest a source": users propose AI-safety or security feeds. SaveBell checks each suggestion automatically and adds it
 // to monitoring only when every check passes; anything uncertain is queued for an operator instead.
 //
 // Checks, in order:
@@ -17,6 +17,7 @@ import { disallowed } from "./fetchpage";
 import { FEEDS, parseFeed, type Feed, type FeedEntry } from "./sources/rss";
 import { reportKey, validateReport } from "./threat-report";
 import { kv } from "./store";
+import { USER_AGENT } from "./ua";
 
 export type SuggestionStatus = "registered" | "needs_review" | "rejected" | "duplicate";
 export type Suggestion = {
@@ -25,7 +26,7 @@ export type Suggestion = {
   feed_url: string | null; feed_id: string | null; relevance: number | null;
 };
 
-const UA = "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)";
+const UA = USER_AGENT;
 const MAX_COMMUNITY_FEEDS = 50;
 // Terms forbid automated collection, or access needs a paid API / App Review (same list as Sources → Not accessible).
 const BLOCKED = /(^|\.)(x\.com|twitter\.com|linkedin\.com|threads\.net|reddit\.com|facebook\.com|instagram\.com|tiktok\.com|news\.google\.com)$/i;

@@ -1,11 +1,11 @@
 // Read API: findings (admin token) or the findings relevant to the signed-in user's repositories.
 import { redactFinding } from "@/lib/authz";
-import { env } from "@/lib/env";
+import { isAdminAuth } from "@/lib/env";
 import { currentUser, visibleRepoKeys } from "@/lib/session";
 import { store } from "@/lib/store";
 
 export async function GET(req: Request) {
-  const admin = !!env.ADMIN_TOKEN && req.headers.get("authorization") === `Bearer ${env.ADMIN_TOKEN}`;
+  const admin = isAdminAuth(req.headers.get("authorization"));
   const user = admin ? null : await currentUser();
   if (!admin && !user) return Response.json({ error: "unauthorized" }, { status: 401 });
   const keys = user ? await visibleRepoKeys(user.id) : null;

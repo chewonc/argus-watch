@@ -11,7 +11,7 @@ import { ALERT_HISTORY, store } from "@/lib/store";
 import { refreshChecks } from "@/lib/fix-apply";
 import { revokeConsents } from "@/lib/window-consent";
 
-/** Open Argus pull requests on this repository, refreshed from GitHub. Returns how many are now merged. */
+/** Open SaveBell pull requests on this repository, refreshed from GitHub. Returns how many are now merged. */
 async function syncOpenFixes(fullName: string): Promise<number> {
   let merged = 0;
   const aids = [...new Set((await store.listAssessments(ALERT_HISTORY)).filter((a) => a.repo === fullName || a.repo.startsWith(`${fullName}/`)).map((a) => a.id))];
@@ -87,9 +87,9 @@ export async function POST(req: Request) {
       let refreshed = 0;
       for (const w of await store.listRepos()) if (w.repo === full.full_name) { try { const r = await refreshRepo(w); if (r !== w) { await store.putRepo(r); refreshed++; } } catch (e) { await store.log({ kind: "error", source: "webhook", detail: `push refresh failed for ${w.repo}: ${String(e).slice(0, 120)}`, ref: delivery }); } }
       await store.log({ kind: "webhook", source: "github", detail: `push ${full.full_name}@${String(payload.after ?? "").slice(0, 7)}: refreshed ${refreshed} watched entr${refreshed === 1 ? "y" : "ies"}`, ref: delivery });
-      // A push to the default branch may be the merge of an Argus pull request: re-read open Argus PRs (read-only).
+      // A push to the default branch may be the merge of a SaveBell pull request: re-read open SaveBell PRs (read-only).
       const merged = await syncOpenFixes(full.full_name).catch((e) => { void store.log({ kind: "error", source: "webhook", detail: `PR sync failed for ${full.full_name}: ${String(e).slice(0, 120)}`, ref: delivery }); return 0; });
-      if (merged) await store.log({ kind: "webhook", source: "github", detail: `${merged} Argus pull request(s) on ${full.full_name} recorded as merged`, ref: delivery });
+      if (merged) await store.log({ kind: "webhook", source: "github", detail: `${merged} SaveBell pull request(s) on ${full.full_name} recorded as merged`, ref: delivery });
     }
     return Response.json({ ok: true });
   }

@@ -1,4 +1,4 @@
-// Activity log: what Argus Watch did in the background, in everyday words. Not notifications (those are alerts
+// Activity log: what SaveBell did in the background, in everyday words. Not notifications (those are alerts
 // that need you); raw entries stay on Monitoring status → Advanced diagnostics.
 import { describe } from "@/lib/activity";
 import { knownRepoNames, logVisibleTo } from "@/lib/authz";

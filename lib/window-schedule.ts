@@ -12,9 +12,9 @@ export const LEVELS = ["investigate", "prepare", "draft_pr"] as const;
 export type Level = (typeof LEVELS)[number];
 
 export const LEVEL_TEXT: Record<Level, { title: string; desc: string }> = {
-  investigate: { title: "Investigate only", desc: "Re-check findings against your current code. Nothing is changed." },
+  investigate: { title: "Check issues", desc: "Re-check findings against your current code. Nothing is changed." },
   prepare: { title: "Prepare fixes", desc: "Investigate, then generate fixes and run your tests in an isolated runner. Validated patches wait for your review. Nothing is written to your repositories." },
-  draft_pr: { title: "Create draft pull requests", desc: "Also open a draft PR for each fix whose tests passed. You authorize each window; your GitHub access is re-checked before every PR, and anything uncertain waits for your review. Never merged." },
+  draft_pr: { title: "Create draft PRs", desc: "Also open a draft PR for each fix whose tests passed. You authorize each run; your GitHub access is re-checked before every PR, and anything uncertain waits for your review. Never merged." },
 };
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -157,12 +157,12 @@ export function scheduleErrors(s: Pick<WindowSchedule, "kind" | "tz" | "start" |
   if (HHMM.test(s.start) && HHMM.test(s.end)) {
     const [sh, sm] = s.start.split(":").map(Number), [eh, em] = s.end.split(":").map(Number);
     let mins = eh * 60 + em - (sh * 60 + sm); if (mins <= 0) mins += 1440;
-    if (mins > LIMITS.maxHours * 60) e.push(`A window can last at most ${LIMITS.maxHours} hours.`);
+    if (mins > LIMITS.maxHours * 60) e.push(`A run can last at most ${LIMITS.maxHours} hours.`);
   }
   if (s.kind === "recurring" && !s.days.length) e.push("Pick at least one day.");
   if (s.kind === "once") {
     if (!s.date || !DATE.test(s.date)) e.push("Pick a date for a one-time window.");
-    else if (!e.length && occurrenceOn(s as Times, s.date).end_ms <= now) e.push("That window has already ended.");
+    else if (!e.length && occurrenceOn(s as Times, s.date).end_ms <= now) e.push("That time has already passed.");
   }
   if (!LEVELS.includes(s.level)) e.push("Unknown level.");
   if (allowedRepos) for (const r of s.repos) if (!allowedRepos.has(r)) e.push(`You do not monitor ${r}.`);

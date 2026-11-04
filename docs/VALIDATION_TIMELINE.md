@@ -1,3 +1,5 @@
+Product renamed to SaveBell on 2026-11-05; names and URLs below are historical.
+
 # Validation: Threat Timeline (Nov 4 2026)
 
 **Result: verified locally against real registries, the real Meta Model API (Muse Spark 1.3 and Muse Wonder 1.0) and in the browser; deployed (commit 4ca2497) and verified on production, signed in, on Nov 4 2026. Muse Wonder review is off on production (`WONDER_ESCALATION` unset).**

@@ -1,4 +1,4 @@
-// Guard: Argus Watch's own user-facing copy must not contain em dashes (U+2014, also written as —).
+// Guard: SaveBell's own user-facing copy must not contain em dashes (U+2014, also written as —).
 // Scans app/, components/ and lib/ (UI strings, translation dictionaries, labels) with comments stripped, so code
 // comments, third-party data and stored evidence are not affected. Exit code 1 lists offending lines.
 // Usage: node scripts/checks/no-em-dash.mjs   (also run from tests/em-dash.test.ts)

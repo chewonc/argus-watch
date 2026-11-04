@@ -1,7 +1,7 @@
 // The single scheduler entry point: QStash calls this every 5 minutes (`*/5 * * * *`); the GitHub Actions heartbeat
 // calls it as a backup. Each source runs on its own interval (lib/poll.ts POLLERS). `?force=1` runs everything.
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
-import { env, hasQStash } from "@/lib/env";
+import { isAdminAuth, hasQStash } from "@/lib/env";
 import { tick } from "@/lib/poll";
 import { store } from "@/lib/store";
 import { windowDeps } from "@/lib/window-deps";
@@ -22,7 +22,7 @@ async function handler(req: Request) {
 
 export async function POST(req: Request) {
   const auth = req.headers.get("authorization");
-  if (env.ADMIN_TOKEN && auth === `Bearer ${env.ADMIN_TOKEN}`) return handler(req);
+  if (isAdminAuth(auth)) return handler(req);
   if (hasQStash()) {
     const res = await verifySignatureAppRouter(handler)(req);
     // Diagnostics: a schedule that reaches us with a bad or missing signature would otherwise be invisible.

@@ -1,7 +1,7 @@
 "use client";
 // "Fix security issue" modal, shared by the Threats list and the finding page. Opening it is cheap: it reads
 // /api/fix-context (no model call, no runner job). Three tabs:
-//   Verify    read-only: the evidence Argus has and what is still missing
+//   Verify    read-only: the evidence SaveBell has and what is still missing
 //   AI Agent  copyable instructions for the user's own coding agent
 //   Auto Fix  the remediation workflow (components/remediation.tsx) with the saved destination preference
 // Unconfirmed findings never start Auto Fix: the tab explains that verification comes first.
@@ -122,8 +122,8 @@ function verifySummary(c: Ctx): ResultInfo {
     ...(c.location ? [`Location: ${c.location.split("/").pop()}`] : []),
     ...(c.missing.length ? [`${c.missing.length} piece${c.missing.length === 1 ? "" : "s"} of evidence still missing`] : []),
   ];
-  if (c.verified) return { tone: "bad", title: "Verification complete: confirmed", summary: "Argus found evidence in your code that this vulnerability affects your project.", points, next: "Open Auto Fix to prepare a fix, or use AI Agent to fix it in your editor." };
-  if (c.verdict === "Not Affected") return { tone: "ok", title: "Verification complete: not affected", summary: "The conditions this vulnerability needs were not found in your code.", points, next: "Nothing to fix. Argus checks again when your code changes." };
+  if (c.verified) return { tone: "bad", title: "Verification complete: confirmed", summary: "SaveBell found evidence in your code that this vulnerability affects your project.", points, next: "Open Auto Fix to prepare a fix, or use AI Agent to fix it in your editor." };
+  if (c.verdict === "Not Affected") return { tone: "ok", title: "Verification complete: not affected", summary: "The conditions this vulnerability needs were not found in your code.", points, next: "Nothing to fix. SaveBell checks again when your code changes." };
   return { tone: "warn", title: "Verification complete: inconclusive", summary: "There isn't enough evidence to confirm or rule out this vulnerability.", points, next: "Review the missing evidence, or ask your AI agent to check the code locally." };
 }
 
@@ -131,7 +131,7 @@ function VerifyTab({ c, onVerified, onFailed }: { c: Ctx; onVerified: (assessmen
   const [state, setState] = useState<"idle" | "checking" | "done">("idle");
   const [err, setErr] = useState<string | null>(null);
   const fileName = c.location ? c.location.split("/").pop() : null;
-  // Runs a fresh, read-only check in Argus (POST /api/verify): same analyzer and evidence rules as the pipeline.
+  // Runs a fresh, read-only check in SaveBell (POST /api/verify): same analyzer and evidence rules as the pipeline.
   const verify = async () => {
     setState("checking"); setErr(null);
     try {
@@ -180,7 +180,7 @@ function VerifyTab({ c, onVerified, onFailed }: { c: Ctx; onVerified: (assessmen
         {result === "confirmed" ? <button type="button" className="btn-ghost" onClick={verify}>Check again</button>
           : <button type="button" className="btn" onClick={verify}>{result === "unclear" ? "Try again" : "Verify"}</button>}
       </div>
-      <p className="text-[calc(12px*var(--ui))] text-ink2">Verification is read-only and runs in Argus Watch. A result is recorded only when it meets the same evidence rules as the original analysis.</p>
+      <p className="text-[calc(12px*var(--ui))] text-ink2">Verification is read-only and runs in SaveBell. A result is recorded only when it meets the same evidence rules as the original analysis.</p>
     </div>
   );
 }
@@ -241,8 +241,8 @@ function AutoTab({ c, onChange, goVerify, recheck, onDone }: { c: Ctx; onChange:
 }
 
 /**
- * Shown only when Argus lacks a permission for this repository. Opens GitHub's own approval page (a new tab, so this
- * workflow stays open) or, for Argus's own per-repository opt-in, turns it on with one click. GitHub App permissions
+ * Shown only when SaveBell lacks a permission for this repository. Opens GitHub's own approval page (a new tab, so this
+ * workflow stays open) or, for SaveBell's own per-repository opt-in, turns it on with one click. GitHub App permissions
  * are the App's fixed set (Contents and Pull requests write); GitHub lets you limit them to the repositories you choose.
  */
 function GrantPermission({ c, recheck }: { c: Ctx; recheck: () => void }) {
@@ -250,9 +250,9 @@ function GrantPermission({ c, recheck }: { c: Ctx; recheck: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [opened, setOpened] = useState(false);
   const g = c.grant!;
-  const how = g.kind === "install" ? "Install the Argus Watch GitHub App on this repository. GitHub asks you to choose the repositories and confirm."
+  const how = g.kind === "install" ? "Install the SaveBell GitHub App on this repository. GitHub asks you to choose the repositories and confirm."
     : g.kind === "accept" ? "GitHub needs you to approve the App's Contents and Pull requests write access for the repositories you selected. Nothing is changed in your code by approving."
-    : "Changes are turned off for this repository in Argus. Turning them on writes nothing to GitHub; each change still needs your approval.";
+    : "Changes are turned off for this repository in SaveBell. Turning them on writes nothing to GitHub; each change still needs your approval.";
   const allow = async () => {
     setBusy(true); setErr(null);
     try { const r = await fetch("/api/repos/allow-changes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ repo_key: c.repo_key }) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error ?? r.statusText); recheck(); }
@@ -260,7 +260,7 @@ function GrantPermission({ c, recheck }: { c: Ctx; recheck: () => void }) {
   };
   return (
     <div role="note" className="text-[calc(13px*var(--ui))] grid gap-2 border hair rounded-[8px] px-3 py-3">
-      <p className="tone-bad font-medium">Argus doesn&apos;t have permission to change this repository.</p>
+      <p className="tone-bad font-medium">SaveBell doesn&apos;t have permission to change this repository.</p>
       <p className="text-ink2">{how}</p>
       <div className="flex flex-wrap items-center gap-2">
         {g.kind === "allow_changes"

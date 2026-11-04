@@ -28,7 +28,7 @@ export const localized = <T extends { kind: StatusKind; label: string }>(st: T, 
 export const isVerified = (a: Pick<Assessment, "verdict"> & { agent?: Assessment["agent"]; withdrawn_at?: string | null }) => !a.withdrawn_at && (a.verdict === "Affected" || (a.verdict !== "Not Affected" && a.agent?.status === "confirmed" && a.agent.evidence.length > 0));
 
 export function statusOf(a: Pick<Assessment, "verdict"> & { agent?: Assessment["agent"]; withdrawn_at?: string | null }, sev: Severity, state: { resolved: boolean; prOpen: boolean; merged?: boolean }): Status {
-  // Merged on GitHub: the change is in the default branch. The vulnerability fix itself is still not verified by Argus.
+  // Merged on GitHub: the change is in the default branch. The vulnerability fix itself is still not verified by SaveBell.
   if (state.merged) return mk("fix_merged");
   if (state.prOpen || a.agent?.status === "fix_proposed") return mk("fix_ready");
   if (state.resolved) return mk("resolved");

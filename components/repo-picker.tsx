@@ -1,5 +1,5 @@
 "use client";
-// Searchable checkbox list of the repositories an installation grants on GitHub. A tick means "Argus Watch monitors
+// Searchable checkbox list of the repositories an installation grants on GitHub. A tick means "SaveBell monitors
 // this repository"; GitHub access is a separate thing managed on GitHub. Unticking a monitored repository stops
 // monitoring it (after a confirmation) and keeps its history; it never changes GitHub access. Every row stays
 // mounted while searching, so choices made before narrowing the search are still submitted.
@@ -21,14 +21,14 @@ export function RepoPicker({ installationId, repos, action, manageHref, back }: 
   return (
     <form action={action} className="grid gap-3"
       onSubmit={(e) => {
-        if (dropped.size && !window.confirm(`Stop monitoring ${[...dropped].join(", ")}?\n\nArgus Watch stops checking ${dropped.size === 1 ? "it" : "them"} for new threats. Existing alerts stay, and GitHub access is not changed. You can tick ${dropped.size === 1 ? "it" : "them"} again any time.`)) { e.preventDefault(); return; }
+        if (dropped.size && !window.confirm(`Stop monitoring ${[...dropped].join(", ")}?\n\nSaveBell stops checking ${dropped.size === 1 ? "it" : "them"} for new threats. Existing alerts stay, and GitHub access is not changed. You can tick ${dropped.size === 1 ? "it" : "them"} again any time.`)) { e.preventDefault(); return; }
         setBusy(true);
       }}>
       {back && <input type="hidden" name="back" value={back} />}
       <input type="hidden" name="installation_id" value={installationId} />
       {[...dropped].map((n) => <input key={n} type="hidden" name="stop" value={n} />)}
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search repositories" aria-label="Search repositories" className="border hair rounded-[6px] px-3 h-9 text-[calc(14px*var(--ui))] bg-transparent" />
-      <p className="text-[calc(12px*var(--ui))] text-ink2">Repositories you gave Argus access to on GitHub. Ticked ones are monitored.</p>
+      <p className="text-[calc(12px*var(--ui))] text-ink2">Repositories you gave SaveBell access to on GitHub. Ticked ones are monitored.</p>
       <ul className="grid max-h-[calc(320px*var(--ui))] overflow-auto text-[calc(14px*var(--ui))] border hair rounded-[8px]" aria-label="Repositories">
         {repos.map((r) => {
           const on = r.watched ? !dropped.has(r.full_name) : picked.has(r.full_name);

@@ -10,7 +10,7 @@ const ID = "f1:chewonc/argus-watch/feasibility/cases/c4:abc1234:v1";
 test("prompt still names the alert and asks for read-only verification or an approval-gated fix", () => {
   const v = agentPrompt(ID, false); const f = agentPrompt(ID, true);
   assert.ok(v.includes(ID) && f.includes(ID));
-  assert.match(v, /Don't change any code/); assert.match(v, /report your result back to Argus Watch/);
+  assert.match(v, /Don't change any code/); assert.match(v, /report your result back to SaveBell/);
   assert.match(f, /propose a fix/); assert.match(f, /until I approve it/);
 });
 

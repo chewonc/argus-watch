@@ -29,7 +29,7 @@ export async function GET(req: Request) {
   // How the user can grant what is missing, in the fewest steps (never bypassing GitHub's own approval):
   //   install        the App is not installed on this repository: guided connect flow (Settings → Repositories)
   //   accept         the installation lacks Contents/Pull requests write: GitHub's own page for reviewing the App's permissions
-  //   allow_changes  Argus's per-repository opt-in is off: one click here, no GitHub change
+  //   allow_changes  SaveBell's per-repository opt-in is off: one click here, no GitHub change
   const instRec = inst ? await store.getInstallation(inst).catch(() => null) : null;
   const grant = !verified || !blocker?.startsWith("Repository permission") ? null
     : !inst ? { kind: "install" as const, url: "/settings#repositories" }

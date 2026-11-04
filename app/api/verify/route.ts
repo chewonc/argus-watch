@@ -1,6 +1,6 @@
 // POST {assessment_id} — run a fresh, read-only verification of one finding against the repository's current commit.
 // The verification itself lives in lib/reverify.ts (shared with autonomous remediation windows): candidate files at the
-// pinned commit, Muse Spark proposes a state per condition with a file:line citation, Argus re-reads every cited line
+// pinned commit, Muse Spark proposes a state per condition with a file:line citation, SaveBell re-reads every cited line
 // (uncited or mismatched claims are dropped), and the verdict comes from the fixed rule in lib/verdict.ts.
 // Read-only: nothing is written to the repository. The result is stored as a NEW assessment record (the earlier one is
 // kept, never overwritten), exactly as a pipeline re-run would, so the finding's status follows the same evidence rules.

@@ -46,7 +46,7 @@ export function ActControls({ briefPath, verdict, codexCmd }: { briefPath: strin
         <pre className="mono text-[calc(12px*var(--ui))] mt-2 p-3 border hair rounded-[4px] bg-raised overflow-auto">{agent === "claude"
           ? `# in your checkout of the repository\nclaude -p "$(cat REMEDIATION.md)"   # review each change before accepting`
           : codexCmd}</pre>
-        <p className="text-[calc(12px*var(--ui))] text-ink2 mt-1">The prompt is prefilled, never auto-sent. The agent runs on your machine under your permissions; Argus Watch holds no write access to your repository.</p>
+        <p className="text-[calc(12px*var(--ui))] text-ink2 mt-1">The prompt is prefilled, never auto-sent. The agent runs on your machine under your permissions; SaveBell holds no write access to your repository.</p>
       </details>
     </div>
   );

@@ -1,5 +1,5 @@
 // POST { repo_key }: the signed-in user turns on "allow changes" for one of their own repositories from the Fix modal
-// (same rule as Settings → Repositories → Allow draft pull requests). This is Argus's own per-repository opt-in; it
+// (same rule as Settings → Repositories → Allow draft pull requests). This is SaveBell's own per-repository opt-in; it
 // writes nothing to GitHub, and every change still needs approval of the exact patch.
 import { currentUser } from "@/lib/session";
 import { SYSTEM_USER, store } from "@/lib/store";

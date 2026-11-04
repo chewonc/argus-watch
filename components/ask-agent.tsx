@@ -1,18 +1,18 @@
 "use client";
 // AI Agent tab of the Fix modal: one copyable request for the user's coding agent (Meta Muse Code, Claude Code, Codex, ...)
-// connected to Argus Watch over MCP. The agent reads the finding through the Argus MCP tools (list_findings, get_finding,
+// connected to SaveBell over MCP. The agent reads the finding through the SaveBell MCP tools (list_findings, get_finding,
 // get_file_context), checks the user's checkout and reports back with report_result. The request text depends on the
 // assessment: confirmed findings may get a proposed fix (nothing changes until the user approves); unconfirmed ones get
 // read-only verification only. Setup (endpoint, token, per-agent commands) lives on Settings → Connect AI agent.
 import { useId, useState } from "react";
 
 export type AskAgentLabels = { title: string; lead: string; copy: string; copied: string; mcp: string; setup: string; foot: string };
-const DEFAULT: AskAgentLabels = { title: "Use your own AI agent", lead: "Use Claude Code, Codex, or Muse Code to verify this finding or propose a fix in your repository.", copy: "Copy instructions", copied: "Copied", mcp: "You can also connect your AI agent to Argus Watch through MCP.", setup: "How to connect MCP", foot: "Your agent works in your repository. No code changes without your approval." };
+const DEFAULT: AskAgentLabels = { title: "Use your own AI agent", lead: "Use Claude Code, Codex, or Muse Code to verify this finding or propose a fix in your repository.", copy: "Copy AI agent instructions", copied: "Copied", mcp: "You can also connect your AI agent to SaveBell through MCP.", setup: "How to connect MCP", foot: "Your agent works in your repository. No code changes without your approval." };
 
 export function agentPrompt(id: string, verified: boolean) {
   return verified
-    ? `Use Argus Watch to look at alert ${id}. Check the affected code in this repository, explain the problem, and propose a fix. Don't change or commit anything until I approve it. Then report your result back to Argus Watch.`
-    : `Use Argus Watch to check alert ${id}: does it really affect this repository? Read the relevant code, cite the exact lines, and report your result back to Argus Watch. Don't change any code.`;
+    ? `Use SaveBell to look at alert ${id}. Check the affected code in this repository, explain the problem, and propose a fix. Don't change or commit anything until I approve it. Then report your result back to SaveBell.`
+    : `Use SaveBell to check alert ${id}: does it really affect this repository? Read the relevant code, cite the exact lines, and report your result back to SaveBell. Don't change any code.`;
 }
 
 export function AskAgent({ id, verified, labels = DEFAULT }: { id: string; connected?: boolean; verified: boolean; labels?: AskAgentLabels }) {

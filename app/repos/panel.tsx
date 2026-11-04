@@ -32,7 +32,7 @@ export async function RepositoriesPanel({ sp, embedded = false }: { sp: Record<s
     <div className={embedded ? "grid gap-8" : "mx-auto max-w-[calc(760px*var(--ui))] px-4 sm:px-6 py-8 sm:py-10 grid gap-10"}>
       {(!embedded || sp.error || sp.added || sp.rescanned || sp.paused || sp.resumed) && <div className="grid gap-1">
         {!embedded && <h1 className="text-[calc(28px*var(--ui))] font-semibold tracking-[-0.02em]">{d.repos_title}</h1>}
-        {!embedded && <p className="text-[calc(15px*var(--ui))] text-ink2">Choose which GitHub repositories Argus Watch should protect.</p>}
+        {!embedded && <p className="text-[calc(15px*var(--ui))] text-ink2">Choose which GitHub repositories SaveBell should protect.</p>}
         {sp.error && <p role="alert" className="mt-2 text-[calc(14px*var(--ui))] tone-bad">{decodeURIComponent(sp.error)}</p>}
         {sp.added && <p role="status" className="mt-2 text-[calc(14px*var(--ui))] tone-ok">Repositories added. {Number(sp.checking ?? 0) > 0 ? `Checking them now against ${sp.checking} recent threat(s) that match their dependencies; results appear in Alerts within a few minutes.` : "No recent threat matches their dependencies. We’ll check every new threat from now on."}</p>}
         {sp.rescanned && <p role="status" className="mt-2 text-[calc(14px*var(--ui))] tone-ok">Repository refreshed.</p>}
@@ -65,7 +65,7 @@ export async function RepositoriesPanel({ sp, embedded = false }: { sp: Record<s
         <div className="text-[calc(14px*var(--ui))] grid gap-2">
           <p className="text-ink2">Nothing in your repository changes without your approval.</p>
           <details className="disclose">
-            <summary>What Argus Watch reads, stores and writes</summary>
+            <summary>What SaveBell reads, stores and writes</summary>
             <dl className="grid gap-3 mt-3 text-[calc(13px*var(--ui))] [&_dt]:font-semibold [&_dd]:text-ink2">
               <div><dt>Reads</dt><dd>Your file list, lockfiles (package-lock, pnpm, yarn, requirements.txt) and the specific files it cites, at one commit. Repositories are never cloned.</dd></div>
               <div><dt>Stores</dt><dd>Package names and versions, technology tags, and the short code excerpts cited in an alert.</dd></div>
@@ -116,10 +116,10 @@ export async function RepositoriesPanel({ sp, embedded = false }: { sp: Record<s
                       <form action={rescan}>{back}<input type="hidden" name="repo_key" value={ur.repo_key} /><button role="menuitem" type="submit">{d.rescan}</button></form>
                       <form action={setAllowPr} className="grid gap-2 px-[calc(10px*var(--ui))] py-2">{back}
                         <input type="hidden" name="repo_key" value={ur.repo_key} />
-                        <label className="flex items-start gap-2"><input type="checkbox" name="allow_pr" defaultChecked={ur.allow_pr} className="mt-1" /> <span>Allow draft pull requests<span className="block text-[calc(12px*var(--ui))] text-ink2">Needed before Argus can propose a fix. Each fix still needs your approval.</span></span></label>
+                        <label className="flex items-start gap-2"><input type="checkbox" name="allow_pr" defaultChecked={ur.allow_pr} className="mt-1" /> <span>Allow draft pull requests<span className="block text-[calc(12px*var(--ui))] text-ink2">Needed before SaveBell can propose a fix. Each fix still needs your approval.</span></span></label>
                         <button className="btn-ghost w-fit" type="submit">{d.save}</button>
                       </form>
-                      <form action={removeRepo} className="border-t hair pt-1">{back}<input type="hidden" name="repo_key" value={ur.repo_key} /><button role="menuitem" type="submit" className="tone-bad">Remove from Argus Watch</button><p className="px-[calc(10px*var(--ui))] pb-1 text-[calc(12px*var(--ui))] text-ink2">Stops monitoring. Your GitHub repository is not changed or deleted; past alerts stay in history. Add it again any time.</p></form>
+                      <form action={removeRepo} className="border-t hair pt-1">{back}<input type="hidden" name="repo_key" value={ur.repo_key} /><button role="menuitem" type="submit" className="tone-bad">Remove from SaveBell</button><p className="px-[calc(10px*var(--ui))] pb-1 text-[calc(12px*var(--ui))] text-ink2">Stops monitoring. Your GitHub repository is not changed or deleted; past alerts stay in history. Add it again any time.</p></form>
                     </div>
                   </details>
                 )}
@@ -128,14 +128,14 @@ export async function RepositoriesPanel({ sp, embedded = false }: { sp: Record<s
         )}
         {watching.length > 0 && <p className="text-[calc(13px*var(--ui))] text-ink2">Findings appear on the <Link href="/alerts">Threats</Link> page.</p>}
         <details className="disclose">
-          <summary>What Argus Watch monitors</summary>
+          <summary>What SaveBell monitors</summary>
           <div className="grid gap-3 mt-3 text-[calc(13px*var(--ui))]">
-            <p>Argus Watch tracks newly published security threats and checks whether they may affect your connected repositories.</p>
+            <p>SaveBell tracks newly published security threats and checks whether they may affect your connected repositories.</p>
             <dl className="grid gap-3 [&_dt]:font-semibold [&_dd]:text-ink2">
-              <div><dt>Sources</dt><dd>GitHub-reviewed security advisories (pushed to Argus as they are published, and polled every 5 minutes), the National Vulnerability Database, OSV.dev for the exact package versions in your lockfiles, CISA&apos;s Known Exploited Vulnerabilities catalog, and security research feeds including AI-security write-ups, arXiv and Hacker News. Live intervals are on the <Link href="/sources">Sources</Link> page.</dd></div>
+              <div><dt>Sources</dt><dd>GitHub-reviewed security advisories (pushed to SaveBell as they are published, and polled every 5 minutes), the National Vulnerability Database, OSV.dev for the exact package versions in your lockfiles, CISA&apos;s Known Exploited Vulnerabilities catalog, and security research feeds including AI-security write-ups, arXiv and Hacker News. Live intervals are on the <Link href="/sources">Sources</Link> page.</dd></div>
               <div><dt>What is checked</dt><dd>Whether a threat names a package or technology your repository uses, then whether the code conditions it needs are present in your files, cited to the line. A report&apos;s credibility is checked separately.</dd></div>
               <div><dt>When</dt><dd>Continuously, on a schedule (most sources every 5 to 60 minutes). A new or updated report about a threat triggers a new assessment; adding a repository checks it against the last 30 days of threats. Pushes to your default branch refresh its package list.</dd></div>
-              <div><dt>Your code</dt><dd>Read at one commit through the GitHub App; never cloned or run on the Argus server. Only package names and versions and short cited excerpts are stored.</dd></div>
+              <div><dt>Your code</dt><dd>Read at one commit through the GitHub App; never cloned or run on the SaveBell server. Only package names and versions and short cited excerpts are stored.</dd></div>
               <div><dt>Changes</dt><dd>Never automatic. A fix is written only after you enable changes for a repository and approve that specific fix.</dd></div>
             </dl>
           </div>

@@ -1,5 +1,5 @@
 "use client";
-// Header, signed in:  [brand]  Threats  Remediation(●)  ·········  🔔  chewonc ▾   (● while a remediation window runs)
+// Header, signed in:  [brand]  Threats(●)  ·········  🔔  chewonc ▾   (● while an automatic fix run is active)
 //   Repositories: what code is monitored. Threats: security findings for that code (/alerts). The bell: what changed
 //   (unread notifications). The account menu: other pages, settings, language, session.
 // On phones the two primary links move into the account menu, whose trigger becomes ☰: [brand] ······ 🔔 ☰
@@ -13,10 +13,9 @@ import { signInWithGitHub, signOut } from "@/lib/auth-client";
 import { ReportIssueDialog } from "@/components/report-issue";
 
 export type HeaderUser = { id: string; login: string; avatar: string | null } | null;
-export type HeaderLabels = { threats: string; windows: string; repos: string; monitoring: string; activity: string; settings: string; language: string; notifications: string; signIn: string; signOut: string; notConfigured: string };
+export type HeaderLabels = { threats: string; report: string; repos: string; monitoring: string; activity: string; settings: string; language: string; notifications: string; signIn: string; signOut: string; notConfigured: string };
 
-const isThreats = (p: string) => p.startsWith("/alerts") || p.startsWith("/case");
-const isWindows = (p: string) => p.startsWith("/windows") || p.startsWith("/runs");
+const isThreats = (p: string) => p.startsWith("/alerts") || p.startsWith("/case") || p.startsWith("/runs");
 
 export function HeaderNav({ user, authReady, labels, locale = "en", languages = [], windowActive = false }: { user: HeaderUser; authReady: boolean; labels: HeaderLabels; locale?: string; languages?: Lang[]; windowActive?: boolean }) {
   const path = usePathname();
@@ -30,8 +29,7 @@ export function HeaderNav({ user, authReady, labels, locale = "en", languages = 
   return (
     <div className="flex flex-1 items-center min-w-0 gap-6 sm:gap-8">
       <nav aria-label="Primary" className="max-sm:hidden flex items-center gap-6 text-[calc(13px*var(--ui))]">
-        <Link href="/alerts" className="nav-link" aria-current={isThreats(path) ? "page" : undefined}>{labels.threats}</Link>
-        <Link href="/windows" className="nav-link inline-flex items-center gap-1.5" aria-current={isWindows(path) ? "page" : undefined}>{labels.windows}{windowActive && <><span aria-hidden className="tone-ok text-[calc(9px*var(--ui))]">●</span><span className="sr-only">(a window is running)</span></>}</Link>
+        <Link href="/alerts" className="nav-link inline-flex items-center gap-1.5" aria-current={isThreats(path) ? "page" : undefined}>{labels.threats}{windowActive && <><span aria-hidden className="tone-ok text-[calc(9px*var(--ui))]">●</span><span className="sr-only">(a fix run is active)</span></>}</Link>
       </nav>
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
         <NotificationBell label={labels.notifications} />
@@ -93,17 +91,16 @@ function AccountMenu({ user, labels, locale, languages }: { user: NonNullable<He
           <Item href="/settings" current={path.startsWith("/settings")}>{labels.settings}</Item>
           <div className="sm:hidden">
             <Item href="/alerts" current={isThreats(path)}>{labels.threats}</Item>
-            <Item href="/windows" current={isWindows(path)}>{labels.windows}</Item>
           </div>
           <Item href="/monitoring" current={path.startsWith("/monitoring")}>{labels.monitoring}</Item>
           <Item href="/activity" current={path.startsWith("/activity")}>{labels.activity}</Item>
+          <button role="menuitem" tabIndex={-1} type="button" onClick={() => { close(); setIssue(true); }}>{labels.report}</button>
           {langs.length > 1 && (
             <button role="menuitem" tabIndex={-1} type="button" data-lang-item aria-haspopup="menu" onClick={openLang} className="!flex items-center justify-between gap-3">
               <span>{labels.language}</span>
               <span className="text-ink2 text-[calc(12px*var(--ui))] flex items-center gap-1" aria-label={`current: ${langName}`}><span className="uppercase">{lang.split("-")[0]}</span><span aria-hidden>›</span></span>
             </button>
           )}
-          <button role="menuitem" tabIndex={-1} type="button" onClick={() => { close(); setIssue(true); }}>Report an issue</button>
           <div className="border-t hair my-1" />
           <button role="menuitem" tabIndex={-1} type="button" onClick={() => signOut().then(() => { router.push("/"); router.refresh(); })}>{labels.signOut}</button>
         </div>

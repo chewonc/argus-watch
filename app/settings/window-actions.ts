@@ -81,7 +81,7 @@ export async function saveWindowSchedule(_prev: FormState, fd: FormData): Promis
     date: kind === "once" ? String(fd.get("date") ?? "") || null : null,
     created_at: existing?.created_at ?? now, updated_at: now,
   });
-  if (!parsed.success) return { ok: false, error: `Check the limits: at most ${LIMITS.maxIssues} issues, ${LIMITS.maxJobs} parallel jobs and $${LIMITS.maxBudgetUsd} per window.` };
+  if (!parsed.success) return { ok: false, error: `Check the limits: up to ${LIMITS.maxIssues} issues to check, ${LIMITS.maxJobs} fixes at once and a $${LIMITS.maxBudgetUsd} spending limit.` };
   const errs = scheduleErrors(parsed.data, Date.now(), new Set(await activeRepos(user.id)));
   if (errs.length) return { ok: false, error: errs[0] };
   const lb = levelBlocked(parsed.data.level); if (lb) return { ok: false, error: lb };
@@ -122,7 +122,7 @@ export async function startWindowNow(_prev: FormState, fd: FormData): Promise<Fo
   const tz = String(fd.get("tz") ?? "").trim();
   const hours = Math.min(LIMITS.maxHours, Math.max(1, Math.round(num(fd.get("hours"), 8))));
   const active = await activeRunFor(user.id);
-  if (active) return { ok: false, error: "A remediation window is already running. Open it from the banner above, or cancel it first." };
+  if (active) return { ok: false, error: "A fix run is already active. Open it from Threats, or cancel it first." };
   // Exactly `hours` of real time from this minute, even on a daylight-saving changeover day.
   const startMs = Math.floor(Date.now() / 60e3) * 60e3, endMs = startMs + hours * 36e5;
   let local, localEnd;
@@ -133,20 +133,20 @@ export async function startWindowNow(_prev: FormState, fd: FormData): Promise<Fo
     start: `${pad(local.h)}:${pad(local.min)}`, end: `${pad(localEnd.h)}:${pad(localEnd.min)}`, date: dateKey(local), label: String(fd.get("label") ?? "") || "Started from the dashboard",
     created_at: now, updated_at: now,
   });
-  if (!parsed.success) return { ok: false, error: `Check the limits: at most ${LIMITS.maxIssues} issues, ${LIMITS.maxJobs} parallel jobs and $${LIMITS.maxBudgetUsd} per window.` };
+  if (!parsed.success) return { ok: false, error: `Check the limits: up to ${LIMITS.maxIssues} issues to check, ${LIMITS.maxJobs} fixes at once and a $${LIMITS.maxBudgetUsd} spending limit.` };
   const errs = scheduleErrors(parsed.data, Date.now(), new Set(await activeRepos(user.id)));
   if (errs.length) return { ok: false, error: errs[0] };
   const lb = levelBlocked(parsed.data.level); if (lb) return { ok: false, error: lb };
   const occ = { key: `${parsed.data.id}:${parsed.data.date}`, start_ms: startMs, end_ms: endMs };
   if (parsed.data.level === "draft_pr") { const err = await authorize(user, parsed.data, occ); if (err) return { ok: false, error: err }; }
-  if (!(await store.claim(`wocc:${occ.key}`))) return { ok: false, error: "That window is already open." };
+  if (!(await store.claim(`wocc:${occ.key}`))) return { ok: false, error: "That run has already started." };
   await store.putSchedule(parsed.data);
   const run = await openRun(parsed.data, occ, windowDeps());
   if (!run || run.status === "cancelled") {
     // Refused (another window started meanwhile): leave nothing behind, no live authorization and no orphan schedule.
     await revokeConsents((c) => c.schedule_id === parsed.data.id, "the window could not start");
     await store.deleteSchedule(user.id, parsed.data.id);
-    return { ok: false, error: run?.stop_reason ?? "The window could not be opened." };
+    return { ok: false, error: run?.stop_reason ?? "The run could not start." };
   }
   revalidatePath("/alerts"); revalidatePath("/settings");
   redirect(`/runs/${encodeURIComponent(run.id)}`);
@@ -156,10 +156,10 @@ export async function startWindowNow(_prev: FormState, fd: FormData): Promise<Fo
 export async function authorizeNextWindow(_prev: FormState, fd: FormData): Promise<FormState> {
   const user = await requireUser("/settings");
   const s = await store.getSchedule<WindowSchedule>(String(fd.get("id") ?? ""));
-  if (!s || s.user_id !== user.id) return { ok: false, error: "That window no longer exists." };
-  if (s.level !== "draft_pr" || !s.enabled) return { ok: false, error: "This window does not create pull requests, or it is turned off." };
+  if (!s || s.user_id !== user.id) return { ok: false, error: "That schedule no longer exists." };
+  if (s.level !== "draft_pr" || !s.enabled) return { ok: false, error: "This schedule does not create pull requests, or it is turned off." };
   const occ = nextOccurrence(s, Date.now());
-  if (!occ) return { ok: false, error: "This window has no upcoming run." };
+  if (!occ) return { ok: false, error: "This schedule has no upcoming run." };
   const err = await authorize(user, s, occ);
   if (err) return { ok: false, error: err };
   revalidatePath("/settings");

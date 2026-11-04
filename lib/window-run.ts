@@ -100,15 +100,15 @@ export const issuesStarted = (r: WindowRun) => r.items.length;
 /** Whether one more operation of this kind may start now. Pure; the single place the limits are decided. */
 export function gate(r: WindowRun, now: number, kind: keyof typeof COST_USD, newIssue: boolean): { ok: true } | { ok: false; reason: string; final: boolean } {
   if (r.status !== "running") return { ok: false, reason: `run is ${r.status}`, final: false };
-  if (now >= r.end_ms) return { ok: false, reason: "the window has ended", final: true };
+  if (now >= r.end_ms) return { ok: false, reason: "the run has ended", final: true };
   if (r.failures_in_row >= 3) return { ok: false, reason: "stopped after three consecutive failures", final: true };
   if (newIssue && issuesStarted(r) >= r.limits.max_issues) return { ok: false, reason: `reached the limit of ${r.limits.max_issues} issue(s)`, final: true };
   if (r.spent_usd + COST_USD[kind] > r.limits.budget_usd + 1e-9) return { ok: false, reason: `the next step would exceed the $${r.limits.budget_usd.toFixed(2)} budget`, final: kind === "verify" };
   if (kind === "runner") {
     if (inflightJobs(r) >= r.limits.max_jobs) return { ok: false, reason: `${r.limits.max_jobs} runner job(s) already in progress`, final: false };
-    if (r.end_ms - now < RUNNER_MARGIN_MS) return { ok: false, reason: "too little time left in the window to run tests", final: false };
+    if (r.end_ms - now < RUNNER_MARGIN_MS) return { ok: false, reason: "too little time left in the run to start tests", final: false };
   }
-  if (kind === "verify" && r.end_ms - now < VERIFY_MARGIN_MS) return { ok: false, reason: "too little time left in the window", final: true };
+  if (kind === "verify" && r.end_ms - now < VERIFY_MARGIN_MS) return { ok: false, reason: "too little time left in the run", final: true };
   return { ok: true };
 }
 
@@ -120,10 +120,10 @@ function ev(r: WindowRun, now: number, kind: string, detail: string): void {
 
 export function newRun(s: WindowSchedule, occ: { key: string; start_ms: number; end_ms: number }, now: number, repos: string[]): WindowRun {
   return {
-    id: `${occ.key.replace(/[^A-Za-z0-9-]/g, "-")}-${randomBytes(4).toString("hex")}`, schedule_id: s.id, user_id: s.user_id, occurrence_key: occ.key, label: s.label || (s.kind === "once" ? "One-time window" : "Recurring window"),
+    id: `${occ.key.replace(/[^A-Za-z0-9-]/g, "-")}-${randomBytes(4).toString("hex")}`, schedule_id: s.id, user_id: s.user_id, occurrence_key: occ.key, label: s.label || (s.kind === "once" ? "One-time run" : "Weekly run"),
     tz: s.tz, level: s.level, deadline: s.deadline, start_ms: occ.start_ms, end_ms: occ.end_ms, repos, min_severity: s.min_severity, quiet: s.quiet,
     limits: { max_issues: s.max_issues, max_jobs: s.max_jobs, budget_usd: s.budget_usd },
-    status: "running", stop_reason: null, spent_usd: 0, failures_in_row: 0, items: [], events: [{ at: iso(now), kind: "started", detail: `window opened (${s.level}); ends ${iso(occ.end_ms)}` }],
+    status: "running", stop_reason: null, spent_usd: 0, failures_in_row: 0, items: [], events: [{ at: iso(now), kind: "started", detail: `run started (${s.level}); ends ${iso(occ.end_ms)}` }],
     created_at: iso(now), finished_at: null, report: null,
   };
 }
@@ -182,18 +182,18 @@ export async function openRun(s: WindowSchedule, occ: { key: string; start_ms: n
     if (!h || isTerminal(h)) { await kv.del(userKey(s.user_id)); slot = await kv.setnx(userKey(s.user_id), run.id); }
   }
   if (active || !slot) {
-    run.status = "cancelled"; run.stop_reason = `another window was already running${active ? ` (${active.id})` : ""}`; run.finished_at = iso(now);
+    run.status = "cancelled"; run.stop_reason = `another run was already active${active ? ` (${active.id})` : ""}`; run.finished_at = iso(now);
     ev(run, now, "skipped", run.stop_reason); run.report = summarize(run, now);
     await store.putRun(run, true); await store.retireRun(run.id);
     return run;
   }
-  if (!repos.length) ev(run, now, "warning", "no monitored repositories are in scope for this window");
+  if (!repos.length) ev(run, now, "warning", "no monitored repositories are in scope for this run");
   if (s.level === "draft_pr") {
     const { consentFor } = await import("./window-consent");
-    if (!(await consentFor(occ.key))) ev(run, now, "warning", "draft pull requests were not authorized for this window; validated fixes will wait for your review");
+    if (!(await consentFor(occ.key))) ev(run, now, "warning", "draft PRs were not authorized for this run; validated fixes will wait for your review");
   }
   await store.putRun(run, true);
-  await store.log({ kind: "fix", source: "window", detail: `remediation window opened for ${s.user_id} (${s.level}, ${repos.length} repositories)`, ref: run.id });
+  await store.log({ kind: "fix", source: "window", detail: `automatic fix run started for ${s.user_id} (${s.level}, ${repos.length} repositories)`, ref: run.id });
   return run;
 }
 
@@ -230,7 +230,7 @@ function applyFixState(it: RunItem, st: FixState | null, now: number): void {
 async function applyControl(r: WindowRun, action: "pause" | "resume" | "cancel", now: number, deps: Deps): Promise<WindowRun> {
   if (isTerminal(r)) return r;
   if (action === "pause" && r.status === "running") { r.status = "paused"; ev(r, now, "paused", "paused by you; no new work starts"); }
-  else if (action === "resume" && r.status === "paused") { if (now >= r.end_ms) throw new Error("the window has already ended"); r.status = "running"; ev(r, now, "resumed", "resumed by you"); }
+  else if (action === "resume" && r.status === "paused") { if (now >= r.end_ms) throw new Error("the run has already ended"); r.status = "running"; ev(r, now, "resumed", "resumed by you"); }
   else if (action === "cancel") {
     for (const it of r.items.filter((i) => i.stage === "running" || i.stage === "verifying")) { if (it.fix_id) await deps.cancelFix(it.fix_id).catch(() => {}); it.stage = "cancelled"; it.note = "cancelled with the window"; it.updated_at = iso(now); }
     ev(r, now, "cancel", "cancelled by you");
@@ -308,7 +308,7 @@ async function stepLocked(r: WindowRun, now: number, deps: Deps): Promise<{ run:
   // 3. Deadline.
   if (now >= r.end_ms) {
     if (r.status !== "finishing") {
-      r.status = "finishing"; ev(r, now, "deadline", `window ended; ${r.deadline === "stop" ? "cancelling in-flight jobs" : "letting in-flight jobs finish, results held for review"}`);
+      r.status = "finishing"; ev(r, now, "deadline", `time ran out; ${r.deadline === "stop" ? "cancelling in-flight jobs" : "letting in-flight jobs finish, results held for review"}`);
       if (r.deadline === "stop") for (const it of r.items.filter((i) => i.stage === "running" && i.fix_id)) { await deps.cancelFix(it.fix_id!).catch(() => {}); it.stage = "cancelled"; it.note = "cancelled at the window deadline"; it.updated_at = iso(now); }
     }
     // Recovery: whatever is still in flight 30 minutes after the end (a runner, or a step that crashed mid-check) is closed.

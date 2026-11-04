@@ -14,7 +14,7 @@ export function ConnectAgent({ endpoint, create }: { endpoint: string; create: (
 {
   "schema_version": 1,
   "mcpServers": {
-    "argus-watch": {
+    "savebell": {
       "type": "streamable-http",
       "url": "${endpoint}",
       "headers": { "Authorization": "Bearer ${token}" },
@@ -23,9 +23,9 @@ export function ConnectAgent({ endpoint, create }: { endpoint: string; create: (
   }
 }`
     : agent === "Claude Code"
-    ? `claude mcp add --transport http argus-watch ${endpoint} --header "Authorization: Bearer ${token}"`
+    ? `claude mcp add --transport http savebell ${endpoint} --header "Authorization: Bearer ${token}"`
     : agent === "Codex"
-      ? `# ~/.codex/config.toml\n[mcp_servers.argus-watch]\nurl = "${endpoint}"\nbearer_token_env_var = "ARGUS_WATCH_TOKEN"\n\n# then, in your shell:\nexport ARGUS_WATCH_TOKEN=${token}`
+      ? `# ~/.codex/config.toml\n[mcp_servers.savebell]\nurl = "${endpoint}"\nbearer_token_env_var = "SAVEBELL_TOKEN"\n\n# then, in your shell:\nexport SAVEBELL_TOKEN=${token}`
       : `URL:    ${endpoint}\nHeader: Authorization: Bearer ${token}\n(Streamable HTTP MCP server)`;
   return (
     <div className="grid gap-4">

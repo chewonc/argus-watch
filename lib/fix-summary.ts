@@ -32,7 +32,7 @@ export function friendlyError(err: string | null | undefined): string {
   if (/install/.test(e)) return "Your project's dependencies couldn't be installed, so the change couldn't be checked.";
   if (/never reported|stale|stopped responding/.test(e)) return "The fix job stopped responding. Nothing was written to your repository.";
   if (/changed on .* since the analysis|base commit changed/.test(e)) return "Your code changed since this issue was found. Run the check again before fixing.";
-  if (/write access|permission|403/.test(e)) return "Argus doesn't have permission to change this repository.";
+  if (/write access|permission|403/.test(e)) return "SaveBell doesn't have permission to change this repository.";
   if (/outside|not allowed|forbidden path/.test(e)) return "The fix tried to change files it isn't allowed to change, so it was rejected.";
   return "We couldn't prepare the fix.";
 }
@@ -53,10 +53,10 @@ export function fixSummary(fix: Fix, repo: string): ResultInfo | null {
   const checks = fixChecks(fix).map((c) => c.text);
   const pr = fix.pr_url ? { href: fix.pr_url, label: "View pull request" } : fix.commit_url ? { href: fix.commit_url, label: "View on GitHub" } : undefined;
   switch (fix.status) {
-    case "pr_created": return { tone: "ok", title: fix.pr_draft === false ? "Fix complete: pull request created" : "Fix complete: draft pull request created", summary: `Argus opened ${fix.pr_draft === false ? "a pull request (marked [DRAFT])" : "a draft pull request"} in ${repo}${fix.pr_number ? ` (#${fix.pr_number})` : ""} with the change you approved. Nothing was merged.`, points: checks, next: "Review it on GitHub and merge it when you are satisfied. The alert shows \"Fix merged\" after you merge.", link: pr };
-    case "branch_pushed": return { tone: "ok", title: "Fix complete: branch pushed", summary: `Argus pushed the change you approved to ${fix.branch} in ${repo}. Your default branch is unchanged.`, points: [files, ...checks.slice(1)], next: "Open a pull request on GitHub when you are ready.", link: pr };
-    case "merging": return { tone: "warn", title: "Pull request created, waiting for checks", summary: `The pull request in ${repo} is open. Argus merges it only if your repository's checks pass.`, points: checks, next: "You can cancel the automatic merge from this tab.", link: pr };
-    case "merged": return { tone: "ok", title: "Fix merged", summary: `The change is merged into ${repo}.`, points: checks, next: "Argus checks the repository again with the new code.", link: pr };
+    case "pr_created": return { tone: "ok", title: fix.pr_draft === false ? "Fix complete: pull request created" : "Fix complete: draft pull request created", summary: `SaveBell opened ${fix.pr_draft === false ? "a pull request (marked [DRAFT])" : "a draft pull request"} in ${repo}${fix.pr_number ? ` (#${fix.pr_number})` : ""} with the change you approved. Nothing was merged.`, points: checks, next: "Review it on GitHub and merge it when you are satisfied. The alert shows \"Fix merged\" after you merge.", link: pr };
+    case "branch_pushed": return { tone: "ok", title: "Fix complete: branch pushed", summary: `SaveBell pushed the change you approved to ${fix.branch} in ${repo}. Your default branch is unchanged.`, points: [files, ...checks.slice(1)], next: "Open a pull request on GitHub when you are ready.", link: pr };
+    case "merging": return { tone: "warn", title: "Pull request created, waiting for checks", summary: `The pull request in ${repo} is open. SaveBell merges it only if your repository's checks pass.`, points: checks, next: "You can cancel the automatic merge from this tab.", link: pr };
+    case "merged": return { tone: "ok", title: "Fix merged", summary: `The change is merged into ${repo}.`, points: checks, next: "SaveBell checks the repository again with the new code.", link: pr };
     case "blocked_by_protection": return { tone: "warn", title: "Pull request open, not merged", summary: fix.error ?? "The merge was refused, so the pull request stays open for your review.", points: checks, next: "Review and merge it on GitHub yourself.", link: pr };
     case "failed": case "validation_failed": return { tone: "bad", title: "Fix failed", summary: friendlyError(fix.error), points: ["Nothing was merged.", ...(fix.branch && /pull request|PR/i.test(fix.error ?? "") ? [`If a branch ${fix.branch} exists, it was created by this attempt.`] : [])], next: "Start over, or use the AI Agent tab to fix it in your editor." };
     default: return null;

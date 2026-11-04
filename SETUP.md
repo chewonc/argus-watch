@@ -1,6 +1,6 @@
-# Argus Watch — setup and operations
+# SaveBell — setup and operations
 
-Everything here is read-only toward your repositories except a pull request (and, in "Fix & push" mode, its merge after passing checks) that a user explicitly authorizes. The Argus server never executes repository code. Automated fixes are edited by Meta Muse Code and tested inside an ephemeral GitHub Actions runner, never on the server. Argus never reproduces or exploits a vulnerability.
+Everything here is read-only toward your repositories except a pull request (and, in "Fix & push" mode, its merge after passing checks) that a user explicitly authorizes. The SaveBell server never executes repository code. Automated fixes are edited by Meta Muse Code and tested inside an ephemeral GitHub Actions runner, never on the server. SaveBell never reproduces or exploits a vulnerability.
 
 ## 1. Secrets (never commit, never paste into chat)
 
@@ -12,7 +12,7 @@ Create `.env.local` at the project root (gitignored). On Vercel, add the same na
 | `META_MODEL`, `META_BASE_URL` | no | Defaults `muse-spark-1.3`, `https://api.meta.ai/v1`. |
 | `GITHUB_TOKEN` | fallback | Fine-grained token with read-only Contents; used only for repositories registered by the admin API (demo fixtures) or when an installation token is unavailable. |
 | `GITHUB_WEBHOOK_SECRET` | yes | The secret set on the GitHub App webhook. |
-| `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_SLUG` | yes for onboarding | App id, the PEM private key (newlines may be escaped as `\n`), and the App's URL slug (`https://github.com/apps/<slug>`). |
+| `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_SLUG` | yes for onboarding | App id, the PEM private key (newlines may be escaped as `\n`), and the App's URL slug (this deployment: `save-bell-chewonc`, `https://github.com/apps/<slug>`). |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | yes for sign-in | The GitHub App's OAuth client id and a client secret. |
 | `BETTER_AUTH_SECRET` | yes for sign-in | 32+ random bytes (`openssl rand -base64 32`). Sessions are stateless cookies encrypted with it. |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | yes for deployment | Durable storage. Without them the app uses `.data/store.json` (dev only). |
@@ -24,12 +24,12 @@ Create `.env.local` at the project root (gitignored). On Vercel, add the same na
 | `FIX_ENABLED` | optional | `1` enables fix drafting and authorized write actions. Off by default. |
 | `RUNNER_DISPATCH_TOKEN` | for automated fixes | Fine-grained PAT on **this** repository only, permission *Actions: read and write*. Used to dispatch `.github/workflows/remediate.yml`. |
 | `ARGUS_RUNNER_SECRET` | for automated fixes | Long random string; set the same value as the Actions secret `ARGUS_RUNNER_SECRET`. |
-| `RUNNER_REPO`, `RUNNER_WORKFLOW` | optional | Defaults `chewonc/argus-watch`, `remediate.yml`. |
+| `RUNNER_REPO`, `RUNNER_WORKFLOW` | optional | Defaults `chewonc/save-bell`, `remediate.yml`. |
 | `AW_AGENTIC`, `AW_VERIFY_MODEL` | optional | Set to `0` to switch off agentic investigation or the web-search fact-check (cost control). |
 | `VAPID_PUBLIC_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | optional (browser push) | `npx web-push generate-vapid-keys`; put the public key in both public-key variables; subject is `mailto:you@example.com`. |
 | `DEMO_SHARED_REPOS` | optional | `1` shows admin-registered (system) repositories to every signed-in user, labelled demo. |
 | `ADMIN_TOKEN` | yes | Long random string protecting `/api/admin`, `/api/analyze`, manual polls and the push fan-out route. |
-| `APP_URL` | yes for deployment | Public base URL (`https://argus-watch-three.vercel.app`). QStash, GitHub and Better Auth call back to it. |
+| `APP_URL` | yes for deployment | Public base URL (`https://save-bell.vercel.app`). The save-bell.vercel.app domain is pending until the Vercel project is migrated; until then the deployment answers at its previous URL. QStash, GitHub and Better Auth call back to it. |
 
 ## 1b. Automated remediation runner (Meta Muse Code)
 
@@ -37,7 +37,7 @@ Create `.env.local` at the project root (gitignored). On Vercel, add the same na
 2. Vercel: `FIX_ENABLED=1`, `RUNNER_DISPATCH_TOKEN`, `ARGUS_RUNNER_SECRET`.
 3. For a repository to receive fixes: the GitHub App installation must have Contents + Pull requests write, and the user enables changes for it on the Repos page.
 
-The runner clones the repository at the assessed commit with a short-lived installation token, runs `muse exec --json`, enforces the file allowlist, runs the repository's tests with secrets removed from the environment, and posts the result back. Argus re-validates and only then writes through the GitHub App. The runner never pushes.
+The runner clones the repository at the assessed commit with a short-lived installation token, runs `muse exec --json`, enforces the file allowlist, runs the repository's tests with secrets removed from the environment, and posts the result back. SaveBell re-validates and only then writes through the GitHub App. The runner never pushes.
 
 ## 2. Accounts and one-time setup (owner actions)
 
@@ -57,10 +57,10 @@ The runner clones the repository at the assessed commit with a short-lived insta
 
 ### 2.1 Checklist for a new deployment
 
-Status of the reference deployment (argus-watch-three.vercel.app, Nov 4 2026, from `/api/status.features`): sign-in, GitHub App, `FIX_ENABLED` and the Muse Code runner are configured; the 5-minute tick schedule is delivering; **Web Push is not configured** (no VAPID keys). On a new deployment the landing page shows "Sign-in is not configured on this deployment yet" and `POST /api/auth/sign-in/social` answers 503 until step C is done.
+Status of the reference deployment (save-bell.vercel.app, Nov 4 2026, from `/api/status.features`): sign-in, GitHub App, `FIX_ENABLED` and the Muse Code runner are configured; the 5-minute tick schedule is delivering; **Web Push is not configured** (no VAPID keys). On a new deployment the landing page shows "Sign-in is not configured on this deployment yet" and `POST /api/auth/sign-in/social` answers 503 until step C is done.
 
-A. **GitHub App → OAuth client (for sign-in).** On the App's settings page (github.com/settings/apps/<slug>): under "Identifying and authorizing users" set Callback URL `https://argus-watch-three.vercel.app/api/auth/callback/github`; tick **Expire user authorization tokens** off or on (both work); leave "Request user authorization (OAuth) during installation" **off**. Click **Generate a new client secret**; copy the **Client ID** and the secret.
-B. **GitHub App → private key, permissions, events.** Under "Private keys" click **Generate a private key** (downloads a `.pem`). Under "Permissions & events": Repository → Metadata Read, Contents **Read and write**, Pull requests **Read and write**, Checks Read; Account → Email addresses Read; Subscribe to events: Security advisory, Push, Installation, Installation repositories. Save. GitHub then asks every existing installation (your account) to **accept the new permissions**: open github.com/settings/installations → Argus Watch → "Review request" and accept. Set Setup URL `https://argus-watch-three.vercel.app/api/github/setup` with **Redirect on update** ticked.
+A. **GitHub App → OAuth client (for sign-in).** On the App's settings page (github.com/settings/apps/<slug>): under "Identifying and authorizing users" set Callback URL `https://save-bell.vercel.app/api/auth/callback/github`; tick **Expire user authorization tokens** off or on (both work); leave "Request user authorization (OAuth) during installation" **off**. Click **Generate a new client secret**; copy the **Client ID** and the secret.
+B. **GitHub App → private key, permissions, events.** Under "Private keys" click **Generate a private key** (downloads a `.pem`). Under "Permissions & events": Repository → Metadata Read, Contents **Read and write**, Pull requests **Read and write**, Checks Read; Account → Email addresses Read; Subscribe to events: Security advisory, Push, Installation, Installation repositories. Save. GitHub then asks every existing installation (your account) to **accept the new permissions**: open github.com/settings/installations → SaveBell → "Review request" and accept. Set Setup URL `https://save-bell.vercel.app/api/github/setup` with **Redirect on update** ticked.
 C. **Vercel → Project → Settings → Environment Variables (Production)** add: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` (from A); `GITHUB_APP_ID` (the numeric "App ID" on the App page), `GITHUB_APP_SLUG` (the URL slug), `GITHUB_APP_PRIVATE_KEY` (paste the whole `.pem`; Vercel keeps newlines, or escape them as `\n`); `BETTER_AUTH_SECRET` (`openssl rand -base64 32`); `DEMO_SHARED_REPOS=1`. Then **Redeploy** (Deployments → ⋯ → Redeploy) because env changes are not applied to the running build.
 D. **Verify:** open the site: the landing page shows **Sign in with GitHub**; sign in; **Repos → Connect GitHub** installs the App on a repository you own; tick it, **Watch selected**; packages > 0 appear. Enable **Allow draft pull requests** for that repository.
 E. **Produce an alert on your repository** (one of): wait for a matching live advisory; or, for a demo, add `"next": "14.2.10"` to a `package.json` + lockfile in that repository and replay GHSA-f82v (section 4). Then on the case page: **Draft fix** → diff → **Approve & open draft PR…** → the draft PR link and the "Repository CI" panel appear.

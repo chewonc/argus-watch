@@ -3,6 +3,7 @@
 import { env } from "../env";
 import { extractIds, sha } from "../dedup";
 import type { Item } from "../schema";
+import { USER_AGENT } from "../ua";
 
 export type GHAdvisory = {
   ghsa_id: string; cve_id: string | null; summary: string; description: string | null; severity: string;
@@ -12,7 +13,7 @@ export type GHAdvisory = {
 };
 
 const GH = "https://api.github.com";
-const hdr = () => ({ Accept: "application/vnd.github+json", "User-Agent": "ArgusWatch/0.1", "X-GitHub-Api-Version": "2022-11-28", ...(env.GITHUB_TOKEN ? { Authorization: `Bearer ${env.GITHUB_TOKEN}` } : {}) });
+const hdr = () => ({ Accept: "application/vnd.github+json", "User-Agent": USER_AGENT, "X-GitHub-Api-Version": "2022-11-28", ...(env.GITHUB_TOKEN ? { Authorization: `Bearer ${env.GITHUB_TOKEN}` } : {}) });
 
 /** Reviewed advisories updated since `sinceISO` (inclusive), newest first. Pages of 100, up to 3 pages (a backlog after an
  *  outage longer than one interval is otherwise silently truncated); the conditional GET applies to the first page only. */

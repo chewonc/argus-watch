@@ -5,6 +5,7 @@
 // ~150 daily NVD changes do not flood the pipeline; everything else is still covered by OSV for watched packages.
 import { sha } from "../dedup";
 import type { Item } from "../schema";
+import { USER_AGENT } from "../ua";
 
 type NvdCve = { id: string; published: string; lastModified: string; vulnStatus: string; descriptions: { lang: string; value: string }[];
   configurations?: { nodes: { cpeMatch: { criteria: string; vulnerable: boolean }[] }[] }[]; references?: { url: string }[];
@@ -14,13 +15,22 @@ export const NVD_RELEVANT = /\b(node\.?js|npm packages?|pypi|python packages?|la
 /** Acronyms count only when written upper-case (MCP, JWT), and "npm" only lower-case, so product names like "NPM" (NuPoint Messenger) do not match. */
 export const relevantNvd = (hay: string) => NVD_RELEVANT.test(hay) || /\b(MCP|JWT)\b/.test(hay) || /\bnpm\b/.test(hay);
 
+/** NVD often answers 503/502/429 under load: retry twice with growing waits before giving up. */
+export async function nvdGet(url: string, headers: Record<string, string>, waits = [2000, 8000], get: typeof fetch = fetch): Promise<Response> {
+  for (let i = 0; ; i++) {
+    const r = await get(url, { headers, signal: AbortSignal.timeout(30_000) }).catch((e) => { if (i >= waits.length) throw e; return null; });
+    if (r && (r.ok || ![429, 500, 502, 503, 504].includes(r.status) || i >= waits.length)) return r;
+    await new Promise((res) => setTimeout(res, waits[i]));
+  }
+}
+
 export async function fetchNvd(sinceIso: string, untilIso: string, maxPages = 3): Promise<NvdCve[]> {
-  const headers: Record<string, string> = { "user-agent": "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)" };
+  const headers: Record<string, string> = { "user-agent": USER_AGENT };
   if (process.env.NVD_API_KEY) headers.apiKey = process.env.NVD_API_KEY;
   const out: NvdCve[] = [];
   for (let page = 0; page < maxPages; page++) {
     const q = new URLSearchParams({ lastModStartDate: sinceIso, lastModEndDate: untilIso, resultsPerPage: "200", startIndex: String(page * 200) });
-    const r = await fetch(`https://services.nvd.nist.gov/rest/json/cves/2.0?${q}&noRejected`, { headers, signal: AbortSignal.timeout(30_000) });
+    const r = await nvdGet(`https://services.nvd.nist.gov/rest/json/cves/2.0?${q}&noRejected`, headers);
     if (!r.ok) { if (page > 0) break; throw new Error(`NVD ${r.status}${r.status === 403 || r.status === 429 ? " (rate limited)" : ""}`); }
     const j = (await r.json()) as { totalResults?: number; vulnerabilities?: { cve: NvdCve }[] };
     out.push(...(j.vulnerabilities ?? []).map((v) => v.cve));

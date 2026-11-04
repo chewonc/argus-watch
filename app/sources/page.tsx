@@ -11,7 +11,7 @@ import { SuggestSource } from "@/components/suggest-source";
 import { getDict, getLocale } from "@/lib/i18n";
 
 const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : null);
-const CLASS_LABEL = { push: "Pushed to Argus (event-driven)", near_realtime: "Checked every 5 minutes", periodic: "Checked on the source's own schedule" } as const;
+const CLASS_LABEL = { push: "Pushed to SaveBell (event-driven)", near_realtime: "Checked every 5 minutes", periodic: "Checked on the source's own schedule" } as const;
 const KIND: Record<Feed["kind"], string> = { list: "mailing list", release: "releases", research: "research", ai_security: "AI security", academic: "academic", aggregator: "aggregator", vendor: "vendor", incidents: "incidents", social: "social", news: "news" };
 const STATUS_WORD = { registered: "added to monitoring", needs_review: "waiting for review", rejected: "not added", duplicate: "already covered" } as const;
 
@@ -40,7 +40,7 @@ export async function SourceCoverage({ embedded = false }: { embedded?: boolean 
         <div className="grid gap-3">
           <h1 className="text-[calc(28px*var(--ui))] font-semibold tracking-[-0.02em]">{d.sources_title}</h1>
           <Bullets>
-            <li>Argus Watch checks these sources on a schedule (every {TICK_MIN} to 60 minutes); GitHub advisories are also pushed to it.</li>
+            <li>SaveBell checks these sources on a schedule (every {TICK_MIN} to 60 minutes); GitHub advisories are also pushed to it.</li>
             <li>Intervals and delays below are measured, not promised.</li>
             <li>Sources that can&apos;t be collected are listed at the end with the reason.</li>
           </Bullets>

@@ -2,6 +2,7 @@
 // unit-testable. lib/runner.ts re-exports these and adds the GitHub write (approveValidated -> applyFix).
 import { createHash } from "node:crypto";
 import { env } from "./env";
+import { USER_AGENT } from "./ua";
 import { RunnerError, event } from "./runner-gates";
 import type { Fix } from "./schema";
 import { store } from "./store";
@@ -45,7 +46,7 @@ export async function cancelRun(fix: Fix, userLogin: string): Promise<Fix> {
   let actions = "no Actions run id known yet; the runner's credential is revoked, so it cannot fetch the repository or report a result";
   const runId = /\/actions\/runs\/(\d+)/.exec(fix.runner?.run_url ?? "")?.[1];
   if (runId && env.RUNNER_DISPATCH_TOKEN) {
-    const r = await fetch(`https://api.github.com/repos/${env.RUNNER_REPO}/actions/runs/${runId}/cancel`, { method: "POST", headers: { authorization: `Bearer ${env.RUNNER_DISPATCH_TOKEN}`, accept: "application/vnd.github+json", "user-agent": "ArgusWatch/0.1" } }).catch(() => null);
+    const r = await fetch(`https://api.github.com/repos/${env.RUNNER_REPO}/actions/runs/${runId}/cancel`, { method: "POST", headers: { authorization: `Bearer ${env.RUNNER_DISPATCH_TOKEN}`, accept: "application/vnd.github+json", "user-agent": USER_AGENT } }).catch(() => null);
     actions = r?.status === 202 ? `GitHub Actions run ${runId} cancelled` : r?.status === 409 ? `GitHub Actions run ${runId} had already finished` : `could not cancel GitHub Actions run ${runId} (${r?.status ?? "network error"}); its credential is revoked, so it cannot write`;
   }
   const next = event({ ...fix, status: "cancelled", nonce_hash: null, grant: revoke(fix.grant), error: "cancelled by the user", runner: fix.runner ? { ...fix.runner, finished_at: now(), error: "cancelled by the user" } : fix.runner }, userLogin, "cancelled", `${c.why} ${actions}.`);

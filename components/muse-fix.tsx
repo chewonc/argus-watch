@@ -2,6 +2,7 @@
 // One-click remediation by Meta Muse Code: "Fix & create PR" (recommended) or "Fix & push". The user sees the preview
 // diff above, opens this dialog, reviews exactly what will happen, and authorizes once. Progress is polled from the
 // fix record and shown as an audit ladder (every step has a timestamp and, where possible, a GitHub link).
+import { fixBranch } from "@/lib/fix-branch";
 import { useEffect, useRef, useState } from "react";
 import type { Fix } from "@/lib/schema";
 import { isStaleRun } from "@/lib/run-stale";
@@ -72,12 +73,12 @@ export function MuseFix({ fix: initial, onChange, labels = MUSE_EN, autoOpen = f
         <form method="dialog" className="grid gap-3 text-[calc(13px*var(--ui))]" onSubmit={(e) => { e.preventDefault(); authorize(); }}>
           <div id="muse-fix-title" className="serif text-[calc(22px*var(--ui))]">{mode === "pr" ? "Fix & create pull request" : "Fix & push to " + (info?.default_branch ?? "the default branch")}</div>
           <ul className="grid gap-1 list-disc pl-5">
-            <li><b>Meta Muse Code</b> investigates and edits a fresh copy of <span className="mono">{fix.repo}</span> at <span className="mono">{fix.base_sha.slice(0, 7)}</span> inside an isolated GitHub Actions runner. Your code is never run on the Argus server.</li>
+            <li><b>Meta Muse Code</b> investigates and edits a fresh copy of <span className="mono">{fix.repo}</span> at <span className="mono">{fix.base_sha.slice(0, 7)}</span> inside an isolated GitHub Actions runner. Your code is never run on the SaveBell server.</li>
             <li>It may change only: <span className="mono">{info ? info.allowed_files.join(", ") : "…"}</span>. Any other change discards the whole result.</li>
             <li>Validation: syntax check and static remediation assessment always; repository tests: <b>{info ? (info.test_command ? <span className="mono">{info.test_command}</span> : "none detected, so no tests will run") : "…"}</b>. If tests fail, nothing is written.</li>
             {mode === "pr"
-              ? <li>Then Argus creates branch <span className="mono">argus/fix-{fix.id.slice(0, 8)}</span>, commits, and opens a <b>draft</b> pull request for your review. The default branch is not changed and nothing is merged.</li>
-              : <li>Then Argus opens a pull request and <b>merges it into {info?.default_branch ?? "the default branch"}</b> only after your repository&apos;s CI checks pass. If the repository has no passing CI check, it refuses to merge and leaves the pull request open; the runner&apos;s own tests never replace CI. Branch protection rules are respected; if they require a review, the PR stays open.</li>}
+              ? <li>Then SaveBell creates branch <span className="mono">{fixBranch(fix.id)}</span>, commits, and opens a <b>draft</b> pull request for your review. The default branch is not changed and nothing is merged.</li>
+              : <li>Then SaveBell opens a pull request and <b>merges it into {info?.default_branch ?? "the default branch"}</b> only after your repository&apos;s CI checks pass. If the repository has no passing CI check, it refuses to merge and leaves the pull request open; the runner&apos;s own tests never replace CI. Branch protection rules are respected; if they require a review, the PR stays open.</li>}
             <li>The diff you see may differ from Muse Code&apos;s final edit; you get the final diff, test log and audit trail before anything merges{mode === "push" ? " (push mode merges automatically once checks pass)" : ""}.</li>
             <li>Passing tests do not prove the vulnerability is gone. <b>Security remediation: not verified.</b></li>
           </ul>

@@ -65,7 +65,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
     const fixes = fixesBy.get(a.id) ?? [];
     const lf = latestFix(fixes);
     const loc = location(a);
-    // An open (or merged) pull request shows as "fix ready to review"; it is never marked resolved by Argus itself.
+    // An open (or merged) pull request shows as "fix ready to review"; it is never marked resolved by SaveBell itself.
     const status = localized(statusOf(a, sev, { resolved: resolved.has(a.id), prOpen: !!lf && ["pr_created", "blocked_by_protection", "merging"].includes(lf.status), merged: lf?.status === "merged" }), d);
     const href = caseHref(a.id);
     const act = findingAction(a, fixes, { fixEnabled: env.FIX_ENABLED, allowPr: !!ur?.allow_pr, isDemo: !ur, hasInstallation: !!ur?.installation_id, writePermission: ur?.installation_id ? perms.get(ur.installation_id) ?? null : null, mode: modeOf(user?.settings) }, href);
@@ -120,13 +120,13 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
 
       {repos.length > 0 && (activeRun ? (
         <Link href={`/runs/${encodeURIComponent(activeRun.id)}`} className="border hair rounded-[10px] px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-[calc(14px*var(--ui))] hover:bg-raised">
-          <span><b>Remediation window {activeRun.status === "paused" ? "paused" : "in progress"}</b> <span className="text-ink2">until {fmtLocal(activeRun.tz, activeRun.end_ms)} · {activeRun.items.length} finding(s) so far</span></span>
-          <span className="underline">View progress</span>
+          <span><b>Fix run {activeRun.status === "paused" ? "paused" : "in progress"}</b> <span className="text-ink2">until {fmtLocal(activeRun.tz, activeRun.end_ms)} · {activeRun.items.length} finding(s) so far</span></span>
+          <span className="underline">View run</span>
         </Link>
       ) : (
         <details className="disclose border hair rounded-[10px] px-4 py-3 text-[calc(14px*var(--ui))]">
-          <summary className="font-medium">Away for a while? Start a remediation window</summary>
-          <p className="mt-2 mb-3 text-[calc(13px*var(--ui))] text-ink2">Argus re-checks your open findings and prepares tested fixes while you are away. Unless you choose draft pull requests, nothing is written to your repositories; you review each patch when you are back. Schedule recurring windows on the <Link href="/windows" className="underline">Remediation</Link> page.</p>
+          <summary className="font-medium">Let SaveBell work while you&apos;re away</summary>
+          <p className="mt-2 mb-3 text-[calc(13px*var(--ui))] text-ink2">SaveBell checks issues and prepares fixes while you&apos;re away. <Link href="/settings#runs" className="underline">Schedules and history</Link></p>
           <StartNowForm action={startWindowNow} repos={mine.filter((m) => !m.paused && !m.access_lost).map((m) => m.repo_key)} />
         </details>
       ))}

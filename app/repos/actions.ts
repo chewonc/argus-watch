@@ -1,5 +1,5 @@
 "use server";
-// Repository onboarding actions. Every write here is to Argus Watch's own store; nothing is written to GitHub.
+// Repository onboarding actions. Every write here is to SaveBell's own store; nothing is written to GitHub.
 import { listUserInstallationRepos } from "@/lib/github-app";
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";

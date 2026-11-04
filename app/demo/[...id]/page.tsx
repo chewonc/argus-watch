@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { SparkBadge, StatusPill, firstSentence, suggestedFix } from "@/components/alerts";
 import { CredibilityChip, CredibilityPanel } from "@/components/credibility";
 import { demoAssessment } from "@/lib/demo";
+import { demoPath } from "@/lib/demo-path";
 import { getDict, getLocale } from "@/lib/i18n";
 import { fmtDate, isVerified, location, localized, modelName, plainTitle, statusOf, tidy, whereLine } from "@/lib/labels";
 import { permalink } from "@/lib/remediation";
@@ -37,7 +38,7 @@ export default async function DemoCase({ params }: { params: Promise<{ id: strin
         <p className="text-[calc(12px*var(--ui))] text-ink2">Public demo on an evaluation fixture in this open-source repository. Read-only.</p>
         <div className="flex flex-wrap items-center gap-2"><StatusPill s={status} /><CredibilityChip c={f?.credibility} l={{ none: d.report_not_checked, prefix: d.report_prefix }} /><SparkBadge a={a} label={d.analysed_by_spark} /></div>
         <h1 className="text-[calc(26px*var(--ui))] sm:text-[calc(30px*var(--ui))] font-semibold tracking-[-0.02em] leading-tight">{tidy(plainTitle(a, f, loc, w?.tech_tags, w?.packages.map((p) => p.name)))}</h1>
-        <div className="text-[calc(13px*var(--ui))] text-ink2 mono [overflow-wrap:anywhere]">{a.repo.replace("chewonc/argus-watch/", "")}</div>
+        <div className="text-[calc(13px*var(--ui))] text-ink2 mono [overflow-wrap:anywhere]">{demoPath(a.repo)}</div>
         {loc && a.verdict !== "Not Affected" && ghUrl && <div className="text-[calc(13px*var(--ui))] text-ink2"><span>{verified ? d.affected_at : d.potentially_affected}: </span><a href={ghUrl} target="_blank" rel="noreferrer" className="mono [overflow-wrap:anywhere]">{`${loc.file}:${loc.from}${loc.to !== loc.from ? `-${loc.to}` : ""}`} ↗</a></div>}
         {!loc && where.kind === "package" && <div className="mono text-[calc(13px*var(--ui))] text-ink2 [overflow-wrap:anywhere]">{where.text}</div>}
       </div>
@@ -54,7 +55,7 @@ export default async function DemoCase({ params }: { params: Promise<{ id: strin
       )}
 
       <section className="grid gap-2">
-        <h2 className="text-[calc(18px*var(--ui))] font-semibold">Why Argus says this</h2>
+        <h2 className="text-[calc(18px*var(--ui))] font-semibold">Why SaveBell says this</h2>
         <p className="text-[calc(13px*var(--ui))] text-ink2">{tidy(a.verdict_reason)}</p>
         <ul className="grid gap-2 text-[calc(14px*var(--ui))]">
           {a.conditions.map((c) => (

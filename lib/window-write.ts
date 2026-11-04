@@ -41,8 +41,8 @@ const hold = (why: string): WriteOutcome => ({ ok: false, held: why });
 export async function openDraftPr(run: WindowRun, fixId: string, d: WriteDeps): Promise<WriteOutcome> {
   try {
     const now = d.now();
-    if (run.level !== "draft_pr") return hold("this window may not open pull requests");
-    if (run.status !== "running" || now >= run.end_ms) return hold("the window is not active, so no pull request is opened");
+    if (run.level !== "draft_pr") return hold("this run may not open pull requests");
+    if (run.status !== "running" || now >= run.end_ms) return hold("the run is not active, so no pull request is opened");
     const fix = await d.getFix(fixId);
     if (!fix || fix.user_id !== run.user_id) return hold("the fix record is missing");
     const repoKey = fix.repo_key;
