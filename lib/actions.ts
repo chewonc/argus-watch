@@ -9,17 +9,18 @@
 import { isVerified, location } from "./labels";
 import { UNFIXABLE } from "./fixgate";
 import type { Assessment, Fix } from "./schema";
+import { isStaleRun } from "./run-stale";
 
-export type ActionKind = "fix_now" | "retry" | "verify" | "review_fix" | "view_pr" | "view_fix" | "view_progress";
+export type ActionKind = "fix_now" | "retry" | "approve" | "verify" | "review_fix" | "view_pr" | "view_fix" | "view_progress";
 export type ActionTone = "muted" | "warn" | "bad" | "ok";
 export type FindingAction = {
   primary: { kind: ActionKind; href: string; external: boolean } | null;
-  state: { key: "awaiting" | "preparing" | "in_progress" | "checks" | "pr" | "blocked" | "failed" | "merged"; tone: ActionTone } | null;
+  state: { key: "awaiting" | "preparing" | "in_progress" | "patch_ready" | "creating_pr" | "checks" | "pr" | "blocked" | "failed" | "stalled" | "cancelled" | "merged"; tone: ActionTone } | null;
   note: string | null;
 };
 export type ActionContext = { fixEnabled: boolean; allowPr: boolean; isDemo: boolean; hasInstallation: boolean; writePermission: boolean | null };
 
-const ACTIVE: Partial<Record<Fix["status"], NonNullable<FindingAction["state"]>["key"]>> = { drafting: "preparing", approved: "preparing", queued: "preparing", running: "in_progress", validated: "in_progress", merging: "checks" };
+const ACTIVE: Partial<Record<Fix["status"], NonNullable<FindingAction["state"]>["key"]>> = { drafting: "preparing", approved: "creating_pr", queued: "preparing", running: "in_progress", merging: "checks" };
 
 /** Newest fix record for the assessment (fixes are stored per assessment). */
 export const latestFix = (fixes: Fix[]) => [...fixes].sort((x, y) => y.created_at.localeCompare(x.created_at))[0] ?? null;
@@ -38,13 +39,16 @@ export function automationBlocker(a: Assessment, ctx: ActionContext): string | n
   return null;
 }
 
-export function findingAction(a: Assessment, fixes: Fix[], ctx: ActionContext, caseHref: string): FindingAction {
+export function findingAction(a: Assessment, fixes: Fix[], ctx: ActionContext, caseHref: string, now = Date.now()): FindingAction {
   if (a.verdict === "Not Affected") return { primary: null, state: null, note: null };
   const fx = latestFix(fixes);
   const fixHref = `${caseHref}#fix`;
   if (fx) {
-    const active = ACTIVE[fx.status];
+    const stalled = isStaleRun(fx, now);
+    const active = stalled ? undefined : ACTIVE[fx.status];
     if (active) return { primary: { kind: "view_progress", href: fixHref, external: false }, state: { key: active, tone: "warn" }, note: null };
+    // The runner finished and Argus validated the patch: nothing is written until the user approves this exact patch.
+    if (fx.status === "validated") return { primary: { kind: "approve", href: `${caseHref}?act=1#fix`, external: false }, state: { key: "patch_ready", tone: "warn" }, note: "A validated patch is ready. Nothing has been written to your repository; review it and approve to open a draft pull request." };
     if (fx.status === "pr_created") return { primary: fx.pr_url ? { kind: "view_pr", href: fx.pr_url, external: true } : { kind: "view_progress", href: fixHref, external: false }, state: { key: "pr", tone: "ok" }, note: "A pull request is a proposed change: review and merge it on GitHub. The alert stays open until then." };
     if (fx.status === "blocked_by_protection") return { primary: fx.pr_url ? { kind: "view_pr", href: fx.pr_url, external: true } : { kind: "view_progress", href: fixHref, external: false }, state: { key: "blocked", tone: "warn" }, note: fx.error };
     if (fx.status === "merged") return { primary: { kind: "view_fix", href: fx.commit_url ?? fx.pr_url ?? fixHref, external: !!(fx.commit_url ?? fx.pr_url) }, state: { key: "merged", tone: "ok" }, note: null };
@@ -53,8 +57,11 @@ export function findingAction(a: Assessment, fixes: Fix[], ctx: ActionContext, c
   if (a.agent?.status === "not_affected" && !isVerified(a)) return { primary: null, state: null, note: "Your AI agent checked this and reported that it does not affect your code." };
   if (!isVerified(a)) return { primary: { kind: "verify", href: `${caseHref}?verify=1#agent`, external: false }, state: null, note: null };
   const blocker = automationBlocker(a, ctx);
-  const failed = fx && (fx.status === "failed" || fx.status === "validation_failed");
-  if (blocker) return { primary: { kind: "review_fix", href: fx ? fixHref : `${caseHref}#how-to-fix`, external: false }, state: failed ? { key: "failed", tone: "bad" } : null, note: failed && fx.error ? `${fx.error} ${blocker}` : blocker };
-  if (failed) return { primary: { kind: "retry", href: `${caseHref}?act=1#fix`, external: false }, state: { key: "failed", tone: "bad" }, note: fx.error };
-  return { primary: { kind: "fix_now", href: `${caseHref}?act=1#fix`, external: false }, state: fx?.status === "drafted" ? { key: "awaiting", tone: "muted" } : null, note: null };
+  const stalledRun = !!fx && isStaleRun(fx, now);
+  const failed = fx && (fx.status === "failed" || fx.status === "validation_failed" || stalledRun);
+  const cancelled = fx?.status === "cancelled";
+  const failNote = cancelled ? "You cancelled the last attempt; nothing was written to your repository." : stalledRun ? `The runner never reported back${fx?.runner?.run_url ? ` (${fx.runner.run_url})` : ""}; nothing was written. You can start it again.` : fx?.error ?? null;
+  if (blocker) return { primary: { kind: "review_fix", href: fx ? fixHref : `${caseHref}#how-to-fix`, external: false }, state: failed ? { key: stalledRun ? "stalled" : "failed", tone: "bad" } : cancelled ? { key: "cancelled", tone: "muted" } : null, note: (failed || cancelled) && failNote ? `${failNote} ${blocker}` : blocker };
+  if (failed) return { primary: { kind: "retry", href: `${caseHref}?act=1#fix`, external: false }, state: { key: stalledRun ? "stalled" : "failed", tone: "bad" }, note: failNote };
+  return { primary: { kind: "fix_now", href: `${caseHref}?act=1#fix`, external: false }, state: cancelled ? { key: "cancelled", tone: "muted" } : fx?.status === "drafted" ? { key: "awaiting", tone: "muted" } : null, note: cancelled ? failNote : null };
 }

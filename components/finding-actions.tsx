@@ -3,8 +3,8 @@
 import Link from "next/link";
 import type { FindingAction } from "@/lib/actions";
 
-export type ActionLabels = Record<"fix_now" | "retry" | "verify" | "review_fix" | "view_pr" | "view_fix" | "view_progress" | "details", string>
-  & Record<"st_awaiting" | "st_preparing" | "st_in_progress" | "st_checks" | "st_pr" | "st_blocked" | "st_failed" | "st_merged", string>;
+export type ActionLabels = Record<"fix_now" | "retry" | "approve" | "verify" | "review_fix" | "view_pr" | "view_fix" | "view_progress" | "details", string>
+  & Record<"st_awaiting" | "st_preparing" | "st_in_progress" | "st_patch_ready" | "st_creating_pr" | "st_checks" | "st_pr" | "st_blocked" | "st_failed" | "st_stalled" | "st_cancelled" | "st_merged", string>;
 
 export function FindingActions({ act, labels, secondary, showNote = true, align = "start" }: { act: FindingAction; labels: ActionLabels; secondary?: { href: string; label: string } | null; showNote?: boolean; align?: "start" | "end" }) {
   const p = act.primary;

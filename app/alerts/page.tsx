@@ -2,6 +2,7 @@
 // Technical monitoring detail lives on /monitoring; the product landing page is /.
 import Link from "next/link";
 import { AlertCard, type CardData } from "@/components/alerts";
+import { RememberThreatsView, RepoFilter } from "@/components/repo-filter";
 import { findingAction, latestFix } from "@/lib/actions";
 import { actionLabels } from "@/lib/action-labels";
 import type { Fix } from "@/lib/schema";
@@ -68,7 +69,14 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
   }
   const filter: Filter = (FILTERS as readonly string[]).includes(sp.f ?? "") ? (sp.f as Filter) : LEGACY[sp.f ?? ""] ?? "all";
   const isOpen = (c: CardData) => c.status.kind !== "not_affected" && c.status.kind !== "resolved" && c.status.kind !== "fix_ready";
-  const relevant = cards.filter((c) => c.status.kind !== "not_affected");
+  // Repository filter (server-side): GitHub repositories as owner/name; fixture folders inside a repository belong to it.
+  const ghRepo = (c: CardData) => c.a.repo.split("/").slice(0, 2).join("/");
+  const allRelevant = cards.filter((c) => c.status.kind !== "not_affected");
+  const repoCounts = new Map<string, number>();
+  for (const c of allRelevant) repoCounts.set(ghRepo(c), (repoCounts.get(ghRepo(c)) ?? 0) + 1);
+  for (const r of repos) if (!repoCounts.has(r.repo)) repoCounts.set(r.repo, 0);
+  const selectedRepos = (sp.repo ?? "").split(",").map((x) => x.trim()).filter((x) => repoCounts.has(x));
+  const relevant = selectedRepos.length ? allRelevant.filter((c) => selectedRepos.includes(ghRepo(c))) : allRelevant;
   const shown = filter === "urgent" ? relevant.filter(isOpen) : filter === "resolved" ? relevant.filter((c) => !isOpen(c)) : relevant;
   const openCount = relevant.filter(isOpen).length;
   // One line per GitHub repository (fixture subfolders of the same repository collapse into it); worst status wins.
@@ -97,9 +105,13 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
         <Empty title={d.empty_connect_title} body={d.empty_connect_body} action={<Link href="/repos" className="btn">{d.connect_github}</Link>} />
       ) : (
         <>
-          <nav className="seg w-fit" aria-label="Filter alerts">
-            {FILTERS.map((f) => <Link key={f} href={f === "all" ? "/alerts" : `/alerts?f=${f}`} aria-current={f === filter ? "page" : undefined}>{d[`filter_${f}` as keyof typeof d]}</Link>)}
-          </nav>
+          <RememberThreatsView />
+          <div className="flex flex-wrap items-center gap-3">
+            {repoCounts.size > 1 && <RepoFilter repos={[...repoCounts.entries()].sort((x, y) => x[0].localeCompare(y[0])).map(([key, count]) => ({ key, count }))} selected={selectedRepos} />}
+            <nav className="seg w-fit" aria-label="Filter threats by status">
+              {FILTERS.map((f) => { const q = new URLSearchParams(); if (f !== "all") q.set("f", f); if (selectedRepos.length) q.set("repo", selectedRepos.join(",")); return <Link key={f} href={`/alerts${q.toString() ? `?${q}` : ""}`} aria-current={f === filter ? "page" : undefined}>{d[`filter_${f}` as keyof typeof d]}</Link>; })}
+            </nav>
+          </div>
           {shown.length === 0 ? (
             filter === "resolved" ? <Empty title={d.empty_resolved_title} body={d.empty_resolved_body} />
               : <Empty title={d.empty_clear_title} body={d.empty_clear_body} />

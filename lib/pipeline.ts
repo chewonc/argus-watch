@@ -68,7 +68,10 @@ export async function processFinding(id: string, opts: { replayed?: boolean; onl
       if (p.ok) text += `\n\n[page ${i.url}]\n${p.text}`; else await store.log({ kind: "process", source: "fetchpage", detail: `skipped ${i.url}: ${p.reason}`, ref: f.id });
     }
     // Backfill (a repository was just connected): check this one repository only and never downgrade the finding's status.
-    const repos = (await store.listRepos()).filter((r) => !opts.onlyRepo || store.repoKey(r) === opts.onlyRepo);
+    // Paused repositories (every watcher paused it) get no new assessments; their history is kept.
+    const listed = (await store.listRepos()).filter((r) => !opts.onlyRepo || store.repoKey(r) === opts.onlyRepo);
+    const active = await Promise.all(listed.map(async (r) => (await store.activeRepoUsers(store.repoKey(r))).length > 0));
+    const repos = listed.filter((_, i) => active[i]);
     if (opts.onlyRepo && !repos.length) return;
     const pre = prefilter(text, repos);
     if (!pre.relevant && opts.onlyRepo) return;

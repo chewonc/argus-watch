@@ -215,7 +215,7 @@ export const store = {
     const ids = await kv.smembers(K.userInsts(uid));
     return (await kv.mget<Installation>(ids.map((i) => K.inst(Number(i))))).filter((x): x is Installation => !!x);
   },
-  async addUserRepo(ur: UserRepo) { await kv.set(K.urepo(ur.user_id, ur.repo_key), ur); await kv.sadd(K.userRepos(ur.user_id), ur.repo_key); await kv.sadd(K.repoUsers(ur.repo_key), ur.user_id); },
+  async addUserRepo(ur: Omit<UserRepo, "paused"> & { paused?: boolean }) { await kv.set(K.urepo(ur.user_id, ur.repo_key), ur); await kv.sadd(K.userRepos(ur.user_id), ur.repo_key); await kv.sadd(K.repoUsers(ur.repo_key), ur.user_id); },
   getUserRepo: (uid: string, k: string) => kv.get<UserRepo>(K.urepo(uid, k)),
   /** Remove the user's link; drop the WatchedRepo itself once nobody watches it. */
   async removeUserRepo(uid: string, k: string): Promise<{ repo_removed: boolean }> {
@@ -229,6 +229,12 @@ export const store = {
     return (await kv.mget<UserRepo>(ks.map((k) => K.urepo(uid, k)))).filter((x): x is UserRepo => !!x);
   },
   repoUsers: (k: string) => kv.smembers(K.repoUsers(k)),
+  /** Users who watch this repository and have not paused it (the shared demo user always counts as active). */
+  async activeRepoUsers(k: string): Promise<string[]> {
+    const users = await kv.smembers(K.repoUsers(k));
+    const links = await Promise.all(users.map((u) => (u === SYSTEM_USER ? null : kv.get<UserRepo>(K.urepo(u, k)))));
+    return users.filter((u, i) => u === SYSTEM_USER || !links[i]?.paused);
+  },
 
   // ---- per-user read / resolved state ---------------------------------------
   markRead: (uid: string, aid: string) => kv.sadd(K.read(uid), aid),

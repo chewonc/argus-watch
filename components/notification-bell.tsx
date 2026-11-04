@@ -48,7 +48,7 @@ export function NotificationBell({ label }: { label: string }) {
       <button ref={btn} type="button" aria-haspopup="dialog" aria-expanded={open} aria-label={unread ? `${label}: ${unread} unread` : label} onClick={() => setOpen((o) => !o)}
         className="relative inline-flex items-center justify-center w-8 h-8 rounded-full text-ink2 hover:text-ink hover:bg-[var(--sunken)] cursor-pointer">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
-        {unread > 0 && <span className="badge-quiet absolute top-0 right-0 translate-x-1/4 -translate-y-1/4" aria-hidden>{unread > 99 ? "99+" : unread}</span>}
+        {unread > 0 && <span className="badge absolute -top-0.5 -right-1" aria-hidden>{unread > 99 ? "99+" : unread}</span>}
       </button>
       {open && (
         <div role="dialog" aria-label={label} className="menu !p-0 w-[380px] max-sm:!fixed max-sm:!left-3 max-sm:!right-3 max-sm:!top-[60px] max-sm:!w-auto flex flex-col">

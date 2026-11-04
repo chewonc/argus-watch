@@ -46,6 +46,31 @@ export async function listInstallationRepos(userToken: string, installationId: n
   return out.sort((a, b) => (b.pushed_at ?? "").localeCompare(a.pushed_at ?? ""));
 }
 
+/**
+ * Repositories an installation grants, read with the App's installation token (refreshed automatically). Used after
+ * the installation was verified as the user's at connect time (/api/github/setup), so the listing no longer depends
+ * on the user's sign-in token, which expires and used to make the Repositories page fail.
+ */
+export async function listInstallationReposApp(installationId: number): Promise<RepoSummary[]> {
+  const ok = await installationOctokit(installationId);
+  const out: RepoSummary[] = [];
+  for (let page = 1; page <= 5; page++) {
+    const r = await ok.request("GET /installation/repositories", { per_page: 100, page });
+    out.push(...r.data.repositories.map((x) => ({ full_name: x.full_name, private: x.private, default_branch: x.default_branch, pushed_at: x.pushed_at ?? null, language: x.language ?? null })));
+    if (r.data.repositories.length < 100) break;
+  }
+  return out.sort((a, b) => (b.pushed_at ?? "").localeCompare(a.pushed_at ?? ""));
+}
+
+/** A GitHub error as an actionable sentence for the Repositories page (never a raw stack). */
+export function explainGitHubError(e: unknown, account: string): string {
+  const status = (e as { status?: number }).status;
+  if (status === 401) return `GitHub rejected Argus Watch's credentials for ${account}. Reinstall or re-authorize the Argus Watch app on GitHub.`;
+  if (status === 403) return `The Argus Watch app no longer has access to ${account}'s repositories (permissions changed or the installation is suspended). Review its access on GitHub.`;
+  if (status === 404) return `The Argus Watch app installation for ${account} was not found; it may have been uninstalled. Connect the account again.`;
+  return `GitHub did not answer for ${account} (${status ?? "network error"}). Try again in a moment.`;
+}
+
 /** Which permissions this installation currently has (after the owner accepted an upgrade, write perms appear here). */
 export async function installationPermissions(installationId: number): Promise<Record<string, string>> {
   const r = await githubApp().octokit.request("GET /app/installations/{installation_id}", { installation_id: installationId });

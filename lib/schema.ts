@@ -199,6 +199,7 @@ export const UserRepo = z.object({
   installation_id: z.number().nullable().default(null),
   allow_pr: z.boolean().default(false), // explicit per-repo opt-in before any draft PR can be opened
   local_root: z.string().nullable().default(null), // absolute local checkout path for IDE deep links (client-provided)
+  paused: z.boolean().default(false), // the user paused monitoring: no new assessments or notifications for them; history stays
   added_at: z.string(),
 });
 export type UserRepo = z.infer<typeof UserRepo>;
@@ -258,7 +259,9 @@ export const Fix = z.object({
   base_sha: z.string(),
   status: z.enum(["drafting", "drafted", "approved", "pr_created", "failed",
     // automated remediation (Muse Code runner): queued → running → validated → pr_created → (push mode) merging → merged | blocked_by_protection
-    "queued", "running", "validation_failed", "validated", "merging", "merged", "blocked_by_protection"]),
+    "queued", "running", "validation_failed", "validated", "merging", "merged", "blocked_by_protection",
+    // the user stopped a queued or running remediation; the runner's single-use credential is revoked
+    "cancelled"]),
   summary: z.string(),
   caveats: z.array(z.string()),
   files: z.array(z.object({ path: z.string(), before_sha: z.string(), patch: z.string(), after: z.string(), hunks: z.array(FixHunk) })),
@@ -292,12 +295,20 @@ export const Fix = z.object({
     summary: z.string().default(""),
     changed_files: z.array(z.string()).default([]),
     rejected_files: z.array(z.string()).default([]),
-    tests: z.object({ command: z.string().nullable(), executed: z.boolean(), exit_code: z.number().nullable(), log: z.string(), duration_ms: z.number().nullable() }).nullable().default(null),
+    tests: z.object({ command: z.string().nullable(), executed: z.boolean(), exit_code: z.number().nullable(), log: z.string(), duration_ms: z.number().nullable(),
+      summary: z.object({ framework: z.string(), total: z.number(), passed: z.number(), failed: z.number(), names: z.array(z.string()) }).nullable().optional() }).nullable().default(null),
+    // dependency install in the runner (npm ci after a runner-regenerated lockfile); null when nothing was installed
+    install: z.object({ command: z.string().nullable(), executed: z.boolean(), exit_code: z.number().nullable(), log: z.string() }).nullable().optional(),
+    // lib/runner-gates.ts validationSummary(...).label, e.g. "Tests passed (1/1); security fix not verified"
+    validation_label: z.string().nullable().optional(),
     error: z.string().nullable().default(null),
   }).nullable().default(null),
   merge_sha: z.string().nullable().default(null),
   commit_url: z.string().nullable().default(null),
   merge_attempts: z.number().default(0),
+  // Version of the validated patch the user must approve (hash of paths + contents). Approval names this version;
+  // a different patch requires a new review. null until the runner's patch was validated.
+  patch_version: z.string().nullable().default(null),
 });
 export type Fix = z.infer<typeof Fix>;
 

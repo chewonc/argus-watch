@@ -4,6 +4,7 @@
 // fix record and shown as an audit ladder (every step has a timestamp and, where possible, a GitHub link).
 import { useEffect, useRef, useState } from "react";
 import type { Fix } from "@/lib/schema";
+import { isStaleRun } from "@/lib/run-stale";
 
 type Info = { allowed_files: string[]; test_command: string | null; default_branch: string; blockers: string[] };
 const ACTIVE = ["queued", "running", "validated", "merging"];
@@ -41,7 +42,7 @@ export function MuseFix({ fix: initial, onChange, labels = MUSE_EN, autoOpen = f
     } catch (e) { setErr(String((e as Error).message)); } finally { setBusy(false); }
   }
 
-  const stale = fix.status === "queued" && Date.now() - Date.parse(fix.runner?.dispatched_at ?? fix.approved_at ?? fix.created_at) > 20 * 60e3; // eslint-disable-line react-hooks/purity
+  const stale = isStaleRun(fix);
   const canStart = (["drafted", "failed", "validation_failed"].includes(fix.status) && fix.files.length > 0) || fix.status === "validation_failed" || stale;
   // Arriving from "Fix now" (?act=1): open the authorization dialog in PR mode once. Nothing runs until the user ticks
   // "I reviewed…" and authorizes.
@@ -93,7 +94,7 @@ export function MuseFix({ fix: initial, onChange, labels = MUSE_EN, autoOpen = f
   );
 }
 
-function RunLadder({ fix }: { fix: Fix }) {
+export function RunLadder({ fix }: { fix: Fix }) {
   const r = fix.runner;
   const t = r?.tests;
   const st = fix.status;

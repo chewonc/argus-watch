@@ -5,11 +5,11 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { env } from "@/lib/env";
-import { listInstallationRepos } from "@/lib/github-app";
+import { explainGitHubError, listInstallationReposApp } from "@/lib/github-app";
 import { forgetInstallations, refreshRepo } from "@/lib/repo";
 import { backfillRepo } from "@/lib/pipeline";
 import { WatchedRepo } from "@/lib/schema";
-import { githubUserToken, requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import { SYSTEM_USER, store } from "@/lib/store";
 
 /** Start the GitHub App installation flow with a state nonce that /api/github/setup checks. */
@@ -28,9 +28,10 @@ export async function addRepos(formData: FormData) {
   const picked = formData.getAll("repo").map(String).filter(Boolean);
   const inst = await store.getInstallation(instId);
   if (!inst || !inst.user_ids.includes(user.id)) redirect("/repos?error=installation_not_yours");
-  const token = await githubUserToken();
-  if (!token) redirect("/repos?error=no_token");
-  const available = new Map((await listInstallationRepos(token, instId)).map((r) => [r.full_name, r]));
+  // Listed with the App's installation token: works after the user's sign-in token has expired.
+  let list: Awaited<ReturnType<typeof listInstallationReposApp>>;
+  try { list = await listInstallationReposApp(instId); } catch (e) { redirect(`/repos?error=${encodeURIComponent(explainGitHubError(e, inst.account))}`); }
+  const available = new Map(list.map((r) => [r.full_name, r]));
   const errors: string[] = [];
   let backfilled = 0;
   for (const full of picked) {
@@ -42,7 +43,9 @@ export async function addRepos(formData: FormData) {
       const r = await refreshRepo({ ...w, installation_id: instId, private: meta.private });
       await store.putRepo(r);
     } catch (e) { errors.push(`${full}: ${String(e).slice(0, 120)}`); continue; }
-    await store.addUserRepo({ user_id: user.id, repo_key: full, installation_id: instId, allow_pr: false, local_root: null, added_at: new Date().toISOString() });
+    // Re-adding a repository keeps the user's earlier settings (draft-PR opt-in, local path) and resumes monitoring.
+    const prev = await store.getUserRepo(user.id, full);
+    await store.addUserRepo({ user_id: user.id, repo_key: full, installation_id: instId, allow_pr: prev?.allow_pr ?? false, local_root: prev?.local_root ?? null, paused: false, added_at: prev?.added_at ?? new Date().toISOString() });
     // Initial scan: check the last 30 days of actionable threats against the new repository (queued, bounded).
     try { const b = await backfillRepo(full); backfilled += b.queued; } catch (e) { await store.log({ kind: "error", source: "backfill", detail: `${full}: ${String(e).slice(0, 160)}` }); }
   }
@@ -59,6 +62,19 @@ export async function removeRepo(formData: FormData) {
   forgetInstallations();
   await store.log({ kind: "auth", source: "repos", detail: `${user.login} stopped watching ${key}${r.repo_removed ? " (last watcher; repo dropped)" : ""}` });
   revalidatePath("/repos"); revalidatePath("/alerts");
+}
+
+/** Pause or resume monitoring for this user. Paused: no new assessments or notifications; existing alerts stay. */
+export async function setPaused(formData: FormData) {
+  const user = await requireUser("/repos");
+  const key = String(formData.get("repo_key"));
+  const paused = formData.get("paused") === "1";
+  const ur = await store.getUserRepo(user.id, key);
+  if (!ur) redirect("/repos?error=not_watched");
+  await store.addUserRepo({ ...ur, paused });
+  await store.log({ kind: "auth", source: "repos", detail: `${user.login} ${paused ? "paused" : "resumed"} monitoring of ${key}` });
+  revalidatePath("/repos"); revalidatePath("/alerts");
+  redirect(`/repos?${paused ? "paused" : "resumed"}=${encodeURIComponent(key)}`);
 }
 
 /** Explicit per-repo opt-in for draft pull requests. Never available for shared demo repos. */

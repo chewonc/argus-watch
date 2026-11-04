@@ -1,15 +1,15 @@
 // Finding page: status, plain title, location, what is wrong, how to fix it, and one GitHub link. The full
 // analysis (sources, dates, conditions, evidence, code) is preserved behind one collapsed "Technical details".
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { codeToHtml } from "shiki";
 import { StatusPill, firstSentence, lineAnchor, suggestedFix } from "@/components/alerts";
-import { FixPreview } from "@/components/fix-preview";
 import { CredibilityChip, CredibilityPanel } from "@/components/credibility";
 import { SimulateImpact } from "@/components/simulate-impact";
 import { cachedSimulation } from "@/lib/simulate";
 import { FindingActions } from "@/components/finding-actions";
-import { findingAction } from "@/lib/actions";
+import { Remediation } from "@/components/remediation";
+import { BackToThreats } from "@/components/repo-filter";
+import { findingAction, latestFix as newestOf } from "@/lib/actions";
 import { actionLabels } from "@/lib/action-labels";
 import { caseHref } from "@/lib/labels";
 import { ThreatTimeline } from "@/components/threat-timeline";
@@ -40,7 +40,6 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   const a = await store.getAssessment(aid);
   if (!a || !(await canSee(user.id, a.repo))) notFound();
   const [ur, demoRepo, fixes, w, resolvedSet] = await Promise.all([store.getUserRepo(user.id, a.repo), isSystemRepo(a.repo), store.listFixes(a.id), store.getRepo(a.repo), store.resolvedSet(user.id)]);
-  const latestFix = fixes.find((x) => x.status === "pr_created") ?? fixes.find((x) => x.status === "drafted") ?? fixes[0] ?? null;
   const locale = await getLocale();
   const d = await getDict(locale);
   const f = await store.getFinding(a.finding_id);
@@ -55,7 +54,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
 
   const sev = a.severity ?? deriveSeverity(a, items);
   const loc = location(a);
-  const prFix = fixes.find((x) => x.status === "pr_created") ?? null;
+  const prFix = fixes.find((x) => ["pr_created", "blocked_by_protection", "merging", "merged"].includes(x.status)) ?? null; // same rule as the Threats list
   const status = localized(statusOf(a, sev, { resolved: resolvedSet.includes(a.id), prOpen: !!prFix }), d);
   const verified = isVerified(a);
   const title0 = plainTitle(a, f, loc, w?.tech_tags, w?.packages.map((p) => p.name));
@@ -101,6 +100,9 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
     : openCond ? d.ns_possible.replace("{x}", `${openCond.t.replace(/\.$/, "")}${openRef ? ` (${openRef.file.split("/").pop()}:${openRef.line})` : ""}.`)
     : missingT[0] ? d.ns_possible.replace("{x}", missingT[0])
     : d.ns_fallback;
+  // One remediation workflow: shown when a fix can be started, or when one exists (progress / approval / result).
+  const newestFix = newestOf(fixes);
+  const showRemediation = fixAllowed || (!!newestFix && env.FIX_ENABLED && !demoRepo && newestFix.files.length > 0);
   const act = findingAction(a, fixes, { fixEnabled: env.FIX_ENABLED, allowPr: !!ur?.allow_pr, isDemo: demoRepo, hasInstallation: !!ur?.installation_id, writePermission: writeOk }, caseHref(a.id));
   const cachedSim = a.verdict === "Not Affected" ? null : await cachedSimulation(a, fixes.find((x) => x.files.length > 0) ?? null, locale).catch(() => null);
 
@@ -108,10 +110,10 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
     <div className="mx-auto max-w-[760px] px-4 sm:px-6 py-8 sm:py-10 grid grid-cols-[minmax(0,1fr)] gap-8">
       <MarkRead assessmentId={a.id} />
       <div className="grid gap-3">
-        <Link href="/alerts" className="text-[13px] text-ink2 no-underline hover:text-ink w-fit">← {d.nav_threats}</Link>
+        <BackToThreats label={d.nav_threats} />
         <div className="flex flex-wrap items-center gap-2"><StatusPill s={status} /><CredibilityChip c={f?.credibility} l={{ none: d.report_not_checked, prefix: d.report_prefix }} /></div>
         <h1 className="text-[26px] sm:text-[30px] font-semibold tracking-[-0.02em] leading-tight">{T.title}</h1>
-        {loc && a.verdict !== "Not Affected" && <div className="text-[13px] text-ink2"><span>{verified ? d.affected_at : d.potentially_affected}: </span><span className="mono [overflow-wrap:anywhere]">{`${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}`}</span></div>}
+        {loc && a.verdict !== "Not Affected" && <div className="text-[13px] text-ink2"><span>{verified ? d.affected_at : d.potentially_affected}: </span>{ghUrl ? <a href={ghUrl} target="_blank" rel="noreferrer" className="mono [overflow-wrap:anywhere]" title={d.open_in_github}>{`${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}`} ↗</a> : <span className="mono [overflow-wrap:anywhere]">{`${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}`}</span>}</div>}
         {!loc && (where.kind === "package") && <div className="mono text-[13px] text-ink2 [overflow-wrap:anywhere]">{where.text}</div>}
         {a.verdict === "Not Affected"
           ? <p className="text-[14px] text-ink2">This threat doesn&apos;t affect your project: the code it needs isn&apos;t there. We&apos;ll check again when your code changes.</p>
@@ -126,15 +128,13 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
         <section id="how-to-fix" className="border-t hair pt-5 grid gap-3 scroll-mt-20">
           <h2 className="text-[15px] font-semibold">{d.how_to_fix}</h2>
           {T.fix && <p className="text-[15px] leading-relaxed">{T.fix}</p>}
-          <div id="agent" className="scroll-mt-20"><AskAgent id={a.id} connected={agentConnected} verified={verified} labels={{ title: d.agent_title, leadFix: d.agent_lead_fix, leadVerify: d.agent_lead_verify, copy: d.copy_instructions, copied: d.copied, preview: d.preview }} /></div>
-          <FindingActions act={act} labels={actionLabels(d)} secondary={fixAllowed ? { href: "#fix", label: d.act_view_changes } : null} />
-          {(ghUrl || prFix?.pr_url) && (
-            <div className="flex flex-wrap items-center gap-2">
-              {ghUrl && <a href={ghUrl} target="_blank" rel="noreferrer" className="btn-ghost">{d.open_in_github} <span aria-hidden>↗</span></a>}
-              {prFix?.pr_url && <a href={prFix.pr_url} target="_blank" rel="noreferrer" className="btn">Review draft pull request{prFix.pr_number ? ` #${prFix.pr_number}` : ""} <span aria-hidden>↗</span></a>}
-            </div>
-          )}
-          {fixAllowed && <div id="fix"><FixPreview assessmentId={a.id} initial={latestFix} allowPr={!!ur?.allow_pr} isDemoRepo={demoRepo} verdict={a.verdict} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} museEnabled={hasRunner()} museLabels={{ title: d.automated_fix, pr: d.fix_create_pr, push: d.fix_push, recommended: d.recommended }} labels={{ proposed_fix: d.proposed_fix, draft_fix: d.fix, drafting: d.drafting, re_draft: d.re_draft, approve: d.approve_open_pr, not_verified: d.not_verified }} /></div>}
+          {showRemediation
+            ? <Remediation assessmentId={a.id} initial={newestFix} canAct={fixAllowed} runnerEnabled={hasRunner()} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} />
+            : <FindingActions act={act} labels={actionLabels(d)} />}
+          <details className="disclose" id="agent-wrap">
+            <summary>Use your own AI agent instead</summary>
+            <div className="mt-3"><div id="agent" className="scroll-mt-20"><AskAgent id={a.id} connected={agentConnected} verified={verified} labels={{ title: d.agent_title, leadFix: d.agent_lead_fix, leadVerify: d.agent_lead_verify, copy: d.copy_instructions, copied: d.copied, preview: d.preview }} /></div></div>
+          </details>
         </section>
       )}
 

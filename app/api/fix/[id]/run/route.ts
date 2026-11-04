@@ -2,6 +2,7 @@
 // Meta Muse Code. Same preconditions as a manual draft PR (session, fix owner, FIX_ENABLED, per-repo allow_pr,
 // not a shared demo repo, App installation with write permission), then the isolated runner is dispatched.
 // GET returns what the authorization dialog must show (allowed files, detected test command, runner availability).
+import { isStaleRun } from "@/lib/run-stale";
 import { env, hasGitHubApp, hasRunner } from "@/lib/env";
 import { installationPermissions } from "@/lib/github-app";
 import { allowedFilesFor, detectTestCommand, RunnerError, startRun } from "@/lib/runner";
@@ -48,8 +49,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (body.mode !== "pr" && body.mode !== "push") throw new RunnerError("mode must be pr or push", 400);
     if (!body.reviewed) throw new RunnerError("authorization requires confirming that the proposed change was reviewed", 400);
     // A run that never reported back (runner died before its first callback) may be re-authorized after 20 minutes.
-    const stale = fix.status === "queued" && Date.now() - Date.parse(fix.runner?.dispatched_at ?? fix.approved_at ?? fix.created_at) > 20 * 60e3;
-    if (!["drafted", "failed", "validation_failed"].includes(fix.status) && !stale) throw new RunnerError(`fix is ${fix.status}`, 409);
+    const stale = isStaleRun(fix);
+    if (!["drafted", "failed", "validation_failed", "cancelled"].includes(fix.status) && !stale) throw new RunnerError(`fix is ${fix.status}`, 409);
     if (await isSystemRepo(fix.repo_key)) throw new RunnerError("shared demo repositories never receive changes", 403);
     if (!ur?.allow_pr) throw new RunnerError("changes are not enabled for this repository (Repos → Allow fixes)", 403);
     if (!hasGitHubApp() || !inst) throw new RunnerError("this repository is not connected through the GitHub App installation", 403);

@@ -70,3 +70,14 @@ test("agent reported not affected: no Verify button, and the status keeps its sp
   assert.equal(st.label, "Not affected (checked by your AI agent)");
   assert.equal(localized(statusOf(A("Unclear"), { level: "low", cvss: null, source: "estimated" }, { resolved: false, prOpen: false }), { st_possible: "가능한 문제" }).label, "가능한 문제");
 });
+
+test("a run that never reported back: in progress for 20 minutes, then 'stalled' with Retry (never in progress forever)", async () => {
+  const { isStaleRun } = await import("../lib/run-stale");
+  const t0 = Date.parse("2026-11-04T06:21:45Z");
+  const q = F("queued", { runner: { dispatched_at: "2026-11-04T06:21:45Z", run_url: "https://github.com/chewonc/argus-watch/actions/runs/1" } } as Partial<Fix>);
+  assert.equal(findingAction(A("Affected"), [q], ok, href, t0 + 5 * 60e3).primary?.kind, "view_progress");
+  assert.equal(isStaleRun(q, t0 + 19 * 60e3), false);
+  const r = findingAction(A("Affected"), [q], ok, href, t0 + 21 * 60e3);
+  assert.equal(r.state?.key, "stalled"); assert.equal(r.primary?.kind, "retry"); assert.match(r.note ?? "", /never reported back.*actions\/runs\/1.*nothing was written/);
+  assert.equal(isStaleRun(F("running", { runner: { dispatched_at: "2026-11-04T06:21:45Z" } } as Partial<Fix>), t0 + 60 * 60e3), false, "a run that started is governed by the job's own timeout and failure report");
+});

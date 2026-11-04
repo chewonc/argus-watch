@@ -68,7 +68,7 @@ export function syntaxCheck(path: string, text: string): { path: string; ok: boo
 export async function draftFix(a: Assessment, f: Finding | null, items: Item[], userId: string): Promise<Fix> {
   const repoFull = a.repo.split("/").slice(0, 2).join("/");
   const id = createHash("sha256").update(`${a.id}:${userId}:${Date.now()}`).digest("hex").slice(0, 16);
-  const base: Fix = { id, assessment_id: a.id, user_id: userId, repo: repoFull, repo_key: a.repo, base_sha: a.sha, status: "drafting", summary: "", caveats: [], files: [], rejected_hunks: [], syntax_check: [], assessment: null, verified: false, branch: null, pr_url: null, pr_number: null, pr_draft: null, check_runs: [], checks_at: null, model: "none", created_at: new Date().toISOString(), approved_at: null, error: null, mode: null, agent: "muse-spark", allowed_files: [], nonce_hash: null, events: [], runner: null, merge_sha: null, commit_url: null, merge_attempts: 0 };
+  const base: Fix = { id, assessment_id: a.id, user_id: userId, repo: repoFull, repo_key: a.repo, base_sha: a.sha, status: "drafting", summary: "", caveats: [], files: [], rejected_hunks: [], syntax_check: [], assessment: null, verified: false, branch: null, pr_url: null, pr_number: null, pr_draft: null, check_runs: [], checks_at: null, model: "none", created_at: new Date().toISOString(), approved_at: null, error: null, mode: null, agent: "muse-spark", allowed_files: [], nonce_hash: null, events: [], runner: null, merge_sha: null, commit_url: null, merge_attempts: 0, patch_version: null };
   const paths = fixableFiles(a);
   // When the advisory names a package, the manifest that declares it is editable too (an upgrade is the usual root-cause fix),
   // even if the assessment cited only the lockfile.

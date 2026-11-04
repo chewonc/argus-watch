@@ -124,7 +124,7 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
   );
 }
 
-function RejectedHunks({ fix }: { fix: Fix }) {
+export function RejectedHunks({ fix }: { fix: Fix }) {
   return <details className="text-[12px]"><summary className="label cursor-pointer">{fix.rejected_hunks.length} hunk(s) not applied</summary><ul className="mt-2 grid gap-2">{fix.rejected_hunks.map((h, i) => <li key={i} className="border hair rounded-[4px] p-2"><div className="mono">{h.path}</div><div style={{ color: "var(--contradicted)" }}>{h.reason}</div><pre className="mono whitespace-pre-wrap mt-1 text-ink2">{h.search.slice(0, 300)}</pre></li>)}</ul></details>;
 }
 
@@ -148,7 +148,7 @@ export function StatusLadder({ fix }: { fix: Fix }) {
   return <ul className="grid gap-1 text-[13px] border hair rounded-[6px] p-3">{rows.map(([k, v, s]) => <li key={k} className="grid grid-cols-[18px_210px_1fr] gap-2"><span style={{ color: color[s] }}>{glyph[s]}</span><span className="font-medium">{k}</span><span className="text-ink2">{v}</span></li>)}</ul>;
 }
 
-function Assessment({ fix }: { fix: Fix }) {
+export function Assessment({ fix }: { fix: Fix }) {
   const a = fix.assessment;
   if (!a) return null;
   const tagColor: Record<string, string> = { COMPUTED: "var(--observed)", "CITATION-VERIFIED": "var(--observed)", "MODEL-ASSUMPTION": "var(--inferred)", UNCHANGED: "var(--ink-2)" };
@@ -185,7 +185,7 @@ function parsePatch(patch: string): DiffRow[] {
   }
   return rows;
 }
-function Diff({ patch }: { patch: string }) {
+export function Diff({ patch }: { patch: string }) {
   const cls = { hunk: "dl diff-hunk", add: "dl diff-add", del: "dl diff-del", ctx: "dl" };
   return <div className="diff overflow-auto py-2">{parsePatch(patch).map((r, i) => <div key={i} className={cls[r.kind]}><span className="ln">{r.a ?? ""}</span><span className="ln">{r.b ?? ""}</span><span>{r.text}</span></div>)}</div>;
 }

@@ -11,7 +11,7 @@ import { deriveSeverity } from "./severity";
 import { SYSTEM_USER, store } from "./store";
 
 export async function recipientsFor(repoKey: string): Promise<string[]> {
-  const users = await store.repoUsers(repoKey);
+  const users = await store.activeRepoUsers(repoKey); // users who paused monitoring of this repository are not notified
   if (users.includes(SYSTEM_USER) && env.DEMO_SHARED_REPOS) return [...new Set([...users.filter((u) => u !== SYSTEM_USER), ...(await store.listUserIds())])];
   return users.filter((u) => u !== SYSTEM_USER);
 }

@@ -44,3 +44,19 @@ test("notifications: the unread badge never counts notifications trimmed out of 
   assert.equal(await store.unreadCount("gh:trim"), 300, "badge equals the unread notifications the user can see");
   assert.ok(!(await store.unreadIds("gh:trim")).includes("t0"), "the oldest, trimmed notification is no longer unread");
 });
+
+test("pause / resume / remove a repository: paused users get no notifications; history and settings are kept", async () => {
+  const { recipientsFor } = await import("../lib/notify");
+  const base = { repo_key: "o/paused", installation_id: 1, allow_pr: true, local_root: null, added_at: "t" };
+  await store.addUserRepo({ ...base, user_id: "gh:p1" });
+  await store.addUserRepo({ ...base, user_id: "gh:p2" });
+  assert.deepEqual((await store.activeRepoUsers("o/paused")).sort(), ["gh:p1", "gh:p2"]);
+  await store.addUserRepo({ ...(await store.getUserRepo("gh:p1", "o/paused"))!, paused: true });
+  assert.deepEqual(await store.activeRepoUsers("o/paused"), ["gh:p2"], "the pipeline still assesses for the other watcher");
+  assert.deepEqual(await recipientsFor("o/paused"), ["gh:p2"], "the paused user is not notified");
+  assert.equal((await store.getUserRepo("gh:p1", "o/paused"))?.allow_pr, true, "pausing keeps the user's settings");
+  await store.addUserRepo({ ...(await store.getUserRepo("gh:p2", "o/paused"))!, paused: true });
+  assert.deepEqual(await store.activeRepoUsers("o/paused"), [], "all watchers paused: no new assessments");
+  await store.addUserRepo({ ...(await store.getUserRepo("gh:p1", "o/paused"))!, paused: false });
+  assert.deepEqual(await store.activeRepoUsers("o/paused"), ["gh:p1"], "resume restores monitoring");
+});

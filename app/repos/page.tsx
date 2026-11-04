@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { RepoPicker, type PickRepo } from "@/components/repo-picker";
 import { env, hasGitHubApp } from "@/lib/env";
-import { listInstallationRepos } from "@/lib/github-app";
+import { explainGitHubError, listInstallationReposApp } from "@/lib/github-app";
 import { getDict, getLocale } from "@/lib/i18n";
 import { repoStatus } from "@/lib/labels";
-import { githubUserToken, requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import { SYSTEM_USER, store } from "@/lib/store";
-import { addRepos, beginConnect, removeRepo, rescan, setAllowPr } from "./actions";
+import { addRepos, beginConnect, removeRepo, rescan, setAllowPr, setPaused } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +16,15 @@ export default async function Repos({ searchParams }: { searchParams: Promise<Re
   const user = await requireUser("/repos");
   const sp = await searchParams;
   const d = await getDict(await getLocale());
-  const [insts, mine, token] = await Promise.all([store.listUserInstallations(user.id), store.listUserRepos(user.id), githubUserToken()]);
+  const [insts, mine] = await Promise.all([store.listUserInstallations(user.id), store.listUserRepos(user.id)]);
   const watched = await Promise.all(mine.map(async (ur) => ({ ur, w: await store.getRepo(ur.repo_key) })));
   const demo = env.DEMO_SHARED_REPOS ? await Promise.all((await store.listUserRepoKeys(SYSTEM_USER)).map((k) => store.getRepo(k))) : [];
-  const pickers = token ? await Promise.all(insts.filter((i) => !i.suspended).map(async (i) => {
-    try { const repos = await listInstallationRepos(token, i.id); return { inst: i, repos: repos.map((r): PickRepo => ({ ...r, watched: mine.some((m) => m.repo_key === r.full_name) })), error: null }; }
-    catch (e) { return { inst: i, repos: [] as PickRepo[], error: String(e).slice(0, 160) }; }
-  })) : [];
+  // Listed with each installation's own token (refreshed automatically); the user's sign-in token is not needed here.
+  const pickers = await Promise.all(insts.filter((i) => !i.suspended).map(async (i) => {
+    try { const repos = await listInstallationReposApp(i.id); return { inst: i, repos: repos.map((r): PickRepo => ({ ...r, watched: mine.some((m) => m.repo_key === r.full_name && !m.paused) })), error: null }; }
+    catch (e) { await store.log({ kind: "error", source: "repos", detail: `list repositories for installation ${i.id}: ${String((e as { status?: number }).status ?? "")} ${String(e).slice(0, 120)}` }); return { inst: i, repos: [] as PickRepo[], error: explainGitHubError(e, i.account) }; }
+  }));
+  const listFailed = pickers.some((p) => p.error);
 
   const watching = [...watched.map(({ ur, w }) => ({ key: ur.repo_key, ur, w, demo: false })), ...demo.filter((x): x is NonNullable<typeof x> => !!x).map((w) => ({ key: store.repoKey(w), ur: null, w, demo: true }))];
 
@@ -34,6 +36,8 @@ export default async function Repos({ searchParams }: { searchParams: Promise<Re
         {sp.error && <p role="alert" className="mt-2 text-[14px] tone-bad">{decodeURIComponent(sp.error)}</p>}
         {sp.added && <p role="status" className="mt-2 text-[14px] tone-ok">Repositories added. {Number(sp.checking ?? 0) > 0 ? `Checking them now against ${sp.checking} recent threat(s) that match their dependencies; results appear in Alerts within a few minutes.` : "No recent threat matches their dependencies. We’ll check every new threat from now on."}</p>}
         {sp.rescanned && <p role="status" className="mt-2 text-[14px] tone-ok">Repository refreshed.</p>}
+        {sp.paused && <p role="status" className="mt-2 text-[14px] tone-ok">Monitoring paused for {sp.paused}. Existing alerts stay; resume any time.</p>}
+        {sp.resumed && <p role="status" className="mt-2 text-[14px] tone-ok">Monitoring resumed for {sp.resumed}.</p>}
       </div>
 
       <Step n={1} done={insts.length > 0} title="Connect GitHub">
@@ -73,19 +77,28 @@ export default async function Repos({ searchParams }: { searchParams: Promise<Re
         </div>
       </Step>
 
-      <Step n={2} done={watched.length > 0} title="Choose repositories">
-        {pickers.length === 0 ? <p className="text-[14px] text-ink2">{insts.length ? "Sign out and in again to load your repositories from GitHub." : "Connect GitHub first."}</p> : pickers.map((p) => (
-          <div key={p.inst.id} className="grid gap-2">
-            {pickers.length > 1 && <div className="text-[13px] font-medium">{p.inst.account}</div>}
-            {p.error ? <p className="text-[13px] tone-bad">Couldn&apos;t load repositories from GitHub. Try again in a moment.</p> : <RepoPicker installationId={p.inst.id} repos={p.repos} action={addRepos} />}
-          </div>
-        ))}
+      <Step n={2} done={watched.length > 0 && !listFailed} title="Choose repositories">
+        {pickers.length === 0 ? <p className="text-[14px] text-ink2">{insts.length ? "Your GitHub installations are suspended. Review them on GitHub." : "Connect GitHub first."}</p> : (
+          <details className="disclose" open={watched.length === 0 || listFailed}>
+            <summary>Add repositories</summary>
+            <div className="grid gap-4 mt-3">
+              {pickers.map((p) => (
+                <div key={p.inst.id} className="grid gap-2">
+                  {pickers.length > 1 && <div className="text-[13px] font-medium">{p.inst.account}</div>}
+                  {p.error
+                    ? <div role="alert" className="grid gap-1 text-[13px]"><p className="tone-bad">{p.error}</p><a href={`https://github.com/settings/installations/${p.inst.id}`} target="_blank" rel="noreferrer" className="w-fit">Review the app&apos;s repository access on GitHub ↗</a></div>
+                    : <RepoPicker installationId={p.inst.id} repos={p.repos} action={addRepos} manageHref={`https://github.com/settings/installations/${p.inst.id}`} />}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
       </Step>
 
       <Step n={3} done={watching.length > 0} title="Monitoring">
         {watching.length === 0 ? <p className="text-[14px] text-ink2">{d.nothing_watched}</p> : (
           <ul className="border hair rounded-[10px] bg-raised">
-            {watching.map(({ key, ur, w, demo: isDemo }) => { const st = repoStatus(w, { connected: !ur || !!ur.installation_id || !hasGitHubApp() }); return (
+            {watching.map(({ key, ur, w, demo: isDemo }) => { const st = ur?.paused ? { label: "Paused by you", glyph: "⏸", tone: "warn" as const } : repoStatus(w, { connected: !ur || !!ur.installation_id || !hasGitHubApp() }); return (
               <li key={key} className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b hair last:border-0">
                 <div className="grid min-w-0">
                   <span className="text-[14px] font-medium truncate">{key}{isDemo && <span className="text-ink2 font-normal text-[12px] ml-2">shared demo</span>}</span>
@@ -95,20 +108,35 @@ export default async function Repos({ searchParams }: { searchParams: Promise<Re
                   <details className="relative">
                     <summary className="btn-ghost list-none cursor-pointer" aria-label={`Options for ${key}`}>•••</summary>
                     <div className="menu grid gap-1 !p-2 w-[290px] text-[13px]">
+                      <a role="menuitem" href={`https://github.com/${ur.repo_key.split("/").slice(0, 2).join("/")}`} target="_blank" rel="noreferrer">View repository on GitHub ↗</a>
+                      <form action={setPaused}><input type="hidden" name="repo_key" value={ur.repo_key} /><input type="hidden" name="paused" value={ur.paused ? "0" : "1"} /><button role="menuitem" type="submit">{ur.paused ? "Resume monitoring" : "Pause monitoring"}</button></form>
                       <form action={rescan}><input type="hidden" name="repo_key" value={ur.repo_key} /><button role="menuitem" type="submit">{d.rescan}</button></form>
                       <form action={setAllowPr} className="grid gap-2 px-[10px] py-2">
                         <input type="hidden" name="repo_key" value={ur.repo_key} />
                         <label className="flex items-start gap-2"><input type="checkbox" name="allow_pr" defaultChecked={ur.allow_pr} className="mt-1" /> <span>Allow draft pull requests<span className="block text-[12px] text-ink2">Needed before Argus can propose a fix. Each fix still needs your approval.</span></span></label>
                         <button className="btn-ghost w-fit" type="submit">{d.save}</button>
                       </form>
-                      <form action={removeRepo}><input type="hidden" name="repo_key" value={ur.repo_key} /><button role="menuitem" type="submit" className="tone-bad">Stop monitoring</button></form>
+                      <form action={removeRepo} className="border-t hair pt-1"><input type="hidden" name="repo_key" value={ur.repo_key} /><button role="menuitem" type="submit" className="tone-bad">Remove from Argus Watch</button><p className="px-[10px] pb-1 text-[12px] text-ink2">Stops monitoring. Your GitHub repository is not changed or deleted; past alerts stay in history. Add it again any time.</p></form>
                     </div>
                   </details>
                 )}
               </li>); })}
           </ul>
         )}
-        {watching.length > 0 && <p className="text-[13px] text-ink2">Alerts appear on the <Link href="/alerts">Alerts</Link> page.</p>}
+        {watching.length > 0 && <p className="text-[13px] text-ink2">Findings appear on the <Link href="/alerts">Threats</Link> page.</p>}
+        <details className="disclose">
+          <summary>What Argus Watch monitors</summary>
+          <div className="grid gap-3 mt-3 text-[13px]">
+            <p>Argus Watch tracks newly published security threats and checks whether they may affect your connected repositories.</p>
+            <dl className="grid gap-3 [&_dt]:font-semibold [&_dd]:text-ink2">
+              <div><dt>Sources</dt><dd>GitHub-reviewed security advisories (pushed to Argus as they are published, and polled every 5 minutes), the National Vulnerability Database, OSV.dev for the exact package versions in your lockfiles, CISA&apos;s Known Exploited Vulnerabilities catalog, and security research feeds including AI-security write-ups, arXiv and Hacker News. Live intervals are on the <Link href="/sources">Sources</Link> page.</dd></div>
+              <div><dt>What is checked</dt><dd>Whether a threat names a package or technology your repository uses, then whether the code conditions it needs are present in your files, cited to the line. A report&apos;s credibility is checked separately.</dd></div>
+              <div><dt>When</dt><dd>Continuously, on a schedule (most sources every 5 to 60 minutes). A new or updated report about a threat triggers a new assessment; adding a repository checks it against the last 30 days of threats. Pushes to your default branch refresh its package list.</dd></div>
+              <div><dt>Your code</dt><dd>Read at one commit through the GitHub App; never cloned or run on the Argus server. Only package names and versions and short cited excerpts are stored.</dd></div>
+              <div><dt>Changes</dt><dd>Never automatic. A fix is applied only after you enable changes for a repository and approve that specific fix; it arrives as a draft pull request.</dd></div>
+            </dl>
+          </div>
+        </details>
       </Step>
     </div>
   );

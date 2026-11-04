@@ -24,7 +24,7 @@ export function AskAgent({ id, connected, verified, labels = DEFAULT }: { id: st
   // Arriving from a "Verify" action (?verify=1): show the read-only request and put focus on Copy.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("verify") !== "1") return;
-    const r = requestAnimationFrame(() => { setOpen(true); copyBtn.current?.focus({ preventScroll: true }); });
+    const r = requestAnimationFrame(() => { setOpen(true); copyBtn.current?.closest("details")?.setAttribute("open", ""); copyBtn.current?.scrollIntoView({ block: "center" }); copyBtn.current?.focus({ preventScroll: true }); });
     return () => cancelAnimationFrame(r);
   }, []);
   return (
