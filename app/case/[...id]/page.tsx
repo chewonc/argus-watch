@@ -6,6 +6,7 @@ import { codeToHtml } from "shiki";
 import { StatusPill, firstSentence, lineAnchor, suggestedFix } from "@/components/alerts";
 import { FixPreview } from "@/components/fix-preview";
 import { CredibilityChip, CredibilityPanel } from "@/components/credibility";
+import { SimulateImpact } from "@/components/simulate-impact";
 import { AskAgent } from "@/components/ask-agent";
 import { MarkRead } from "@/components/mark-read";
 import { listAgentTokens } from "@/lib/agent-token";
@@ -106,6 +107,8 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
           {T.fix && <section className="grid gap-1.5"><h2 className="text-[15px] font-semibold">{d.how_to_fix}</h2><p className="text-[15px] leading-relaxed">{T.fix}</p></section>}
         </div>
       )}
+
+      {a.verdict !== "Not Affected" && <div className="border-t hair pt-5"><SimulateImpact assessmentId={a.id} repo={repoOnly} sha={a.sha} /></div>}
 
       <div className="border-t hair pt-5"><CredibilityPanel c={f?.credibility} /></div>
 

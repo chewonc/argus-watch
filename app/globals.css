@@ -118,6 +118,8 @@ a:hover { text-decoration-color: currentColor; }
 .tone-sev-low { color: var(--sev-low); } .tone-possible { color: var(--possible); } .tone-ok { color: var(--not-affected); } .tone-muted { color: var(--ink-2); }
 .tone-warn { color: var(--sev-moderate); } .tone-bad { color: var(--sev-critical); }
 .seg { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-raised); }
+.seg button { padding: 4px 12px; border-radius: 6px; font-size: 13px; color: var(--ink-2); background: transparent; border: 0; cursor: pointer; }
+.seg button[aria-current="page"] { background: var(--sunken); color: var(--ink); }
 .seg a { padding: 4px 12px; border-radius: 6px; font-size: 13px; color: var(--ink-2); text-decoration: none; }
 .seg a:hover { color: var(--ink); }
 .seg a[aria-current="page"] { background: var(--sunken); color: var(--ink); font-weight: 600; }
