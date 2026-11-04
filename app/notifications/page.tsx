@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { MarkAllRead } from "@/components/mark-all-read";
 import { getDict, getLocale } from "@/lib/i18n";
-import { viewNotifications } from "@/lib/notif-view";
+import { byPriority, viewNotifications } from "@/lib/notif-view";
 import { requireUser } from "@/lib/session";
 import { store } from "@/lib/store";
 
@@ -14,7 +14,7 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
   const d = await getDict(await getLocale());
   const onlyUnread = sp.show === "unread";
   const [list, unread] = await Promise.all([store.listNotifications(user.id, 200), store.unreadCount(user.id)]);
-  const views = (await viewNotifications(user.id, list)).sort((a, b) => b.notified_at.localeCompare(a.notified_at)).filter((n) => !onlyUnread || !n.read_at);
+  const views = (await viewNotifications(user.id, list)).sort(sp.sort === "time" ? (a, b) => b.notified_at.localeCompare(a.notified_at) : byPriority).filter((n) => !onlyUnread || !n.read_at);
   const fmt = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return (
     <div className="mx-auto max-w-[760px] px-4 sm:px-6 py-8 sm:py-10 grid gap-6">
