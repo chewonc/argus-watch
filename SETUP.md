@@ -33,7 +33,7 @@ Create `.env.local` at the project root (gitignored). On Vercel, add the same na
 
 ## 1b. Automated remediation runner (Meta Muse Code)
 
-1. Repository secrets (GitHub → this repo → Settings → Secrets and variables → Actions): `META_API_KEY`, `ARGUS_RUNNER_SECRET`. Optional variable `ARGUS_URL` (defaults to the production URL) and `MUSE_APPROVAL_FLAGS` (default `--yolo`; the runner VM is the sandbox).
+1. Repository secrets (GitHub → this repo → Settings → Secrets and variables → Actions): `META_API_KEY`, `ARGUS_RUNNER_SECRET`. Optional variables `ARGUS_URL` (defaults to the production URL) and `MUSE_APPROVAL_FLAGS` (default: approvals off with Muse Code's sandbox on, no shell, no web tools; see `docs/VALIDATION_MUSE_CODE.md`).
 2. Vercel: `FIX_ENABLED=1`, `RUNNER_DISPATCH_TOKEN`, `ARGUS_RUNNER_SECRET`.
 3. For a repository to receive fixes: the GitHub App installation must have Contents + Pull requests write, and the user enables changes for it on the Repos page.
 

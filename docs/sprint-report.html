@@ -35,7 +35,7 @@ section{min-width:0}
 </style>
 <div class="wrap">
 <header>
-  <div class="meta">chewonc/argus-watch · main @ b4deb77 · Nov 4 2026 · Meta Global AI Developer Hackathon</div>
+  <div class="meta">chewonc/argus-watch · main @ latest · Nov 4 2026 · Meta Global AI Developer Hackathon</div>
   <h1>Argus Watch: final sprint report</h1>
   <p class="lede">What changed in the last 24 hours, what is verified on production, what was only verified locally, and what still needs the owner. Statuses are evidence-based: <span class="chip live">live</span> observed on production, <span class="chip local">local</span> exercised end to end against real APIs and Meta models, <span class="chip blocked">needs setup</span> implemented but waiting on credentials, <span class="chip no">not built</span>.</p>
 </header>
@@ -43,7 +43,7 @@ section{min-width:0}
 <section class="callout">
   <h3>Two things only you can unblock</h3>
   <ul>
-    <li><b>Muse Code remediation is not verified.</b> I could not install Muse Code on this machine (the install script was blocked by the session's permission policy) and I have no GitHub token to set Actions secrets. Fix &amp; create PR / Fix &amp; push stay hidden until you set the variables in SETUP §1b. No Muse Code run has completed.</li>
+    <li><b>Muse Code works locally; the Actions run needs your secrets.</b> Muse Code 1.4.14 ran headless and sandboxed through the full runner script and made the correct fix (docs/VALIDATION_MUSE_CODE.md). Fix &amp; create PR / Fix &amp; push stay hidden until you set the variables in SETUP §1b.</li>
     <li><b>A real pull request has never been created.</b> It needs <code>FIX_ENABLED=1</code> plus a repository with the App's write permission and changes enabled.</li>
   </ul>
 </section>
@@ -64,7 +64,7 @@ section{min-width:0}
     <tr><td>Multilingual UI</td><td>Selector, Korean, identifiers kept</td><td>no key, settings only</td><td>header selector, Korean dictionary, Spark translation</td><td><span class="chip live">landing verified</span></td></tr>
     <tr><td>User-impact simulation</td><td>Grounded, visual, before/after</td><td>new request</td><td>built</td><td><span class="chip local">local</span></td></tr>
     <tr><td>Fix preview, diff</td><td>Show code, diff, assessment</td><td>local</td><td>fix link bug fixed, flag enforced server-side</td><td><span class="chip blocked">FIX_ENABLED off</span></td></tr>
-    <tr><td>Fix &amp; create PR / Fix &amp; push</td><td>Muse Code edits, tests, PR or merge</td><td>missing</td><td>runner, routes, dialog, audit trail</td><td><span class="chip blocked">needs setup, unverified</span></td></tr>
+    <tr><td>Fix &amp; create PR / Fix &amp; push</td><td>Muse Code edits, tests, PR or merge</td><td>missing</td><td>runner, routes, dialog, audit trail</td><td><span class="chip local">runner local</span> <span class="chip blocked">needs secrets</span></td></tr>
     <tr><td>MCP</td><td>Muse Code first, honest compatibility</td><td>Claude/Codex only</td><td>Muse Code first; credibility in get_finding</td><td><span class="chip live">auth verified</span></td></tr>
     <tr><td>Sign-in, App install</td><td>GitHub</td><td>sign-in live</td><td>unchanged</td><td><span class="chip live">sign-in</span></td></tr>
     <tr><td>Open source</td><td>Public, licensed, runnable</td><td>public, Apache-2.0</td><td>.env.example, CONTRIBUTING, provenance, licences</td><td><span class="chip live">public</span></td></tr>
@@ -90,7 +90,7 @@ section{min-width:0}
 <section>
   <h2>C. Remaining gaps</h2>
   <ul>
-    <li>Muse Code headless run not exercised anywhere. If it cannot run unattended, the feature stays disabled and says why; no other agent is substituted.</li>
+    <li>Muse Code runner verified locally only; not yet run on GitHub Actions (Linux sandbox) or triggered by production.</li>
     <li>No real pull request or merge has been created by Argus.</li>
     <li>NVD's first production run returned HTTP 503; local calls succeed.</li>
     <li>Agentic investigation compared on 3 fixtures only; the 16-case harness was not rerun with it.</li>
@@ -115,7 +115,7 @@ section{min-width:0}
   </table></div>
   <h3>Remaining security risks</h3>
   <ul>
-    <li>In the runner, Muse Code runs with <code>--yolo</code> and holds the Meta API key, so a prompt-injected repository could exfiltrate that key from the ephemeral VM. The clone token is short-lived, the runner secret and nonce are not in its environment, and tests run without the key.</li>
+    <li>Muse Code now runs with its sandbox on and no shell or web tools, which closes the API-key exfiltration path. The repository's own tests, when present, still run in the VM without secrets.</li>
     <li>Push mode merges automatically once checks pass; branch protection is respected but not required.</li>
   </ul>
 </section>

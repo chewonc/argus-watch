@@ -34,5 +34,5 @@ jobs:
           FIX_ID: ${{ inputs.fix_id }}
           NONCE: ${{ inputs.nonce }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          MUSE_APPROVAL_FLAGS: ${{ vars.MUSE_APPROVAL_FLAGS || '--yolo' }}
+          MUSE_APPROVAL_FLAGS: ${{ vars.MUSE_APPROVAL_FLAGS || '' }}
         run: node scripts/remediate/run.mjs

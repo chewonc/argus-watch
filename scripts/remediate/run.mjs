@@ -11,9 +11,15 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const { ARGUS_URL, ARGUS_RUNNER_SECRET, FIX_ID, NONCE, RUN_URL, MUSE_APPROVAL_FLAGS = "--yolo", DRY_LOCAL_DIR } = process.env;
+// Headless and sandboxed: no approval prompts, but Muse Code's sandbox stays ON and it gets no shell and no web tools,
+// so it can only read and edit files in the workspace (it cannot run commands or send the API key anywhere).
+// Verified locally with Muse Code 1.4.14 (docs/VALIDATION_MUSE_CODE.md).
+const SAFE_FLAGS = "--approval-mode never --disable-shell --disable-web-tools --user-input-auto-resolve --no-session-log --no-foreign-personal-context";
+const { ARGUS_URL, ARGUS_RUNNER_SECRET, FIX_ID, NONCE, RUN_URL, MUSE_APPROVAL_FLAGS = SAFE_FLAGS, DRY_LOCAL_DIR } = process.env;
 const t0 = Date.now();
 const log = (...a) => console.log(`[runner +${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
+// Muse Code command: "muse" on the Linux runner; MUSE_CMD (JSON array) for local runs, e.g. ["powershell","-File",".../.muse-launcher.ps1"].
+const MUSE = process.env.MUSE_CMD ? JSON.parse(process.env.MUSE_CMD) : ["muse"];
 const SECRET_ENV = ["ARGUS_RUNNER_SECRET", "NONCE", "GITHUB_TOKEN", "ACTIONS_RUNTIME_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL"];
 const scrubbed = (keepMeta) => { const e = { ...process.env }; for (const k of SECRET_ENV) delete e[k]; if (!keepMeta) delete e.META_API_KEY; return e; };
 const FORBIDDEN = /(^|\/)\.env|\.pem$|\.key$|(^|\/)\.github\/|(^|\/)\.muse\/|(^|\/)\.agents\/|(^|\/)\.mcp\.json$|(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|Pipfile\.lock|Cargo\.lock|go\.sum)$/;
@@ -68,9 +74,9 @@ async function main() {
   const repoDir = join(work, "repo");
   // clone at the exact assessed commit; the token never touches disk or git config
   git(work, "init", "-q", repoDir);
-  const authUrl = `https://x-access-token:${b.clone_token}@github.com/${b.repo}.git`;
+  const authUrl = b.clone_token ? `https://x-access-token:${b.clone_token}@github.com/${b.repo}.git` : `https://github.com/${b.repo}.git`;
   const f = run("git", ["fetch", "-q", "--depth", "1", authUrl, b.base_sha], { cwd: repoDir, env: scrubbed(false) });
-  if (f.status !== 0) throw new Error(`fetch failed: ${f.stderr.replaceAll(b.clone_token, "***").slice(0, 300)}`);
+  if (f.status !== 0) throw new Error(`fetch failed: ${(b.clone_token ? f.stderr.replaceAll(b.clone_token, "***") : f.stderr).slice(0, 300)}`);
   git(repoDir, "checkout", "-q", "FETCH_HEAD");
   b.clone_token = null;
   const projectDir = b.subdir ? join(repoDir, b.subdir) : repoDir;
@@ -80,17 +86,21 @@ async function main() {
   const cfgHome = join(work, "cfg");
   mkdirSync(join(cfgHome, "muse"), { recursive: true });
   writeFileSync(join(cfgHome, "muse", "settings.json"), JSON.stringify({ schema_version: 1, mcp_servers: { "argus-watch": { transport: "streamable_http", url: b.mcp.url, headers: { Authorization: `Bearer ${b.mcp.token}` }, mode: "optional", enabled: true } } }, null, 2));
-  const version = run("muse", ["--version"], { env: scrubbed(true) }).stdout.trim() || null;
+  const version = run(MUSE[0], [...MUSE.slice(1), "--version"], { env: scrubbed(true) }).stdout.trim() || null;
   log(`muse ${version ?? "(version unknown)"}`);
 
-  const args = ["exec", "--json", "--max-model-steps", String(b.limits.max_model_steps), ...MUSE_APPROVAL_FLAGS.split(/\s+/).filter(Boolean), prompt(b)];
-  const m = run("muse", args, { cwd: repoDir, env: { ...scrubbed(true), XDG_CONFIG_HOME: cfgHome }, timeout: 15 * 60e3 });
+  const promptFile = join(work, "prompt.txt");
+  writeFileSync(promptFile, prompt(b));
+  const args = ["exec", "--json", "--max-model-steps", String(b.limits.max_model_steps), "--workspace", repoDir, ...(MUSE_APPROVAL_FLAGS || SAFE_FLAGS).split(/\s+/).filter(Boolean), "--prompt-file", promptFile];
+  const m = run(MUSE[0], [...MUSE.slice(1), ...args], { cwd: repoDir, env: { ...scrubbed(true), XDG_CONFIG_HOME: cfgHome }, timeout: 15 * 60e3 });
   const events = m.stdout.split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   log(`muse exit ${m.status}; ${events.length} JSONL event(s)`);
   if (m.status !== 0) throw new Error(`muse exec exited ${m.status}: ${(m.stderr || m.stdout).slice(-600)}`);
-  const texts = events.map((e) => e?.item?.text ?? e?.text ?? e?.message?.content ?? e?.output_text ?? null).filter((x) => typeof x === "string");
-  const summary = texts.at(-1) ?? "";
-  const steps = events.filter((e) => /tool|command|function/i.test(String(e?.type ?? e?.item?.type ?? ""))).length;
+  // Muse Session Protocol JSONL: the final answer is run.terminal.completed; each tool step is a task.lifecycle.started.
+  const terminal = events.filter((e) => e?.payload_type === "run.terminal.completed").at(-1)?.payload;
+  if (!terminal || terminal.terminal !== "completed") throw new Error(`muse run did not complete: ${JSON.stringify(terminal ?? null).slice(0, 300)}`);
+  const summary = String(terminal.text ?? "");
+  const steps = events.filter((e) => e?.payload_type === "task.lifecycle.started").length;
 
   // what actually changed on disk (tracked modifications + new files), relative to the repository root
   const changed = git(repoDir, "status", "--porcelain", "-uall").split("\n").filter(Boolean).map((l) => l.slice(3).replace(/^"|"$/g, ""));
