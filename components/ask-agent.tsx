@@ -15,7 +15,7 @@ export function AskAgent({ id, connected, verified }: { id: string; connected: b
       {connected ? (
         <>
           <p className="text-[13px] text-ink2">Paste this into Meta Muse Code, Claude Code or Codex, opened in your copy of the repository.</p>
-          <pre className="mono text-[12px] whitespace-pre-wrap border hair rounded-[8px] bg-[var(--sunken)] p-3">{prompt}</pre>
+          <pre className="mono text-[12px] whitespace-pre-wrap [overflow-wrap:anywhere] border hair rounded-[8px] bg-[var(--sunken)] p-3">{prompt}</pre>
           <button type="button" className="btn-ghost w-fit" onClick={() => navigator.clipboard.writeText(prompt).then(() => setCopied(true)).catch(() => {})}>{copied ? "Copied" : "Copy request"}</button>
         </>
       ) : (

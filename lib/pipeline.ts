@@ -10,6 +10,7 @@ import { refreshRepo } from "./repo";
 import type { Finding, Item, WatchedRepo } from "./schema";
 import { store } from "./store";
 import { chargeHosted, hostedBudgetLeft } from "./usage";
+import { buildTimeline } from "./timeline";
 import { verifyFinding } from "./verify";
 
 /** Stage 1 entry for every source. Returns whether a (new or changed) finding was queued. */
@@ -121,6 +122,8 @@ export async function processFinding(id: string, opts: { replayed?: boolean; onl
     };
     for (let i = 0; i < todo.length; i += 3) await Promise.all(todo.slice(i, i + 3).map(runOne));
     f.status = "assessed"; await store.putFinding(f);
+    // Threat Timeline for findings that touch a watched repository (cached per item set; never fails the pipeline).
+    await buildTimeline(f, items).catch((e) => store.log({ kind: "error", source: "timeline", detail: String(e).slice(0, 200), ref: f.id }));
     await store.log({ kind: opts.replayed ? "replay" : "process", source: "pipeline", detail: `assessed ${matched.length} repo(s)`, ref: f.id, ms: Date.now() - t0 });
   } catch (e) {
     f.status = "error"; f.error = String(e).slice(0, 300); await store.putFinding(f);

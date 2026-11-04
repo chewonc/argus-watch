@@ -174,6 +174,7 @@ export const dict: Partial<Dict> = {
   no_notifications: "아직 알림이 없습니다. 코드와 일치하는 새 위협이 있으면 알려드리겠습니다.",
   is_threat_real: "이 위협은 실제인가요?",
   what_if_not_fixed: "수정하지 않으면 어떻게 되나요?",
+  threat_timeline: "위협 타임라인",
   simulate_impact: "사용자 영향 시뮬레이션",
   automated_fix: "자동 수정 · Meta Muse Code",
   report_not_checked: "보고서 미검증",

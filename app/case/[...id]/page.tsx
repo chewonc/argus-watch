@@ -7,6 +7,7 @@ import { StatusPill, firstSentence, lineAnchor, suggestedFix } from "@/component
 import { FixPreview } from "@/components/fix-preview";
 import { CredibilityChip, CredibilityPanel } from "@/components/credibility";
 import { SimulateImpact } from "@/components/simulate-impact";
+import { ThreatTimeline } from "@/components/threat-timeline";
 import { AskAgent } from "@/components/ask-agent";
 import { MarkRead } from "@/components/mark-read";
 import { listAgentTokens } from "@/lib/agent-token";
@@ -87,7 +88,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   const severeUnverified = !verified && a.verdict !== "Not Affected" && (sev.level === "critical" || sev.level === "high");
 
   return (
-    <div className="mx-auto max-w-[760px] px-4 sm:px-6 py-8 sm:py-10 grid gap-8">
+    <div className="mx-auto max-w-[760px] px-4 sm:px-6 py-8 sm:py-10 grid grid-cols-[minmax(0,1fr)] gap-8">
       <MarkRead assessmentId={a.id} />
       <div className="grid gap-3">
         <Link href="/alerts" className="text-[13px] text-ink2 no-underline hover:text-ink w-fit">← {d.back_to_alerts}</Link>
@@ -107,6 +108,8 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
           {T.fix && <section className="grid gap-1.5"><h2 className="text-[15px] font-semibold">{d.how_to_fix}</h2><p className="text-[15px] leading-relaxed">{T.fix}</p></section>}
         </div>
       )}
+
+      <div className="border-t hair pt-5"><ThreatTimeline assessmentId={a.id} title={d.threat_timeline} /></div>
 
       {a.verdict !== "Not Affected" && <div className="border-t hair pt-5"><SimulateImpact assessmentId={a.id} repo={repoOnly} sha={a.sha} title={d.what_if_not_fixed} button={d.simulate_impact} intro={d.simulate_intro} locale={locale} /></div>}
 

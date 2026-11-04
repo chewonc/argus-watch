@@ -17,7 +17,7 @@ Threat published → Report fact-checked → Relevant repos found → Code inves
 3. **Investigate your code.** Lockfile versions are checked against affected ranges in code. Muse Spark explores the repository with read-only tools (list, search, read) to find the code that decides each condition, then judges each condition with file:line citations. Every citation is re-read from the real file; unverifiable, prose-only or comment-only evidence is downgraded. The verdict (Affected / Not Affected / Unclear) comes from a fixed rule, never from the model.
 4. **Notify.** In-app notifications with unread badge, priority order (unread, confirmed, severity, time), one entry per finding and repository updated in place, Slack/Discord webhook, Web Push when VAPID keys are set.
 5. **Show the impact.** "What happens if you don't fix this?" builds a short, hypothetical walkthrough of what a user of *your* app could experience, as screens of your app. Each step says whether it is shown in your code, inferred, or hypothetical; synthetic data only; nothing is executed.
-6. **Fix.** A preview diff with a static remediation assessment, then **Fix & create PR** (recommended) or **Fix & push**: Meta Muse Code edits a fresh clone inside an isolated GitHub Actions runner, the repository's tests run there, and only then does Argus open a pull request (and, in push mode, merge it after the repository's own checks pass and branch protection allows). Or connect your own MCP-capable coding agent.
+6. **Fix.** A preview diff with a static remediation assessment, then **Fix & create PR** (recommended) or **Fix & push**: Meta Muse Code is designed to edit a fresh clone inside an isolated GitHub Actions runner, run the repository's tests there, and only then let Argus open a pull request (and, in push mode, merge it after the repository's own checks pass and branch protection allows). This path has run locally only; see Status. Or connect your own MCP-capable coding agent.
 
 ## Where Meta's models do the work
 
@@ -27,12 +27,13 @@ Threat published → Report fact-checked → Relevant repos found → Code inves
 | Fact-check the report | Muse Spark on the Responses API with `web_search` | registry lookups decide existence/rejection; unseen URLs dropped; rule decides label | `lib/verify.ts` |
 | Investigate the repository | Muse Spark tool calling (list / search / read), ≤6 rounds | discovered files only join the listing; all citations re-verified | `lib/investigate.ts` |
 | Judge each condition | Muse Spark, numbered listings | citation check, prose/comment caps, rule verdict | `lib/analyze.ts` |
+| Threat timeline | Muse Spark extracts dated developments from report text and writes the summary; Muse Wonder (optional, `WONDER_ESCALATION=1`) reviews date conflicts | every date and claim quoted verbatim from its source; summary may not add dates, versions or confirmed exploitation; Wonder counts only with a verbatim quote and never removes an event; registry dates are code | `lib/timeline.ts` |
 | Simulate user impact | Muse Spark, structured screens | steps without Observed/Inferred evidence downgraded to hypothetical | `lib/simulate.ts` |
 | Fix preview | Muse Spark search/replace hunks | applied in memory, syntax-checked, statically re-assessed | `lib/fix.ts` |
 | Make the fix | **Meta Muse Code** headless (`muse exec`) in an isolated runner | file allowlist, syntax, tests, then GitHub App write | `scripts/remediate/run.mjs`, `lib/runner.ts` |
 | Translate the UI | Muse Spark (identifiers as placeholders) | any translation that drops a placeholder is discarded | `lib/i18n/translate.ts` |
 
-Models considered and not used: Muse Wonder (verified reachable with our key; reserved for future escalation of hard cases), SAM 3.1, Muse Image and Voice Transcribe (no evidence-bearing role in this product), Muse Spark Open / Glimmer (no hosted inference available to us during the event), contributor mode (would make users' code training data).
+Muse Wonder 1.0 is used only to review date conflicts in the threat timeline, off by default (`WONDER_ESCALATION`); one live review is recorded in `docs/VALIDATION_TIMELINE.md`. Models considered and not used: SAM 3.1, Muse Image and Voice Transcribe (no evidence-bearing role in this product), Muse Spark Open / Glimmer (no hosted inference available to us during the event), contributor mode (would make users' code training data).
 
 **Evaluation** (`feasibility/EVAL.md`, 16 labelled cases incl. 4 adversarial): rule verdict 16/16, false "Not Affected" 0/10, prompt-injected feed item did not change the outcome. Live checks in `scripts/checks/` (report credibility, sources, simulation, agentic investigation).
 
@@ -49,6 +50,7 @@ Legend: **live** = observed on the production deployment; **local** = exercised 
 | Agentic investigation | local: 3 fixtures, verdicts unchanged, 2–8 tool calls each |
 | GitHub sign-in | live |
 | Connect repository + initial scan of the last 30 days | implemented; App install picker exercised locally |
+| Threat timeline (registries + Muse Spark, optional Muse Wonder conflict review) | **local**: live checks on a GHSA/NVD threat, a CVE-free research post and a date conflict reviewed by Muse Wonder (`docs/VALIDATION_TIMELINE.md`); not yet deployed |
 | User-impact simulation | local, in English and Korean |
 | Korean and other languages | local (Korean static dictionary; others via Muse Spark) |
 | Fix & create PR / Fix & push with Muse Code | **local**: Muse Code 1.4.14 ran headless and sandboxed (no shell, no web) through the full runner script and produced the correct fix (`docs/VALIDATION_MUSE_CODE.md`). Not yet run on Actions or production: needs `FIX_ENABLED`, `RUNNER_DISPATCH_TOKEN`, `ARGUS_RUNNER_SECRET` and Actions secrets (SETUP §1b). No pull request created yet. |

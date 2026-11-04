@@ -144,3 +144,17 @@ details.disclose[open] > summary::before { transform: rotate(90deg); }
 .diff .diff-hunk { color: var(--ink-2); background: var(--sunken); }
 dialog.modal { border: 1px solid var(--line); border-radius: 6px; background: var(--bg-raised); color: var(--ink); max-width: 560px; padding: 20px; }
 dialog.modal::backdrop { background: rgba(0,0,0,.35); }
+
+/* Threat Timeline (components/threat-timeline.tsx): date column + rule, repository lane marked with the accent */
+.tl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.tl-item { display: grid; grid-template-columns: 150px 1fr; gap: 4px 16px; padding: 10px 0 10px 14px; border-left: 1px solid var(--line); position: relative; }
+.tl-item::before { content: ""; position: absolute; left: -4px; top: 15px; width: 7px; height: 7px; border-radius: 50%; background: var(--bg); border: 1px solid var(--ink-2); }
+.tl-item.tl-repo::before { background: var(--accent); border-color: var(--accent); }
+.tl-item.tl-conflict { background: color-mix(in oklab, var(--unclear) 6%, transparent); }
+.tl-date { padding-top: 1px; }
+.tl-seg { padding: 2px 10px; border-radius: 6px; font-size: 12px; color: var(--ink-2); background: none; border: 0; cursor: pointer; }
+.tl-seg.on { background: var(--sunken); color: var(--ink); font-weight: 600; }
+@media (max-width: 560px) { .tl-item { grid-template-columns: 1fr; } }
+/* Grid children may shrink below their content (long source links wrap instead of widening the page). */
+.tl-item > * { min-width: 0; }
+details.disclose .grid > * { min-width: 0; }

@@ -59,7 +59,7 @@ export const en = {
   // Notifications page
   all_caught_up: "You're all caught up.", n_unread: "{n} unread", show_all: "All", show_unread: "Unread", no_unread: "No unread notifications.", no_notifications: "No notifications yet. We'll notify you when a new threat matches your code.",
   // New case-page sections
-  is_threat_real: "Is this threat real?", what_if_not_fixed: "What happens if you don't fix this?", simulate_impact: "Simulate user impact", automated_fix: "Automated fix · Meta Muse Code",
+  is_threat_real: "Is this threat real?", threat_timeline: "Threat timeline", what_if_not_fixed: "What happens if you don't fix this?", simulate_impact: "Simulate user impact", automated_fix: "Automated fix · Meta Muse Code",
   report_not_checked: "Report not checked yet", report_not_checked_long: "This report has not been fact-checked yet.", report_prefix: "Report",
   simulate_intro: "See how someone using your app could experience this threat, step by step, built only from what Argus found in your code. Synthetic data; nothing is executed.",
   not_yet_confirmed: "Not yet confirmed in your project.", monitoring_active: "Monitoring active", monitoring_paused: "Monitoring paused",
