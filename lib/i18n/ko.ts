@@ -232,4 +232,5 @@ export const dict: Partial<Dict> = {
   rst_blocked: "PR 열림 · 병합 차단됨",
   rst_failed: "수정 실패",
   rst_merged: "병합됨",
+  st_agent_not_affected: "영향 없음 (AI 에이전트가 확인함)",
 };

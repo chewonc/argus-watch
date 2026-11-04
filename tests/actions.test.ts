@@ -60,3 +60,13 @@ test("the newest fix record decides, and a drafted fix awaits approval", () => {
   const drafted = findingAction(A("Affected"), [F("drafted")], ok, href);
   assert.equal(drafted.primary?.kind, "fix_now"); assert.equal(drafted.state?.key, "awaiting");
 });
+
+test("agent reported not affected: no Verify button, and the status keeps its specific label", async () => {
+  const { statusOf, localized } = await import("../lib/labels");
+  const a = A("Unclear", "src/auth.ts", { agent: { status: "not_affected", summary: "", evidence: [], pr_url: null, client: null, at: "t" } } as Partial<Assessment>);
+  const r = findingAction(a, [], ok, href);
+  assert.equal(r.primary, null); assert.match(r.note ?? "", /does not affect/);
+  const st = localized(statusOf(a, { level: "low", cvss: null, source: "estimated" }, { resolved: false, prOpen: false }), { st_resolved: "Resolved", st_agent_not_affected: "Not affected (checked by your AI agent)" });
+  assert.equal(st.label, "Not affected (checked by your AI agent)");
+  assert.equal(localized(statusOf(A("Unclear"), { level: "low", cvss: null, source: "estimated" }, { resolved: false, prOpen: false }), { st_possible: "가능한 문제" }).label, "가능한 문제");
+});

@@ -19,7 +19,8 @@ const S: Record<StatusKind, Omit<Status, "kind">> = {
 };
 const mk = (kind: StatusKind): Status => ({ kind, ...S[kind] });
 /** Status with its label taken from a translated UI dictionary (keys st_<kind>). */
-export const localized = <T extends { kind: StatusKind; label: string }>(st: T, d: Record<string, string>): T => ({ ...st, label: d[`st_${st.kind}`] ?? st.label });
+// A status with a specific label (e.g. "Not affected (checked by your AI agent)") keeps it; only the generic label is replaced.
+export const localized = <T extends { kind: StatusKind; label: string }>(st: T, d: Record<string, string>): T => ({ ...st, label: st.label === S[st.kind].label ? d[`st_${st.kind}`] ?? st.label : d[`st_agent_not_affected`] && st.kind === "resolved" ? d.st_agent_not_affected : st.label });
 
 /** Verified = the deterministic verdict rule (lib/verdict.ts) returned Affected for this repository. */
 export const isVerified = (a: Pick<Assessment, "verdict"> & { agent?: Assessment["agent"] }) => a.verdict === "Affected" || (a.verdict !== "Not Affected" && a.agent?.status === "confirmed" && a.agent.evidence.length > 0);

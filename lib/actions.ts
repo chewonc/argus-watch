@@ -49,6 +49,8 @@ export function findingAction(a: Assessment, fixes: Fix[], ctx: ActionContext, c
     if (fx.status === "blocked_by_protection") return { primary: fx.pr_url ? { kind: "view_pr", href: fx.pr_url, external: true } : { kind: "view_progress", href: fixHref, external: false }, state: { key: "blocked", tone: "warn" }, note: fx.error };
     if (fx.status === "merged") return { primary: { kind: "view_fix", href: fx.commit_url ?? fx.pr_url ?? fixHref, external: !!(fx.commit_url ?? fx.pr_url) }, state: { key: "merged", tone: "ok" }, note: null };
   }
+  // The user's own agent already checked it and found it does not apply: nothing further to verify here (Details stays).
+  if (a.agent?.status === "not_affected" && !isVerified(a)) return { primary: null, state: null, note: "Your AI agent checked this and reported that it does not affect your code." };
   if (!isVerified(a)) return { primary: { kind: "verify", href: `${caseHref}?verify=1#agent`, external: false }, state: null, note: null };
   const blocker = automationBlocker(a, ctx);
   const failed = fx && (fx.status === "failed" || fx.status === "validation_failed");
