@@ -63,7 +63,7 @@ test("Fix is hidden unless every condition holds", () => {
 });
 
 test("GitHub link targets the exact file and line range at the commit", () => {
-  assert.equal(permalink("o/r", "abc", "src/a.ts", 3, 7), "https://github.com/o/r/blob/abc/src/a.ts#L3-L7");
+  assert.equal(permalink("o/r", "abc1234", "src/a.ts", 3, 7), "https://github.com/o/r/blob/abc1234/src/a.ts#L3-L7");
 });
 
 test("report_result evidence is re-read and must match", async () => {

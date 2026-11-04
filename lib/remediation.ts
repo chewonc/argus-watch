@@ -8,10 +8,25 @@ export type Provenance = "ADVISORY-STATED" | "REPO-INFERRED" | "SPECULATIVE";
 const SECRET_RE = /(-----BEGIN [A-Z ]*PRIVATE KEY|AKIA[0-9A-Z]{12,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|xox[abp]-[A-Za-z0-9-]{10,}|bearer\s+[A-Za-z0-9._-]{16,}|(api[_-]?key|secret|token|password|passwd)\s*[:=]\s*["\x27]?[A-Za-z0-9\/_+.=-]{8,})/i;
 export const redact = (s: string) => s.split("\n").map((l) => (SECRET_RE.test(l) ? "[line withheld: looks like a credential]" : l)).join("\n");
 
-export const permalink = (repoFull: string, sha: string, file: string, line?: number | null, end?: number | null) => {
+/**
+ * Commit-pinned GitHub link to a file and line range, or null when it cannot be built exactly. repoFull may carry a
+ * monorepo subfolder ("owner/name/sub/dir"): only the first two segments are the GitHub repository, and file paths are
+ * already relative to the repository root. Each path segment is URL-encoded (spaces, #, ?, %); "." / ".." segments,
+ * a non-hex sha or a non-positive line are refused rather than guessed.
+ */
+export function codeUrl(repoFull: string, sha: string, file: string, line?: number | null, end?: number | null): string | null {
   const [owner, name] = repoFull.split("/");
-  return `https://github.com/${owner}/${name}/blob/${sha}/${file}${line ? `#L${line}${end && end !== line ? `-L${end}` : ""}` : ""}`;
-};
+  const okName = (x: string | undefined) => !!x && /^[A-Za-z0-9_.-]+$/.test(x) && x !== "." && x !== "..";
+  if (!okName(owner) || !okName(name) || !/^[0-9a-f]{7,40}$/i.test(sha)) return null;
+  const segs = file.replace(/^\/+/, "").split("/");
+  if (!file || segs.some((x) => !x || x === "." || x === "..")) return null;
+  const from = line != null && Number.isInteger(line) && line > 0 ? line : null;
+  const to = from && end != null && Number.isInteger(end) && end > from ? end : null;
+  return `https://github.com/${owner}/${name}/blob/${sha}/${segs.map(encodeURIComponent).join("/")}${from ? `#L${from}${to ? `-L${to}` : ""}` : ""}`;
+}
+/** String form for prose (PR bodies, MCP): falls back to the repository page when an exact link cannot be built. */
+export const permalink = (repoFull: string, sha: string, file: string, line?: number | null, end?: number | null) =>
+  codeUrl(repoFull, sha, file, line, end) ?? `https://github.com/${repoFull.split("/").slice(0, 2).join("/")}`;
 
 /** Which recommendation text is grounded where. Advisory-stated = it restates a mitigation the advisory itself names. */
 export function provenanceOf(recText: string, advisoryText: string, condIds: string[], a: Assessment): Provenance {

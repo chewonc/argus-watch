@@ -15,11 +15,13 @@ import { Remediation } from "./remediation";
 
 type Ctx = {
   assessment_id: string; repo: string; default_branch: string; verified: boolean; verdict: string; location: string | null;
-  evidence: { text: string; state: string; refs: { file: string; line: number | null; quote: string }[] }[]; missing: string[];
+  code_url: string | null;
+  evidence: Evidence[]; missing: string[];
   fix: Fix | null; can_act: boolean; blocker: string | null; runner_enabled: boolean; runner_note: string | null;
   mode: RemediationMode; after_fix: string; agent_connected: boolean;
 };
 type Tab = "verify" | "agent" | "auto";
+export type Evidence = { text: string; state: string; computed?: boolean; refs: { file: string; line: number | null; quote: string; url: string | null }[] };
 const STATE_WORD: Record<string, string> = { Observed: "Observed in your code", Inferred: "Inferred", Unknown: "Not established", Absent: "Not present" };
 
 // autoOpen: on the finding page, links from notifications and older bookmarks (?act=1, ?verify=1, #fix) open the modal.
@@ -94,22 +96,49 @@ export function FixModal({ assessmentId, onClose }: { assessmentId: string; onCl
 }
 
 function VerifyTab({ c, goAgent }: { c: Ctx; goAgent: () => void }) {
+  const fileName = c.location ? c.location.split("/").pop() : null;
   return (
-    <div className="grid gap-3 text-[13px]">
-      <p className="text-[14px]">{c.verified ? "Confirmed: Argus established every required condition in your code." : "Not confirmed yet. This is a possible issue: Argus has not established every condition in your code, so it is not treated as a confirmed vulnerability."}{c.location ? <> Location: <span className="mono [overflow-wrap:anywhere]">{c.location}</span>.</> : null}</p>
-      {c.evidence.length > 0 && (
-        <div className="grid gap-1.5"><div className="label">Evidence</div>
-          <ul className="grid gap-2">{c.evidence.map((e, i) => (
-            <li key={i} className="grid gap-0.5">
-              <div><span className={e.state === "Observed" ? "tone-ok" : e.state === "Unknown" ? "tone-warn" : "text-ink2"}>{STATE_WORD[e.state] ?? e.state}</span> · {e.text}</div>
-              {e.refs.map((r, j) => <div key={j} className="mono text-[12px] text-ink2 [overflow-wrap:anywhere]">{r.file}{r.line ? `:${r.line}` : ""}{r.quote ? ` — ${r.quote}` : ""}</div>)}
-            </li>
-          ))}</ul>
+    <div className="grid gap-4 text-[13px]">
+      <div className="grid gap-1">
+        <p className={`text-[15px] font-semibold ${c.verified ? "tone-bad" : "tone-warn"}`}>{c.verified ? "Confirmed vulnerability" : "Possible issue — not confirmed"}</p>
+        <p className="text-ink2">{c.verified ? "Argus established every condition required for this vulnerability in your code." : "Argus has not established every condition required for this vulnerability, so it is not treated as confirmed."}</p>
+      </div>
+      {c.location && (
+        <div className="grid gap-1.5">
+          <div className="label">Affected code</div>
+          {c.code_url
+            ? <a href={c.code_url} target="_blank" rel="noreferrer" className="btn-ghost w-fit no-underline" title={c.location}>View code on GitHub <span aria-hidden>↗</span><span className="sr-only"> (opens {c.location} in a new tab)</span></a>
+            : <p className="text-ink2">An exact GitHub link could not be built for <span className="mono">{fileName}</span>; open the repository at the assessed commit to find it.</p>}
+          <span className="mono text-[12px] text-ink2" title={c.location}>{fileName}</span>
         </div>
       )}
-      {c.missing.length > 0 && <div className="grid gap-1"><div className="label">Missing information</div><ul className="list-disc pl-5 grid gap-0.5">{c.missing.map((m) => <li key={m}>{m}</li>)}</ul></div>}
-      <p className="text-ink2">Verification is read-only. To check it in your own checkout, <button type="button" className="underline" onClick={goAgent}>ask your AI agent</button>; it cites the exact lines and reports back without changing code.</p>
+      {c.missing.length > 0 && <div className="grid gap-1"><div className="label">Missing evidence</div><ul className="list-disc pl-5 grid gap-0.5">{c.missing.map((m) => <li key={m}>{m}</li>)}</ul></div>}
+      {c.evidence.length > 0 && <EvidenceList items={c.evidence} />}
+      <div className="grid gap-1.5 border-t hair pt-3">
+        {!c.verified && <button type="button" className="btn w-fit" onClick={goAgent}>Verify with your AI agent</button>}
+        <p className="text-ink2">Verification is read-only. Argus does not re-run its analysis from this tab; {c.verified ? "your AI agent can re-check it" : "your AI agent checks your checkout, cites the exact lines and reports back"} without changing code. Opening this tab does not change the finding.</p>
+      </div>
     </div>
+  );
+}
+
+/** Evidence behind a native disclosure (collapsed by default). Paths are shown once per group, by file name; the full path is in the link title. */
+export function EvidenceList({ items }: { items: Evidence[] }) {
+  return (
+    <details className="disclose">
+      <summary>Evidence ({items.length})</summary>
+      <ul className="grid gap-3 mt-3 max-h-[40vh] overflow-auto pr-1">{items.map((e, i) => (
+        <li key={i} className="grid gap-1">
+          <div><span className={e.state === "Observed" ? "tone-ok" : e.state === "Unknown" ? "tone-warn" : "text-ink2"}>{STATE_WORD[e.state] ?? e.state}</span>{e.computed ? " (computed)" : ""} · {e.text}</div>
+          {e.refs.map((r, j) => (
+            <div key={j} className="grid gap-0.5 pl-3 border-l hair">
+              <span className="text-[12px] text-ink2">{r.url ? <a href={r.url} target="_blank" rel="noreferrer" title={r.file} className="mono">{r.file.split("/").pop()}{r.line ? `:${r.line}` : ""} ↗</a> : <span className="mono" title={r.file}>{r.file.split("/").pop()}{r.line ? `:${r.line}` : ""}</span>}</span>
+              {r.quote && <pre className="mono text-[12px] whitespace-pre-wrap [overflow-wrap:anywhere] bg-[var(--line)]/40 rounded-[4px] px-2 py-1">{r.quote}</pre>}
+            </div>
+          ))}
+        </li>
+      ))}</ul>
+    </details>
   );
 }
 

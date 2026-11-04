@@ -6,6 +6,7 @@ import { listAgentTokens } from "@/lib/agent-token";
 import { env, hasGitHubApp, hasRunner } from "@/lib/env";
 import { installationPermissions } from "@/lib/github-app";
 import { isVerified, location } from "@/lib/labels";
+import { codeUrl } from "@/lib/remediation";
 import { AFTER_FIX, modeOf } from "@/lib/remediation-mode";
 import { canSee, currentUser, isSystemRepo } from "@/lib/session";
 import { store } from "@/lib/store";
@@ -24,6 +25,7 @@ export async function GET(req: Request) {
   const blocker = a.verdict === "Not Affected" ? "This finding does not affect your code; there is nothing to fix." : automationBlocker(a, { fixEnabled: env.FIX_ENABLED, allowPr: !!ur?.allow_pr, isDemo: demo, hasInstallation: !!inst, writePermission, mode });
   const runnerMissing = env.FIX_ENABLED && !hasRunner() ? "Deployment configuration: the Muse Code runner is not configured, so patches are previewed by Muse Spark and syntax-checked only." : null;
   const loc = location(a);
+  const repoOnly = a.repo.split("/").slice(0, 2).join("/");
   return Response.json({
     assessment_id: a.id,
     repo: a.repo.split("/").slice(0, 2).join("/"),
@@ -31,7 +33,9 @@ export async function GET(req: Request) {
     verified,
     verdict: a.verdict,
     location: loc ? `${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}` : null,
-    evidence: a.conditions.filter((c) => c.role === "required").map((c) => ({ text: c.text, state: c.state, refs: c.evidence.filter((e) => e.file).slice(0, 2).map((e) => ({ file: e.file, line: e.line ?? null, quote: (e.quote ?? "").slice(0, 200) })) })),
+    // Exact, commit-pinned link to the affected lines; null when it cannot be built (the modal then says so).
+    code_url: loc ? codeUrl(repoOnly, a.sha, loc.file, loc.from, loc.to) : null,
+    evidence: a.conditions.filter((c) => c.role === "required").map((c) => ({ text: c.text, state: c.state, computed: c.computed, refs: c.evidence.filter((e) => e.file).map((e) => ({ file: e.file, line: e.line ?? null, quote: e.quote ?? "", url: codeUrl(repoOnly, a.sha, e.file, e.line) })) })),
     missing: a.missing_evidence.slice(0, 5),
     fix: latestFix(fixes),
     // Auto Fix is offered only for confirmed findings that automation can act on; Verify and AI Agent are always available.
