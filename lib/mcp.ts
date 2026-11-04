@@ -1,4 +1,4 @@
-// Argus Watch MCP tools: let the user's own AI agent (Claude Code, Codex, ...) read findings, inspect the cited code,
+// Argus Watch MCP tools: let the user's own AI agent (Meta Muse Code, Claude Code, Codex, ...) read findings, inspect the cited code,
 // analyse it locally, and report a result back. Security boundaries:
 // - Every call is scoped to repositories the token's user can see (canSee); nothing else is reachable.
 // - Advisory and repository text is untrusted. It is returned only inside `untrusted_*` fields, stripped of HTML and

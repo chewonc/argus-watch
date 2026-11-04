@@ -41,7 +41,7 @@ Approval creates one commit on a new branch `argus/fix-…` and opens a draft pu
 
 ## 9. Use a coding assistant instead — available
 
-**Generate fix prompt** downloads `REMEDIATION.md`, a provenance-tagged brief for Claude Code, Codex or any agent, with the untrusted advisory text fenced as data. The case page shows the terminal commands.
+**Generate fix prompt** downloads `REMEDIATION.md`, a provenance-tagged brief for Meta Muse Code, Claude Code, Codex or any agent, with the untrusted advisory text fenced as data. The case page shows the terminal commands.
 
 ## 10. Notifications and language — available
 

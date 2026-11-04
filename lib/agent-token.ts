@@ -1,4 +1,4 @@
-// Personal tokens for connecting an AI agent (Claude Code, Codex, ...) to the Argus MCP endpoint. Only a SHA-256
+// Personal tokens for connecting an AI agent (Meta Muse Code, Claude Code, Codex, ...) to the Argus MCP endpoint. Only a SHA-256
 // hash is stored; the token is shown once. Tokens are bound to one user and grant the MCP tools only: they are
 // never GitHub tokens and are never forwarded anywhere.
 import { createHash, randomBytes } from "node:crypto";

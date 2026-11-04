@@ -31,7 +31,7 @@ export default async function Settings() {
     <div className="mx-auto max-w-[860px] px-4 sm:px-6 py-8 sm:py-10 grid gap-8">
       <div className="grid gap-1"><h1 className="text-[28px] font-semibold tracking-[-0.02em]">{d.settings_title}</h1><p className="text-[15px] text-ink2">Signed in as {user.login}</p></div>
       <div>
-        <Section id="connect-agent" title="Connect AI agent" desc="Let Claude Code, Codex or another AI coding agent look into your alerts and help fix them in your editor, using your own AI plan.">
+        <Section id="connect-agent" title="Connect AI agent" desc="Let Meta Muse Code, Claude Code, Codex or another MCP-capable coding agent look into your alerts and help fix them in your editor, using your own AI plan.">
           <ConnectAgent endpoint={`${env.APP_URL}/api/mcp`} create={createAgentTokenAction} />
           {tokens.length > 0 && (
             <ul className="border hair rounded-[8px] text-[13px]">
