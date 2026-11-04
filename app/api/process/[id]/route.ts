@@ -7,10 +7,10 @@ export const maxDuration = 300;
 
 async function handler(req: Request, ctx?: { params?: Promise<{ id: string }> }) {
   const { id } = (await ctx?.params) ?? { id: decodeURIComponent(new URL(req.url).pathname.split("/").pop()!) };
-  let replayed = false;
-  try { replayed = !!((await req.json()) as { replayed?: boolean }).replayed; } catch { /* no body */ }
+  let replayed = false; let onlyRepo: string | undefined;
+  try { const b = (await req.json()) as { replayed?: boolean; only_repo?: string }; replayed = !!b.replayed; onlyRepo = typeof b.only_repo === "string" ? b.only_repo : undefined; } catch { /* no body */ }
   const t0 = Date.now();
-  await processFinding(decodeURIComponent(id), { replayed });
+  await processFinding(decodeURIComponent(id), { replayed, onlyRepo });
   return Response.json({ ok: true, id, ms: Date.now() - t0 });
 }
 

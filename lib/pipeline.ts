@@ -36,7 +36,25 @@ export function prefilter(text: string, repos: WatchedRepo[]): { relevant: boole
   return { relevant: hits.length > 0, hits };
 }
 
-export async function processFinding(id: string, opts: { replayed?: boolean } = {}) {
+/** Initial scan for a newly connected repository: re-check recent actionable threats against it (bounded). */
+export async function backfillRepo(repoKey: string, opts: { days?: number; max?: number } = {}): Promise<{ queued: number; considered: number }> {
+  const since = Date.now() - (opts.days ?? 30) * 86400e3;
+  const r = await store.getRepo(repoKey);
+  if (!r) return { queued: 0, considered: 0 };
+  const recent = (await store.listFindings()).filter((f) => f.claim?.actionable && Date.parse(f.discovered_at) >= since && f.credibility?.label !== "likely_false");
+  // Only findings whose claim could plausibly match this stack; exact package hits first.
+  const scored = recent.map((f) => {
+    const pkg = f.claim!.packages.some((p) => r.packages.some((q) => q.ecosystem === p.ecosystem && q.name === p.name));
+    const tag = f.claim!.tech_tags.some((t) => r.tech_tags.includes(t));
+    return { f, score: pkg ? 2 : tag ? 1 : 0 };
+  }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score || b.f.discovered_at.localeCompare(a.f.discovered_at));
+  const pick = scored.slice(0, opts.max ?? 10);
+  for (const { f } of pick) await enqueueProcess(f.id, { onlyRepo: repoKey });
+  await store.log({ kind: "process", source: "backfill", detail: `${repoKey}: ${pick.length} recent threat(s) queued for an initial check (of ${recent.length} actionable in ${opts.days ?? 30} days)`, ref: null });
+  return { queued: pick.length, considered: recent.length };
+}
+
+export async function processFinding(id: string, opts: { replayed?: boolean; onlyRepo?: string } = {}) {
   const t0 = Date.now();
   const f = await store.getFinding(id);
   if (!f) return;
@@ -48,8 +66,11 @@ export async function processFinding(id: string, opts: { replayed?: boolean } = 
       const p = await fetchPageText(i.url);
       if (p.ok) text += `\n\n[page ${i.url}]\n${p.text}`; else await store.log({ kind: "process", source: "fetchpage", detail: `skipped ${i.url}: ${p.reason}`, ref: f.id });
     }
-    const repos = await store.listRepos();
+    // Backfill (a repository was just connected): check this one repository only and never downgrade the finding's status.
+    const repos = (await store.listRepos()).filter((r) => !opts.onlyRepo || store.repoKey(r) === opts.onlyRepo);
+    if (opts.onlyRepo && !repos.length) return;
     const pre = prefilter(text, repos);
+    if (!pre.relevant && opts.onlyRepo) return;
     if (!pre.relevant) {
       f.status = "not_relevant"; await store.putFinding(f);
       await store.log({ kind: "process", source: "prefilter", detail: `checked, not relevant to watched stacks: ${f.title.slice(0, 60)}`, ref: f.id, ms: Date.now() - t0 });
@@ -80,7 +101,8 @@ export async function processFinding(id: string, opts: { replayed?: boolean } = 
       const tagHit = f.claim!.tech_tags.some((t) => r.tech_tags.includes(t));
       if (pkgHit || tagHit) matched.push(r);
     }
-    f.relevant_repos = matched.map((r) => store.repoKey(r));
+    f.relevant_repos = opts.onlyRepo ? [...new Set([...f.relevant_repos, ...matched.map((r) => store.repoKey(r))])] : matched.map((r) => store.repoKey(r));
+    if (!matched.length && opts.onlyRepo) { await store.log({ kind: "process", source: "backfill", detail: `${opts.onlyRepo}: no package or stack match for ${f.title.slice(0, 50)}`, ref: f.id }); return; }
     if (!matched.length) { f.status = "not_relevant"; await store.putFinding(f); await store.log({ kind: "process", source: "match", detail: "claim extracted; no watched repo matches", ref: f.id, ms: Date.now() - t0 }); return; }
     // Stages 3–6 + alert, per matched repo (skip if an identical assessment exists)
     // Assess matched repos with bounded concurrency (3): the model call dominates L3, so repos no longer wait in line.

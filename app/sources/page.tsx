@@ -69,7 +69,7 @@ export async function SourceCoverage({ embedded = false }: { embedded?: boolean 
       </section>
       <section>
         <h2 className="label mb-3">Lookup / on demand</h2>
-        <p className="text-[13px]">OSV.dev enriches findings with aliases and version ranges. The <span className="mono">/api/analyze</span> route runs the same pipeline on demand as a manual override and as a read-only tool for agents.</p>
+        <p className="text-[13px]">OSV.dev is also queried hourly with the exact package versions in your lockfiles. Every report that could affect a watched repository is fact-checked once against NVD, OSV, the GitHub Advisory Database and arXiv, with Meta Muse Spark web search for primary sources and contradictions. The <span className="mono">/api/analyze</span> route runs the same pipeline on demand as a manual override and as a read-only tool for agents.</p>
       </section>
       <section>
         <h2 className="label mb-3">⊘ Not accessible (stated, never silently dropped)</h2>

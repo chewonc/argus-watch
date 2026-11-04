@@ -5,6 +5,8 @@ import { ingest } from "./pipeline";
 import { fetchAdvisories, itemFromAdvisory } from "./sources/ghadv";
 import { fetchKEV, itemsFromKEV } from "./sources/kev";
 import { FEEDS, fetchFeed, itemFromEntry, type Feed } from "./sources/rss";
+import { fetchNvd, itemFromNvd } from "./sources/nvd";
+import { getVuln, itemFromOsv, queriesFor, queryBatch } from "./sources/osv";
 import { store } from "./store";
 
 export type SourceClass = "push" | "near_realtime" | "periodic";
@@ -14,6 +16,8 @@ export const POLLERS: Poller[] = [
   { id: "rss", name: `Fast feeds (${FEEDS.filter((f) => f.cadence === "fast").length})`, cls: "near_realtime", interval_min: 5 },
   { id: "kev", name: "CISA Known Exploited Vulnerabilities", cls: "periodic", interval_min: 10 },
   { id: "rss-slow", name: `Slow feeds (${FEEDS.filter((f) => f.cadence === "slow").length})`, cls: "periodic", interval_min: 60 },
+  { id: "nvd", name: "NVD CVE API 2.0 (software / AI-relevant CVEs)", cls: "periodic", interval_min: 30 },
+  { id: "osv", name: "OSV.dev, queried with your installed package versions", cls: "periodic", interval_min: 60 },
 ];
 export const TICK_MIN = 5;
 
@@ -98,6 +102,41 @@ export async function runSource(id: string): Promise<{ ok: boolean; source: stri
           catch (err) { await store.log({ kind: "error", source: "ghadv", detail: `ingest failed for ${a.ghsa_id}: ${String(err).slice(0, 160)}`, ref: it.id }); }
         }
         st.cursor = r.advisories.reduce((m, a) => (a.updated_at > m ? a.updated_at : m), st.cursor ?? floor);
+      }
+    } else if (id === "nvd") {
+      // window: since the last successful cursor (first run: last 24 h); NVD caps a window at 120 days
+      const since = st.cursor ?? new Date(Date.now() - 86400e3).toISOString();
+      const until = now;
+      const cves = await fetchNvd(since.replace(/\.\d+Z$/, ".000Z"), until.replace(/\.\d+Z$/, ".000Z"));
+      let skipped = 0;
+      for (const c of cves) {
+        const it = itemFromNvd(c, now);
+        if (!it) { skipped++; continue; }
+        if (!(await store.markSeen("nvd", it.id))) continue;
+        try { const res = await ingest(it); ingested++; if (res.created) created++; }
+        catch (err) { await store.log({ kind: "error", source: "nvd", detail: `ingest failed for ${c.id}: ${String(err).slice(0, 160)}`, ref: it.id }); }
+      }
+      note = `${cves.length} CVE change(s), ${skipped} outside software/AI scope`;
+      st.cursor = until;
+    } else if (id === "osv") {
+      const qs = queriesFor(await store.listRepos());
+      if (!qs.length) note = "no lockfile-resolved packages in watched repositories";
+      else {
+        const res = await queryBatch(qs);
+        const ids = new Map<string, string>();
+        res.forEach((vs) => vs.forEach((v) => ids.set(v.id, v.modified)));
+        let fetched = 0;
+        for (const [vid, modified] of ids) {
+          if (fetched >= 25) break; // bounded per run; the rest is picked up next hour
+          const key = `${vid}:${modified}`;
+          if (!(await store.markSeen("osv", key))) continue;
+          const v = await getVuln(vid); fetched++;
+          if (!v) continue;
+          const it = itemFromOsv(v, now);
+          try { const r2 = await ingest(it); ingested++; if (r2.created) created++; }
+          catch (err) { await store.log({ kind: "error", source: "osv", detail: `ingest failed for ${vid}: ${String(err).slice(0, 160)}`, ref: it.id }); }
+        }
+        note = `${qs.length} package version(s) queried, ${ids.size} known vulnerability id(s), ${fetched} fetched`;
       }
     } else if (id === "rss" || id === "rss-slow") {
       const r = await pollFeeds(FEEDS.filter((f) => (id === "rss" ? f.cadence === "fast" : f.cadence === "slow")), now, !st.last_ok);

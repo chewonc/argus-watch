@@ -32,7 +32,7 @@ export default async function Repos({ searchParams }: { searchParams: Promise<Re
         <h1 className="text-[28px] font-semibold tracking-[-0.02em]">{d.repos_title}</h1>
         <p className="text-[15px] text-ink2">Choose which GitHub repositories Argus Watch should protect.</p>
         {sp.error && <p role="alert" className="mt-2 text-[14px] tone-bad">{decodeURIComponent(sp.error)}</p>}
-        {sp.added && <p role="status" className="mt-2 text-[14px] tone-ok">Repositories added. We&apos;ll check them against new threats from now on.</p>}
+        {sp.added && <p role="status" className="mt-2 text-[14px] tone-ok">Repositories added. {Number(sp.checking ?? 0) > 0 ? `Checking them now against ${sp.checking} recent threat(s) that match their dependencies; results appear in Alerts within a few minutes.` : "No recent threat matches their dependencies. We’ll check every new threat from now on."}</p>}
         {sp.rescanned && <p role="status" className="mt-2 text-[14px] tone-ok">Repository refreshed.</p>}
       </div>
 

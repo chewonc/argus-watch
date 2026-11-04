@@ -2,7 +2,7 @@
 import { computeLatency } from "@/lib/latency";
 import { POLLERS, TICK_MIN, type PollState, type TickState } from "@/lib/poll";
 import { FEEDS } from "@/lib/sources/rss";
-import { hasQStash, hasRedis } from "@/lib/env";
+import { env, hasAuth, hasGitHubApp, hasPush, hasQStash, hasRedis, hasRunner, hasTranslate } from "@/lib/env";
 import { store, storageMode } from "@/lib/store";
 
 const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : null);
@@ -26,7 +26,7 @@ export async function GET() {
   const sources = [
     { id: "ghsa", name: "GitHub-reviewed advisories (GitHub App webhook)", class: "push", deliveries: webhookCount, last_delivery: lastWebhook, status: webhookCount ? "receiving" : "no deliveries yet", realtime_label_allowed: webhookCount > 0 },
     ...pollRows,
-    { id: "osv", name: "OSV.dev", class: "lookup", status: "enrichment only" },
+    { id: "verify", name: "Report fact-check (NVD / OSV / GitHub Advisory DB / arXiv lookups + Meta Muse Spark web search)", class: "per_finding", status: "runs once per report version before analysis" },
     { id: "x", name: "X (Twitter)", class: "not_accessible", reason: "pay-per-use API ($0.005/post read, no free reads); not funded" },
     { id: "threads", name: "Threads keyword search", class: "not_accessible", reason: "requires App Review for threads_keyword_search" },
     { id: "linkedin", name: "LinkedIn", class: "not_accessible", reason: "no post-search API; scraping prohibited by terms" },
@@ -46,6 +46,8 @@ export async function GET() {
       last_heartbeat: lastHeartbeat, last_legacy_schedule_tick: lastLegacy,
       note: "If tick_schedule_detected is false, the /api/poll/tick schedule has never delivered; legacy per-source schedules (rss, kev) also run every other due poller as a fallback.",
     } },
+    // Which optional capabilities this deployment has configured (booleans only, never values).
+    features: { meta_model: !!env.META_API_KEY, model: env.META_MODEL, sign_in: hasAuth(), github_app: hasGitHubApp(), fix_enabled: env.FIX_ENABLED, muse_code_runner: hasRunner(), web_push: hasPush(), google_translate: hasTranslate(), translation: env.META_API_KEY ? (hasTranslate() ? "google" : "meta-muse-spark") : (hasTranslate() ? "google" : "none") },
     sources,
     counts: { findings: findings.length, by_status: Object.fromEntries(["new", "not_relevant", "not_actionable", "analyzing", "assessed", "error"].map((s) => [s, findings.filter((f) => f.status === s).length])), assessments: assessments.length, live_assessments: live.length, replayed_assessments: assessments.length - live.length, watched_repos: repos.length },
     latency,

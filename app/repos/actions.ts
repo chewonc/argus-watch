@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { env } from "@/lib/env";
 import { listInstallationRepos } from "@/lib/github-app";
 import { forgetInstallations, refreshRepo } from "@/lib/repo";
+import { backfillRepo } from "@/lib/pipeline";
 import { WatchedRepo } from "@/lib/schema";
 import { githubUserToken, requireUser } from "@/lib/session";
 import { SYSTEM_USER, store } from "@/lib/store";
@@ -31,6 +32,7 @@ export async function addRepos(formData: FormData) {
   if (!token) redirect("/repos?error=no_token");
   const available = new Map((await listInstallationRepos(token, instId)).map((r) => [r.full_name, r]));
   const errors: string[] = [];
+  let backfilled = 0;
   for (const full of picked) {
     const meta = available.get(full);
     if (!meta) { errors.push(`${full}: not in this installation`); continue; }
@@ -41,11 +43,13 @@ export async function addRepos(formData: FormData) {
       await store.putRepo(r);
     } catch (e) { errors.push(`${full}: ${String(e).slice(0, 120)}`); continue; }
     await store.addUserRepo({ user_id: user.id, repo_key: full, installation_id: instId, allow_pr: false, local_root: null, added_at: new Date().toISOString() });
+    // Initial scan: check the last 30 days of actionable threats against the new repository (queued, bounded).
+    try { const b = await backfillRepo(full); backfilled += b.queued; } catch (e) { await store.log({ kind: "error", source: "backfill", detail: `${full}: ${String(e).slice(0, 160)}` }); }
   }
   forgetInstallations();
   await store.log({ kind: "auth", source: "repos", detail: `${user.login} watches ${picked.length - errors.length} repo(s) via installation ${instId}${errors.length ? `; errors: ${errors.join("; ")}` : ""}`.slice(0, 300) });
   revalidatePath("/repos"); revalidatePath("/alerts");
-  redirect(errors.length ? `/repos?error=${encodeURIComponent(errors.join(" | ").slice(0, 300))}` : "/repos?added=1");
+  redirect(errors.length ? `/repos?error=${encodeURIComponent(errors.join(" | ").slice(0, 300))}` : `/repos?added=1&checking=${backfilled}`);
 }
 
 export async function removeRepo(formData: FormData) {
