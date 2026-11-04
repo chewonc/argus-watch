@@ -1,7 +1,7 @@
 // English source strings for the UI. Korean ships as a reviewed static dictionary (lib/i18n/ko.ts); other languages are
 // machine-translated at request time by Meta Muse Spark (or Google Cloud Translation when its key is set) and cached.
 export const en = {
-  nav_watch: "Watch", nav_repos: "Repositories", nav_monitoring: "Monitoring status", nav_activity: "Activity log", nav_sources: "Sources", nav_alerts: "Alerts", nav_threats: "Threats", nav_settings: "Settings", sign_in: "Sign in with GitHub", sign_out: "Sign out", sign_in_not_configured: "sign-in not configured",
+  nav_watch: "Watch", nav_repos: "Repositories", nav_monitoring: "Monitoring status", nav_activity: "Activity log", nav_sources: "Sources", nav_alerts: "Alerts", nav_threats: "Threats", nav_windows: "Remediation", nav_settings: "Settings", sign_in: "Sign in with GitHub", sign_out: "Sign out", sign_in_not_configured: "sign-in not configured",
   headline: "What touched your code.",
   tagline: "Advisories and research signals checked against your watched repositories, continuously, read-only. Absence of alerts is evidence from inspected files only, never proof of safety.",
   repositories: "Repositories", no_repos: "No repositories watched yet.", connect_link: "Connect GitHub and pick repositories →", needs_attention: "need attention", no_issues: "no issues found in inspected files", demo: "demo",

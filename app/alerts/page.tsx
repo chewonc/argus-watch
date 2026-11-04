@@ -126,7 +126,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
       ) : (
         <details className="disclose border hair rounded-[10px] px-4 py-3 text-[calc(14px*var(--ui))]">
           <summary className="font-medium">Away for a while? Start a remediation window</summary>
-          <p className="mt-2 mb-3 text-[calc(13px*var(--ui))] text-ink2">Argus re-checks your open findings and prepares tested fixes while you are away. Unless you choose draft pull requests, nothing is written to your repositories; you review each patch when you are back. Recurring windows are in <Link href="/settings#windows" className="underline">Settings</Link>.</p>
+          <p className="mt-2 mb-3 text-[calc(13px*var(--ui))] text-ink2">Argus re-checks your open findings and prepares tested fixes while you are away. Unless you choose draft pull requests, nothing is written to your repositories; you review each patch when you are back. Schedule recurring windows on the <Link href="/windows" className="underline">Remediation</Link> page.</p>
           <StartNowForm action={startWindowNow} repos={mine.filter((m) => !m.paused && !m.access_lost).map((m) => m.repo_key)} />
         </details>
       ))}

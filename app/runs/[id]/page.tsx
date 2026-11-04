@@ -24,7 +24,7 @@ function Stat({ n, label }: { n: number | string; label: string }) {
 }
 
 export default async function RunPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireUser("/settings#windows");
+  const user = await requireUser("/windows");
   const run = await store.getRun<WindowRun>(decodeURIComponent((await params).id));
   if (!run || run.user_id !== user.id) notFound();
   const fixes = new Map((await Promise.all(run.items.filter((i) => i.fix_id).map((i) => store.getFix(i.fix_id!)))).filter((f) => !!f).map((f) => [f!.id, f!]));
@@ -34,7 +34,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
   return (
     <div className="mx-auto max-w-[calc(980px*var(--ui))] px-4 sm:px-6 py-8 sm:py-10 grid gap-6">
       <header className="grid gap-2">
-        <Link href="/settings#windows" className="text-[calc(13px*var(--ui))] text-ink2 underline w-fit">Remediation windows</Link>
+        <Link href="/windows" className="text-[calc(13px*var(--ui))] text-ink2 underline w-fit">Remediation windows</Link>
         <h1 className="text-[calc(26px*var(--ui))] font-semibold tracking-[-0.02em]">{run.label}</h1>
         <p className="text-[calc(14px*var(--ui))] text-ink2">{RUN_STATUS[run.status] ?? run.status} · {fmtLocal(run.tz, run.start_ms)} to {fmtLocal(run.tz, run.end_ms)} · {LEVEL_TEXT[run.level].title}</p>
         <p className="text-[calc(13px*var(--ui))] text-ink2">Limits: {run.limits.max_issues} issues, {run.limits.max_jobs} parallel job(s), ${run.limits.budget_usd.toFixed(2)} budget. Estimated spend so far ${run.spent_usd.toFixed(2)}. Repositories: {run.repos.length ? run.repos.join(", ") : "none in scope"}.</p>

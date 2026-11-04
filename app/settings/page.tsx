@@ -78,7 +78,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
           </ul></More>
         </Section>
 
-        <Section id="windows" title="Remediation windows" desc="Let Argus Watch work on security issues while you are away.">
+        <Section id="windows" title="Remediation windows" desc="Let Argus Watch work on security issues while you are away. Also on the Remediation page.">
           <RemediationWindows userId={user.id} />
           <More label="How it works"><ul className="list-disc pl-5 grid gap-1">
             <li>During a window, Argus re-checks open findings against your current code and, with Prepare fixes, drafts a fix and runs your tests in an isolated runner.</li>
