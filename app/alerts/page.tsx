@@ -76,7 +76,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
     <div className="mx-auto max-w-[1080px] px-4 sm:px-6 py-8 sm:py-10 grid gap-6">
       <header className="grid gap-3">
         <div className="grid gap-1">
-          <h1 className="text-[28px] font-semibold tracking-[-0.02em] leading-tight">{d.nav_alerts}</h1>
+          <h1 className="text-[28px] font-semibold tracking-[-0.02em] leading-tight">{d.nav_threats}</h1>
           <p className="text-[15px] text-ink2" aria-live="polite">{repos.length === 0 ? d.no_repos_short : openCount === 0 ? d.nothing_needs_you : openCount === 1 ? d.one_needs_you : d.n_need_you.replace("{n}", String(openCount))}</p>
         </div>
         {repoLines.length > 0 && (

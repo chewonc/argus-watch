@@ -7,6 +7,7 @@ import { StatusPill, firstSentence, lineAnchor, suggestedFix } from "@/component
 import { FixPreview } from "@/components/fix-preview";
 import { CredibilityChip, CredibilityPanel } from "@/components/credibility";
 import { SimulateImpact } from "@/components/simulate-impact";
+import { cachedSimulation } from "@/lib/simulate";
 import { ThreatTimeline } from "@/components/threat-timeline";
 import { AskAgent } from "@/components/ask-agent";
 import { MarkRead } from "@/components/mark-read";
@@ -86,44 +87,66 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   const agentConnected = (await listAgentTokens(user.id)).length > 0;
   const ghUrl = verified && loc ? permalink(repoOnly, a.sha, loc.file, loc.from, loc.to) : null;
   const severeUnverified = !verified && a.verdict !== "Not Affected" && (sev.level === "critical" || sev.level === "high");
+  // Next step: derived from the assessment only (no model call). Unconfirmed findings point at the first required
+  // condition Argus could not establish; nothing here claims more than the evidence does.
+  const openCond = a.conditions.map((c, ci) => ({ c, t: condT[ci].text })).filter(({ c }) => c.role === "required" && !c.computed && c.state === "Unknown")[0]
+    ?? a.conditions.map((c, ci) => ({ c, t: condT[ci].text })).filter(({ c }) => c.role === "required" && !c.computed && c.state === "Inferred")[0];
+  const openRef = openCond?.c.evidence.find((e) => e.line) ?? null;
+  const nextStep = a.verdict === "Not Affected" ? d.ns_not_affected
+    : verified ? d.ns_affected
+    : openCond ? d.ns_possible.replace("{x}", `${openCond.t.replace(/\.$/, "")}${openRef ? ` (${openRef.file.split("/").pop()}:${openRef.line})` : ""}.`)
+    : missingT[0] ? d.ns_possible.replace("{x}", missingT[0])
+    : d.ns_fallback;
+  const cachedSim = a.verdict === "Not Affected" ? null : await cachedSimulation(a, fixes.find((x) => x.files.length > 0) ?? null, locale).catch(() => null);
 
   return (
     <div className="mx-auto max-w-[760px] px-4 sm:px-6 py-8 sm:py-10 grid grid-cols-[minmax(0,1fr)] gap-8">
       <MarkRead assessmentId={a.id} />
       <div className="grid gap-3">
-        <Link href="/alerts" className="text-[13px] text-ink2 no-underline hover:text-ink w-fit">← {d.back_to_alerts}</Link>
+        <Link href="/alerts" className="text-[13px] text-ink2 no-underline hover:text-ink w-fit">← {d.nav_threats}</Link>
         <div className="flex flex-wrap items-center gap-2"><StatusPill s={status} /><CredibilityChip c={f?.credibility} l={{ none: d.report_not_checked, prefix: d.report_prefix }} /></div>
         <h1 className="text-[26px] sm:text-[30px] font-semibold tracking-[-0.02em] leading-tight">{T.title}</h1>
-        {where.kind === "file" || where.kind === "package"
-          ? <div className="mono text-[13px] text-ink2 break-all">{where.kind === "file" && loc ? `${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}` : where.text}</div>
-          : <div className="text-[14px] text-ink2">{verified ? where.text : severeUnverified ? d.could_be_serious : loc && a.verdict !== "Not Affected" ? d.not_confirmed_code_found.replace("{where}", `${loc.file.split("/").pop()}:${loc.from}`) : d.not_confirmed_long.replace("{tech}", tech)}</div>}
+        {loc && a.verdict !== "Not Affected" && <div className="text-[13px] text-ink2"><span>{verified ? d.affected_at : d.potentially_affected}: </span><span className="mono [overflow-wrap:anywhere]">{`${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}`}</span></div>}
+        {!loc && (where.kind === "package") && <div className="mono text-[13px] text-ink2 [overflow-wrap:anywhere]">{where.text}</div>}
+        {a.verdict === "Not Affected"
+          ? <p className="text-[14px] text-ink2">This threat doesn&apos;t affect your project: the code it needs isn&apos;t there. We&apos;ll check again when your code changes.</p>
+          : !verified && <p className="text-[14px] text-ink2">{severeUnverified ? d.could_be_serious : loc ? d.not_confirmed_code_found.replace("{where}", `${loc.file.split("/").pop()}:${loc.from}`) : d.not_confirmed_long.replace("{tech}", tech)}</p>}
         {a.agent && <p className="text-[13px] text-ink2">{a.agent.status === "confirmed" ? "Confirmed" : a.agent.status === "not_affected" ? "Marked not affected" : "Fix proposed"} by your AI agent on {new Date(a.agent.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Argus checked the lines it cited{a.verdict !== "Affected" && a.agent.status === "confirmed" ? "; Argus's own analysis had not confirmed this" : ""}.</p>}
+        <div className="grid gap-0.5 mt-1"><div className="label">{d.next_step}</div><p className="text-[14px] leading-relaxed">{nextStep}</p></div>
       </div>
 
-      {a.verdict === "Not Affected" ? (
-        <p className="text-[15px] leading-relaxed">This threat doesn&apos;t affect your project: the code it needs isn&apos;t there. We&apos;ll check again when your code changes.</p>
-      ) : (
-        <div className="grid gap-6">
-          <section className="grid gap-1.5"><h2 className="text-[15px] font-semibold">{d.whats_wrong}</h2><p className="text-[15px] leading-relaxed">{T.problem}</p></section>
-          {T.fix && <section className="grid gap-1.5"><h2 className="text-[15px] font-semibold">{d.how_to_fix}</h2><p className="text-[15px] leading-relaxed">{T.fix}</p></section>}
-        </div>
+      {T.problem && <section className="border-t hair pt-5 grid gap-1.5"><h2 className="text-[15px] font-semibold">{d.whats_wrong}</h2><p className="text-[15px] leading-relaxed">{T.problem}</p></section>}
+
+      {a.verdict !== "Not Affected" && (T.fix || fixAllowed || ghUrl || prFix?.pr_url) && (
+        <section className="border-t hair pt-5 grid gap-3">
+          <h2 className="text-[15px] font-semibold">{d.how_to_fix}</h2>
+          {T.fix && <p className="text-[15px] leading-relaxed">{T.fix}</p>}
+          <AskAgent id={a.id} connected={agentConnected} verified={verified} labels={{ title: d.agent_title, leadFix: d.agent_lead_fix, leadVerify: d.agent_lead_verify, copy: d.copy_instructions, copied: d.copied, preview: d.preview }} />
+          {(ghUrl || prFix?.pr_url) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {ghUrl && <a href={ghUrl} target="_blank" rel="noreferrer" className="btn-ghost">{d.open_in_github} <span aria-hidden>↗</span></a>}
+              {prFix?.pr_url && <a href={prFix.pr_url} target="_blank" rel="noreferrer" className="btn">Review draft pull request{prFix.pr_number ? ` #${prFix.pr_number}` : ""} <span aria-hidden>↗</span></a>}
+            </div>
+          )}
+          {fixAllowed && <div id="fix"><FixPreview assessmentId={a.id} initial={latestFix} allowPr={!!ur?.allow_pr} isDemoRepo={demoRepo} verdict={a.verdict} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} museEnabled={hasRunner()} museLabels={{ title: d.automated_fix, pr: d.fix_create_pr, push: d.fix_push, recommended: d.recommended }} labels={{ proposed_fix: d.proposed_fix, draft_fix: d.fix, drafting: d.drafting, re_draft: d.re_draft, approve: d.approve_open_pr, not_verified: d.not_verified }} /></div>}
+        </section>
       )}
 
-      <div className="border-t hair pt-5"><ThreatTimeline assessmentId={a.id} title={d.threat_timeline} /></div>
+      <div className="border-t hair pt-5">
+        {a.verdict === "Not Affected"
+          ? <section className="grid gap-1.5"><h2 className="text-[15px] font-semibold">{d.what_could_happen}</h2><p className="text-[14px] text-ink2">{d.impact_not_affected}</p></section>
+          : <SimulateImpact assessmentId={a.id} repo={repoOnly} sha={a.sha} title={d.what_could_happen} button={`${d.simulate_impact} →`} intro={d.simulate_intro} locale={locale}
+              lead={cachedSim ? (
+                <div className="grid gap-1">
+                  <p className="text-[15px] leading-relaxed">{cachedSim.applicable ? cachedSim.consequence.summary : cachedSim.not_applicable_reason}</p>
+                  {cachedSim.applicable && <p className="text-[12px] text-ink2">{cachedSim.consequence.basis === "demonstrated" ? d.impact_observed : cachedSim.consequence.basis === "inferred" ? d.impact_inferred : d.impact_hypothetical}</p>}
+                </div>
+              ) : <p className="text-[13px] text-ink2">{d.impact_unknown}</p>} />}
+      </div>
 
-      {a.verdict !== "Not Affected" && <div className="border-t hair pt-5"><SimulateImpact assessmentId={a.id} repo={repoOnly} sha={a.sha} title={d.what_if_not_fixed} button={d.simulate_impact} intro={d.simulate_intro} locale={locale} /></div>}
+      <div className="border-t hair pt-5"><CredibilityPanel c={f?.credibility} title={d.report_verification} none={d.report_not_checked_long} collapsible viewDetails={d.view_details} /></div>
 
-      <div className="border-t hair pt-5"><CredibilityPanel c={f?.credibility} title={d.is_threat_real} none={d.report_not_checked_long} /></div>
-
-      {(ghUrl || prFix?.pr_url) && (
-        <div className="flex flex-wrap items-center gap-2">
-          {ghUrl && <a href={ghUrl} target="_blank" rel="noreferrer" className="btn-ghost">{d.open_in_github} <span aria-hidden>↗</span></a>}
-          {prFix?.pr_url && <a href={prFix.pr_url} target="_blank" rel="noreferrer" className="btn">Review draft pull request{prFix.pr_number ? ` #${prFix.pr_number}` : ""} <span aria-hidden>↗</span></a>}
-        </div>
-      )}
-      {fixAllowed && <div id="fix"><FixPreview assessmentId={a.id} initial={latestFix} allowPr={!!ur?.allow_pr} isDemoRepo={demoRepo} verdict={a.verdict} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} museEnabled={hasRunner()} museLabels={{ title: d.automated_fix, pr: d.fix_create_pr, push: d.fix_push, recommended: d.recommended }} labels={{ proposed_fix: d.proposed_fix, draft_fix: d.fix, drafting: d.drafting, re_draft: d.re_draft, approve: d.approve_open_pr, not_verified: d.not_verified }} /></div>}
-
-      {a.verdict !== "Not Affected" && <AskAgent id={a.id} connected={agentConnected} verified={verified} />}
+      <div className="border-t hair pt-5"><ThreatTimeline assessmentId={a.id} title={d.threat_timeline} labels={{ showAll: d.show_all_events, showFewer: d.show_fewer, firstReported: d.first_reported, argusDetected: d.argus_detected, argusPickedUp: d.argus_picked_up, recorded: d.recorded_by_argus }} /></div>
 
       <details className="disclose border-t hair pt-5">
         <summary>{d.technical_details}</summary>

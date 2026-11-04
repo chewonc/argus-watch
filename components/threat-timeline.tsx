@@ -19,7 +19,22 @@ const fmt = (e: TLEvent) => {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) + (e.precision === "time" ? ` ${d.toISOString().slice(11, 16)} UTC` : "");
 };
 
-export function ThreatTimeline({ assessmentId, title = "Threat timeline" }: { assessmentId: string; title?: string }) {
+export type TimelineLabels = { showAll: string; showFewer: string; firstReported: string; argusDetected: string; argusPickedUp: string; recorded: string };
+const DEFAULT_LABELS: TimelineLabels = { showAll: "Show all events", showFewer: "Show fewer", firstReported: "First reported", argusDetected: "Argus Watch detected and assessed the threat", argusPickedUp: "Argus Watch picked up the threat", recorded: "Recorded by Argus Watch" };
+// Argus's own processing events are records of what the system did, not confirmation of the vulnerability.
+const isArgusRecord = (e: TLEvent) => e.basis === "argus_record" && (e.lane === "repo" || e.kind === "argus_discovered");
+
+/** Compact overview: the earliest dated external event, and Argus's detection/assessment milestone. Nothing is dropped from the full view. */
+export function overview(all: TLEvent[]): { first: TLEvent | null; argus: TLEvent | null; assessed: boolean } {
+  const external = all.filter((e) => e.lane === "threat" && e.kind !== "argus_discovered" && !(e.basis === "argus_record"));
+  const first = external[0] ?? null; // all is chronological
+  const assessedEv = all.find((e) => e.kind === "argus_assessed") ?? null;
+  const picked = all.find((e) => e.kind === "argus_discovered") ?? null;
+  return { first, argus: assessedEv ?? picked, assessed: !!assessedEv };
+}
+
+export function ThreatTimeline({ assessmentId, title = "Threat timeline", labels = DEFAULT_LABELS }: { assessmentId: string; title?: string; labels?: TimelineLabels }) {
+  const [expanded, setExpanded] = useState(false);
   const [t, setT] = useState<TL | null>(null);
   const [repo, setRepo] = useState<TLEvent[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -44,7 +59,7 @@ export function ThreatTimeline({ assessmentId, title = "Threat timeline" }: { as
     <section className="grid gap-3" aria-labelledby="tl-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="tl-h" className="text-[15px] font-semibold">{title}</h2>
-        {t && <div className="flex items-center gap-2 text-[12px]">
+        {t && expanded && <div className="flex items-center gap-2 text-[12px]">
           <div className="seg" role="group" aria-label="Filter events">
             <button type="button" aria-pressed={!onlyConfirmed} onClick={() => setOnlyConfirmed(false)} className={`tl-seg${!onlyConfirmed ? " on" : ""}`}>All</button>
             <button type="button" aria-pressed={onlyConfirmed} onClick={() => setOnlyConfirmed(true)} className={`tl-seg${onlyConfirmed ? " on" : ""}`}>Confirmed only</button>
@@ -56,7 +71,24 @@ export function ThreatTimeline({ assessmentId, title = "Threat timeline" }: { as
       {busy && !t && <div className="grid gap-2" aria-busy="true" aria-live="polite"><p className="text-[13px] text-ink2">Collecting dated records and reading the sources with Meta Muse Spark (first time ~10–30 s)…</p>{[0, 1, 2].map((i) => <div key={i} className="h-[14px] rounded bg-[var(--sunken)] pulse" style={{ width: `${80 - i * 15}%` }} />)}</div>}
       {err && <p className="text-[13px]" style={{ color: "var(--contradicted)" }}>Timeline unavailable: {err}. <button type="button" className="underline" onClick={() => load()}>Try again</button></p>}
 
-      {t && <>
+      {t && !expanded && (() => {
+        const o = overview(all);
+        const rows: [TLEvent, string][] = [];
+        if (o.first) rows.push([o.first, `${labels.firstReported}${o.first.sources[0]?.publisher ? ` · ${o.first.sources[0].publisher}` : ""}`]);
+        if (o.argus) rows.push([o.argus, o.assessed ? labels.argusDetected : labels.argusPickedUp]);
+        return (
+          <>
+            {rows.length ? <ol className="tl-list">{rows.map(([e, text]) => (
+              <li key={e.id} className={`tl-item${e.lane === "repo" || isArgusRecord(e) ? " tl-repo" : ""}`}>
+                <time dateTime={e.at} className="mono text-[12px] text-ink2 tl-date">{fmt(e)}</time>
+                <div className="text-[14px] [overflow-wrap:anywhere]">{text}</div>
+              </li>
+            ))}</ol> : <p className="text-[13px] text-ink2">No dated events are known for this threat yet.</p>}
+            {all.length > rows.length && <button type="button" className="btn-ghost w-fit" aria-expanded={false} aria-controls="tl-full" onClick={() => setExpanded(true)}>{labels.showAll} ({all.length}) <span aria-hidden>▾</span></button>}
+          </>
+        );
+      })()}
+      {t && expanded && <div id="tl-full" className="contents">
         <p className="text-[14px] leading-relaxed">{t.summary}<span className="text-[11px] text-ink2 ml-2">{t.summary_basis === "model" ? "summary by Muse Spark, checked against the events" : "summary generated from the events"}</span></p>
         {t.limited && <p className="text-[13px] text-ink2">Little history is known for this threat: only {t.events.filter((e) => e.kind !== "argus_discovered").length} dated record(s) in the sources Argus follows. Absence of events is not evidence that nothing happened.</p>}
         <ol className="tl-list">
@@ -69,7 +101,8 @@ export function ThreatTimeline({ assessmentId, title = "Threat timeline" }: { as
                 <div className="grid gap-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
                     <span className="label !text-[11px]">{e.lane === "repo" ? "Your repository · " : ""}{KIND[e.kind] ?? e.kind}</span>
-                    <span className="chip" style={{ color: c.color }} title={c.help}>{c.glyph} {c.label}</span>
+                    {isArgusRecord(e) ? <span className="text-ink2" title="An action Argus Watch recorded. It does not mean the vulnerability is confirmed in your repository.">{labels.recorded}</span>
+                      : <span className="chip" style={{ color: c.color }} title={c.help}>{c.glyph} {c.label}</span>}
                     {e.basis === "model_extracted" && <span className="text-ink2" title="Proposed by Meta Muse Spark; date and claim were found verbatim in the source">read by Muse Spark · quote checked</span>}
                     {conflict.length > 0 && <span style={{ color: "var(--unclear)" }}>⚠ dates differ between sources</span>}
                   </div>
@@ -91,7 +124,8 @@ export function ThreatTimeline({ assessmentId, title = "Threat timeline" }: { as
             <li>Exploitation is &ldquo;Confirmed&rdquo; only from CISA&apos;s Known Exploited Vulnerabilities catalog. Built {t.built_at.replace("T", " ").slice(0, 16)} UTC; rebuilt automatically when new reports about this threat arrive.</li>
           </ul>
         </details>
-      </>}
+        <button type="button" className="btn-ghost w-fit" aria-expanded={true} aria-controls="tl-full" onClick={() => setExpanded(false)}>{labels.showFewer} <span aria-hidden>▴</span></button>
+      </div>}
     </section>
   );
 }

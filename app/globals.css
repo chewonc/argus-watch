@@ -124,8 +124,8 @@ a:hover { text-decoration-color: currentColor; }
 .seg a:hover { color: var(--ink); }
 .seg a[aria-current="page"] { background: var(--sunken); color: var(--ink); font-weight: 600; }
 .menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 220px; z-index: 30; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.08); }
-.menu [role="menuitem"] { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; font-size: 13px; color: var(--ink); text-decoration: none; background: none; border: 0; cursor: pointer; }
-.menu [role="menuitem"]:hover, .menu [role="menuitem"]:focus-visible { background: var(--sunken); outline: none; }
+.menu [role="menuitem"], .menu [role="menuitemradio"] { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; font-size: 13px; color: var(--ink); text-decoration: none; background: none; border: 0; cursor: pointer; }
+.menu [role="menuitem"]:hover, .menu [role="menuitem"]:focus-visible, .menu [role="menuitemradio"]:hover, .menu [role="menuitemradio"]:focus-visible { background: var(--sunken); outline: none; }
 details.disclose > summary { cursor: pointer; list-style: none; font-size: 13px; font-weight: 500; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
 details.disclose > summary::-webkit-details-marker { display: none; }
 details.disclose > summary::before { content: "▸"; transition: transform .12s; }
@@ -160,3 +160,10 @@ dialog.modal::backdrop { background: rgba(0,0,0,.35); }
 details.disclose .grid > * { min-width: 0; }
 /* Long repository paths and identifiers break instead of widening the page on phones. */
 .tl-item, details.disclose .mono { overflow-wrap: anywhere; }
+
+/* Header (components/header-nav.tsx): primary links with a subtle active rule; a restrained unread count on the bell. */
+.nav-link { position: relative; color: var(--ink-2); text-decoration: none; padding: 6px 0; white-space: nowrap; transition: color .12s; }
+.nav-link:hover { color: var(--ink); }
+.nav-link[aria-current="page"] { color: var(--ink); font-weight: 500; }
+.nav-link[aria-current="page"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 2px; background: var(--ink); }
+.badge-quiet { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: 10px; font-weight: 600; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }

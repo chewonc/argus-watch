@@ -91,9 +91,14 @@ export function ground(sim: Omit<Simulation, "downgraded" | "model" | "ms" | "cr
     surface: { kind: sim.surface.kind, name: scrub(sim.surface.name), derived_from: derived, generic: derived.length === 0 }, steps, consequence, with_fix, downgraded };
 }
 
+const simLang = (locale?: string) => (/^[a-z]{2}(-[a-z]{2})?$/i.test(locale ?? "") ? locale!.toLowerCase() : "en");
+const simVersion = (a: Assessment, fix: Fix | null, lang: string) => createHash("sha256").update(`${a.id}|${fix?.id ?? ""}|${fix?.status ?? ""}|${lang}|v1`).digest("hex").slice(0, 20);
+/** Read-only: the simulation already built for this assessment/fix/language, if any (no model call). */
+export async function cachedSimulation(a: Assessment, fix: Fix | null, locale?: string): Promise<Simulation | null> { return kv.get<Simulation>(`sim:${simVersion(a, fix, simLang(locale))}`); }
+
 export async function simulate(a: Assessment, f: Finding | null, fix: Fix | null, opts: { force?: boolean; locale?: string } = {}): Promise<Simulation> {
-  const lang = /^[a-z]{2}(-[a-z]{2})?$/i.test(opts.locale ?? "") ? opts.locale!.toLowerCase() : "en";
-  const version = createHash("sha256").update(`${a.id}|${fix?.id ?? ""}|${fix?.status ?? ""}|${lang}|v1`).digest("hex").slice(0, 20);
+  const lang = simLang(opts.locale);
+  const version = simVersion(a, fix, lang);
   const key = `sim:${version}`;
   if (!opts.force) { const c = await kv.get<Simulation>(key); if (c) return c; }
   const repoFull = a.repo.split("/").slice(0, 2).join("/");

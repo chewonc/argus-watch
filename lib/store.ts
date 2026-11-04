@@ -240,7 +240,14 @@ export const store = {
   // ---- notifications ----------------------------------------------------------
   async putNotification(n: Notification, isNew: boolean) {
     await kv.set(K.notifi(n.id), n);
-    if (isNew) { await kv.lpush(K.notif(n.user_id), n.id); await kv.ltrim(K.notif(n.user_id), 0, 299); }
+    if (isNew) {
+      await kv.lpush(K.notif(n.user_id), n.id);
+      // Notifications trimmed out of the list can no longer be seen or opened: drop them from the unread set too,
+      // so the bell badge counts only unread notifications the user can actually see.
+      const dropped = await kv.lrange<string>(K.notif(n.user_id), 300, -1);
+      if (dropped.length) await kv.srem(K.unread(n.user_id), ...dropped);
+      await kv.ltrim(K.notif(n.user_id), 0, 299);
+    }
     if (!n.read_at) await kv.sadd(K.unread(n.user_id), n.id);
   },
   getNotification: (nid: string) => kv.get<Notification>(K.notifi(nid)),

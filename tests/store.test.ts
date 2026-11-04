@@ -35,3 +35,12 @@ test("notifications: unread count, mark read, dedup pointer", async () => {
   assert.ok((await store.readSet("gh:9")).includes("t:1"));
   assert.equal(SYSTEM_USER, "system");
 });
+
+test("notifications: the unread badge never counts notifications trimmed out of the 300-item history", async () => {
+  const base = { user_id: "gh:trim", kind: "alert" as const, finding_id: "f", repo: "o/r", title: "t", verdict: "Unclear" as const, severity: { level: "low" as const, cvss: null, source: "estimated" as const }, created_at: "a", updated_at: "a", read_at: null, published_at: null, notified_at: "a", pushed_at: null, received_at: null };
+  for (let i = 0; i < 305; i++) await store.putNotification({ ...base, id: `t${i}`, assessment_id: `a${i}` }, true);
+  const visible = await store.listNotifications("gh:trim", 1000);
+  assert.equal(visible.length, 300);
+  assert.equal(await store.unreadCount("gh:trim"), 300, "badge equals the unread notifications the user can see");
+  assert.ok(!(await store.unreadIds("gh:trim")).includes("t0"), "the oldest, trimmed notification is no longer unread");
+});
