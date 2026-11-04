@@ -28,10 +28,10 @@ Muse Code's own summary stated that it could not run tests because shell was dis
 
 The final answer is `payload_type: "run.terminal.completed"` with `payload.terminal == "completed"` and `payload.text`. Each tool step is a `task.lifecycle.started` event. The runner parses these.
 
-## Not yet verified
+## Not verified (as of Run 2; see Run 3)
 
-- A run on the `ubuntu-latest` Actions runner (Linux sandbox) dispatched by production. This needs `RUNNER_DISPATCH_TOKEN`, `ARGUS_RUNNER_SECRET` and `FIX_ENABLED=1` on Vercel, plus the `META_API_KEY` and `ARGUS_RUNNER_SECRET` Actions secrets.
-- Argus's server-side validation and GitHub write after a real runner result. No pull request has been created yet.
+- Done in Run 3 below: the Actions run dispatched by production, and Argus's validation and GitHub write.
+- Push mode (merge after the repository's checks pass).
 - Muse Code's MCP connection to Argus from inside the runner. It is configured as optional and was not reachable in the local mock.
 
 ## Run 3: production, end to end (Nov 4 2026, 06:27–06:29 UTC)
