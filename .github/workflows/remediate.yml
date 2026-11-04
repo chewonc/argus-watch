@@ -1,0 +1,38 @@
+# Argus Watch automated remediation runner.
+# Dispatched by the Argus server (lib/runner.ts) after a user authorizes "Fix & create PR" or "Fix & push".
+# Runs Meta Muse Code headlessly on an ephemeral GitHub-hosted VM against a fresh clone of the user's repository,
+# validates the result (allowlist, tests), and POSTs it back. This job NEVER pushes: Argus writes through the
+# GitHub App only after its own validation. Inputs are non-secret (fix id + single-use nonce).
+name: remediate
+on:
+  workflow_dispatch:
+    inputs:
+      fix_id: { description: "Argus fix id", required: true, type: string }
+      nonce: { description: "single-use runner nonce", required: true, type: string }
+permissions: {} # this workflow needs no token for its own repository
+concurrency: { group: "remediate-${{ inputs.fix_id }}", cancel-in-progress: false }
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { sparse-checkout: scripts/remediate, persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install Meta Muse Code
+        run: |
+          curl -fsSL https://dev.meta.ai/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Remediate with Muse Code
+        env:
+          ARGUS_URL: ${{ vars.ARGUS_URL || 'https://argus-watch-three.vercel.app' }}
+          ARGUS_RUNNER_SECRET: ${{ secrets.ARGUS_RUNNER_SECRET }}
+          META_API_KEY: ${{ secrets.META_API_KEY }}
+          FIX_ID: ${{ inputs.fix_id }}
+          NONCE: ${{ inputs.nonce }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MUSE_APPROVAL_FLAGS: ${{ vars.MUSE_APPROVAL_FLAGS || '--yolo' }}
+        run: node scripts/remediate/run.mjs

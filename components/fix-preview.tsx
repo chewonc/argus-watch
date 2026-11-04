@@ -4,19 +4,20 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Fix } from "@/lib/schema";
+import { MuseFix } from "./muse-fix";
 
 type Labels = { proposed_fix: string; draft_fix: string; drafting: string; re_draft: string; approve: string; not_verified: string };
-type Props = { assessmentId: string; initial: Fix | null; allowPr: boolean; isDemoRepo: boolean; verdict: string; defaultBranch: string; repo: string; labels?: Labels };
+type Props = { assessmentId: string; initial: Fix | null; allowPr: boolean; isDemoRepo: boolean; verdict: string; defaultBranch: string; repo: string; labels?: Labels; museEnabled?: boolean };
 
 const EN: Labels = { proposed_fix: "Proposed fix", draft_fix: "Draft fix", drafting: "Drafting… (model call, ~30–90 s)", re_draft: "Re-draft", approve: "Approve & open draft PR…", not_verified: "Security remediation: not verified" };
-export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict, defaultBranch, repo, labels = EN }: Props) {
+export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict, defaultBranch, repo, labels = EN, museEnabled = false }: Props) {
   const router = useRouter();
   const [fix, setFix] = useState<Fix | null>(initial);
   const [busy, setBusy] = useState<"draft" | "apply" | "checks" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [reviewed, setReviewed] = useState(false);
   const dlg = useRef<HTMLDialogElement>(null);
-  const autoAct = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("act") === "1";
+  const autoAct = typeof window !== "undefined" && (new URLSearchParams(window.location.search).get("act") === "1" || new URLSearchParams(window.location.search).get("fix") === "1");
 
   // When arriving via dashboard "Apply fix" (?act=1): auto-draft if no fix exists, then auto-open dialog once drafted.
   useEffect(() => {
@@ -53,12 +54,12 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
         </div>
       )}
       {err && <p className="text-[13px]" style={{ color: "var(--contradicted)" }}>{err}</p>}
-      {fix && fix.status === "failed" && (
+      {fix && fix.status === "failed" && !fix.mode && (
         <div className="grid gap-2 text-[13px]"><p style={{ color: "var(--contradicted)" }}>No applicable patch: {fix.error}</p>
           {fix.rejected_hunks.length > 0 && <RejectedHunks fix={fix} />}
           <button className="btn-ghost w-fit" onClick={() => draft(true)} disabled={busy === "draft"}>Try drafting again</button></div>
       )}
-      {fix && fix.status !== "failed" && (
+      {fix && (fix.status !== "failed" || !!fix.mode) && (
         <div className="grid gap-5">
           <p className="text-[14px]">{fix.summary}</p>
           <StatusLadder fix={fix} />
@@ -74,14 +75,15 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
           <Assessment fix={fix} />
           {fix.caveats.length > 0 && <div className="text-[12px]"><div className="label">Caveats from the drafting model</div><ul className="list-disc pl-5">{fix.caveats.map((c, i) => <li key={i}>{c}</li>)}</ul></div>}
 
-          {fix.status === "drafted" && (
+          {museEnabled && !isDemoRepo && fix.files.length > 0 && <MuseFix fix={fix} onChange={setFix} />}
+          {fix.status === "drafted" && !museEnabled && (
             <div className="flex flex-wrap items-center gap-3">
               <button className="btn" onClick={() => dlg.current?.showModal()} disabled={!allowPr || isDemoRepo} title={isDemoRepo ? "Shared demo repositories never receive pull requests" : !allowPr ? "Enable draft pull requests for this repository on the Repos page first" : ""}>{labels.approve}</button>
               <button className="btn-ghost" onClick={() => draft(true)} disabled={busy === "draft"}>{busy === "draft" ? labels.drafting : labels.re_draft}</button>
               {(!allowPr || isDemoRepo) && <span className="text-[12px] text-ink2">{isDemoRepo ? "Demo repository: preview only." : <>Draft PRs are off for this repository. <a href="/repos">Enable on Repos</a> or use the remediation prompt below.</>}</span>}
             </div>
           )}
-          {fix.status === "pr_created" && (
+          {fix.status === "pr_created" && !fix.mode && (
             <div className="border hair rounded-[6px] p-4 grid gap-3">
               <div className="text-[14px]">Draft pull request opened: <a href={fix.pr_url ?? "#"} target="_blank" rel="noreferrer">{fix.repo}#{fix.pr_number} ↗</a> on branch <span className="mono">{fix.branch}</span>{fix.pr_draft === false && <span className="label ml-2" style={{ color: "var(--inferred)" }}>non-draft fallback (plan limit); do not merge</span>}</div>
               <div className="text-[12px] text-ink2">The default branch <span className="mono">{defaultBranch}</span> of {repo} was not modified. Nothing is merged by Argus Watch.</div>
@@ -132,7 +134,8 @@ export function StatusLadder({ fix }: { fix: Fix }) {
   const ci = fix.check_runs.length ? (fix.check_runs.every((r) => r.conclusion === "success") ? "passed" : fix.check_runs.some((r) => r.conclusion && r.conclusion !== "success") ? "failed" : "pending") : fix.status === "pr_created" ? "none reported" : "not applicable yet";
   const as = fix.assessment?.label;
   const rows: [string, string, "ok" | "warn" | "bad" | "na"][] = [
-    ["Patch generated", `by model ${fix.model}; ${fix.files.length} file(s)`, fix.files.length ? "ok" : "bad"],
+    ["Patch generated", `${fix.agent === "muse-code" ? "by Meta Muse Code (isolated runner)" : `preview by ${fix.model}`}; ${fix.files.length} file(s)`, fix.files.length ? "ok" : "bad"],
+    ["Tests executed", fix.runner?.tests?.executed ? `${fix.runner.tests.command} → exit ${fix.runner.tests.exit_code} (isolated runner)` : fix.runner?.finished_at ? "no test command detected; none executed" : "not run (preview only)", fix.runner?.tests?.executed ? (fix.runner.tests.exit_code === 0 ? "ok" : "bad") : "na"],
     ["Syntactically valid", fix.syntax_check.map((s) => `${s.path.split("/").pop()}: ${s.ok ? "parsed" : "FAILED"}`).join(", ") || "n/a", synOk ? "ok" : "bad"],
     ["Type-checked", ciTypeRun ? `by repository CI (${ciTypeRun.name}: ${ciTypeRun.conclusion ?? ciTypeRun.status})` : "not performed by Argus Watch (needs the repository's dependencies); see repository CI", ciTypeRun?.conclusion === "success" ? "ok" : "na"],
     ["Existing CI passed", ci, ci === "passed" ? "ok" : ci === "failed" ? "bad" : "na"],

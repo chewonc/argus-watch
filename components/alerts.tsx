@@ -33,7 +33,7 @@ export function AlertCard({ c, labels }: { c: CardData; labels: { view: string; 
       </div>
       <div className="flex items-center gap-2 max-sm:col-span-2 max-sm:mt-2">
         <Link href={c.caseHref} className="btn-ghost">{labels.view}</Link>
-        {c.fix && <Link href={`${c.caseHref}?fix=1`} className="btn">{labels.fix}</Link>}
+        {c.fix && <Link href={`${c.caseHref}?act=1#fix`} className="btn">{labels.fix}</Link>}
       </div>
     </li>
   );

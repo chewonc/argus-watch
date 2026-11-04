@@ -65,6 +65,6 @@ export async function notifyAssessment(a: Assessment, f: Finding | null, items: 
 export async function notifyFix(uid: string, kind: "fix_pr_created" | "fix_failed", a: Assessment, f: Finding | null, detail: string) {
   const now = new Date().toISOString();
   const id = createHash("sha256").update(`${uid}:fix:${a.id}:${kind}:${now}`).digest("hex").slice(0, 20);
-  const n: Notification = { id, user_id: uid, kind, assessment_id: a.id, finding_id: a.finding_id, repo: a.repo, title: `${kind === "fix_pr_created" ? "Draft PR opened" : "Fix failed"}: ${detail}`.slice(0, 160), verdict: a.verdict, severity: a.severity ?? deriveSeverity(a, []), created_at: now, updated_at: now, read_at: null, published_at: a.timestamps.published_at, notified_at: now, pushed_at: null, received_at: null };
+  const n: Notification = { id, user_id: uid, kind, assessment_id: a.id, finding_id: a.finding_id, repo: a.repo, title: `${kind === "fix_pr_created" ? "Pull request opened" : "Fix stopped"}: ${detail}`.slice(0, 160), verdict: a.verdict, severity: a.severity ?? deriveSeverity(a, []), created_at: now, updated_at: now, read_at: null, published_at: a.timestamps.published_at, notified_at: now, pushed_at: null, received_at: null };
   await store.putNotification(n, true);
 }

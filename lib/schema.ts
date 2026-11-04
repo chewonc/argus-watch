@@ -244,7 +244,9 @@ export const Fix = z.object({
   repo: z.string(), // owner/name
   repo_key: z.string(),
   base_sha: z.string(),
-  status: z.enum(["drafting", "drafted", "approved", "pr_created", "failed"]),
+  status: z.enum(["drafting", "drafted", "approved", "pr_created", "failed",
+    // automated remediation (Muse Code runner): queued → running → validated → pr_created → (push mode) merging → merged | blocked_by_protection
+    "queued", "running", "validation_failed", "validated", "merging", "merged", "blocked_by_protection"]),
   summary: z.string(),
   caveats: z.array(z.string()),
   files: z.array(z.object({ path: z.string(), before_sha: z.string(), patch: z.string(), after: z.string(), hunks: z.array(FixHunk) })),
@@ -262,6 +264,28 @@ export const Fix = z.object({
   created_at: z.string(),
   approved_at: z.string().nullable().default(null),
   error: z.string().nullable().default(null),
+  // ---- automated remediation (lib/runner.ts) ----
+  mode: z.enum(["pr", "push"]).nullable().default(null), // what the user authorized
+  agent: z.enum(["muse-spark", "muse-code"]).default("muse-spark"), // who produced fix.files
+  allowed_files: z.array(z.string()).default([]), // the only paths the runner may change (enforced server-side on the result)
+  nonce_hash: z.string().nullable().default(null), // single-use runner credential (sha256), cleared once consumed
+  events: z.array(z.object({ at: z.string(), actor: z.string(), action: z.string(), detail: z.string(), url: z.string().nullable().default(null) })).default([]),
+  runner: z.object({
+    run_url: z.string().nullable().default(null),
+    dispatched_at: z.string().nullable().default(null),
+    started_at: z.string().nullable().default(null),
+    finished_at: z.string().nullable().default(null),
+    muse_version: z.string().nullable().default(null),
+    steps: z.number().nullable().default(null),
+    summary: z.string().default(""),
+    changed_files: z.array(z.string()).default([]),
+    rejected_files: z.array(z.string()).default([]),
+    tests: z.object({ command: z.string().nullable(), executed: z.boolean(), exit_code: z.number().nullable(), log: z.string(), duration_ms: z.number().nullable() }).nullable().default(null),
+    error: z.string().nullable().default(null),
+  }).nullable().default(null),
+  merge_sha: z.string().nullable().default(null),
+  commit_url: z.string().nullable().default(null),
+  merge_attempts: z.number().default(0),
 });
 export type Fix = z.infer<typeof Fix>;
 

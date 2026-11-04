@@ -9,7 +9,7 @@ import { AskAgent } from "@/components/ask-agent";
 import { MarkRead } from "@/components/mark-read";
 import { listAgentTokens } from "@/lib/agent-token";
 import { Band, Chip, Timeline } from "@/components/ui";
-import { env, hasGitHubApp } from "@/lib/env";
+import { env, hasGitHubApp, hasRunner } from "@/lib/env";
 import { canFix } from "@/lib/fixgate";
 import { installationPermissions } from "@/lib/github-app";
 import { getDict, getLocale, tr } from "@/lib/i18n";
@@ -112,7 +112,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
           {prFix?.pr_url && <a href={prFix.pr_url} target="_blank" rel="noreferrer" className="btn">Review draft pull request{prFix.pr_number ? ` #${prFix.pr_number}` : ""} <span aria-hidden>↗</span></a>}
         </div>
       )}
-      {fixAllowed && <div id="fix"><FixPreview assessmentId={a.id} initial={latestFix} allowPr={!!ur?.allow_pr} isDemoRepo={demoRepo} verdict={a.verdict} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} labels={{ proposed_fix: d.proposed_fix, draft_fix: d.fix, drafting: d.drafting, re_draft: d.re_draft, approve: d.approve_open_pr, not_verified: d.not_verified }} /></div>}
+      {fixAllowed && <div id="fix"><FixPreview assessmentId={a.id} initial={latestFix} allowPr={!!ur?.allow_pr} isDemoRepo={demoRepo} verdict={a.verdict} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} museEnabled={hasRunner()} labels={{ proposed_fix: d.proposed_fix, draft_fix: d.fix, drafting: d.drafting, re_draft: d.re_draft, approve: d.approve_open_pr, not_verified: d.not_verified }} /></div>}
 
       {a.verdict !== "Not Affected" && <AskAgent id={a.id} connected={agentConnected} verified={verified} />}
 

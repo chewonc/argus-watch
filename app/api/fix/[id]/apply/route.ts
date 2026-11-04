@@ -1,7 +1,8 @@
 // POST: the user's explicit approval. Checks: session, fix owner, per-repo allow_pr, not a shared demo repo,
 // App installation present. Then branch + commit + DRAFT pull request (lib/fix-apply.ts). Never merges.
 import { applyFix } from "@/lib/fix-apply";
-import { hasGitHubApp } from "@/lib/env";
+import { env, hasGitHubApp } from "@/lib/env";
+import { notifyFix } from "@/lib/notify";
 import { currentUser, isSystemRepo } from "@/lib/session";
 import { store } from "@/lib/store";
 
@@ -10,6 +11,7 @@ export const maxDuration = 120;
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!env.FIX_ENABLED) return Response.json({ error: "fixes are turned off on this deployment" }, { status: 403 });
   const fix = await store.getFix((await ctx.params).id);
   if (!fix) return Response.json({ error: "not found" }, { status: 404 });
   if (fix.user_id !== user.id) return Response.json({ error: "only the user who drafted this fix can approve it" }, { status: 403 });
@@ -28,6 +30,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const f = await store.getFinding(a.finding_id);
   try {
     const done = await applyFix({ ...fix, status: "approved" }, a, f, inst);
+    await notifyFix(user.id, "fix_pr_created", a, f, `${fix.repo}#${done.pr_number}`).catch(() => {});
     return Response.json({ fix: done });
   } catch (e) {
     const status = (e as { status?: number }).status;

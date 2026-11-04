@@ -1,4 +1,5 @@
 // POST {assessment_id, force?} -> draft a fix (read-only: nothing is written to GitHub here).
+import { env } from "@/lib/env";
 import { draftFix } from "@/lib/fix";
 import { canSee, currentUser } from "@/lib/session";
 import { store } from "@/lib/store";
@@ -8,6 +9,7 @@ export const maxDuration = 300;
 export async function POST(req: Request) {
   const user = await currentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!env.FIX_ENABLED) return Response.json({ error: "fix drafting is turned off on this deployment" }, { status: 403 });
   const { assessment_id, force } = (await req.json().catch(() => ({}))) as { assessment_id?: string; force?: boolean };
   if (!assessment_id) return Response.json({ error: "assessment_id required" }, { status: 400 });
   const a = await store.getAssessment(assessment_id);
