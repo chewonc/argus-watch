@@ -91,8 +91,9 @@ export function ground(sim: Omit<Simulation, "downgraded" | "model" | "ms" | "cr
     surface: { kind: sim.surface.kind, name: scrub(sim.surface.name), derived_from: derived, generic: derived.length === 0 }, steps, consequence, with_fix, downgraded };
 }
 
-export async function simulate(a: Assessment, f: Finding | null, fix: Fix | null, opts: { force?: boolean } = {}): Promise<Simulation> {
-  const version = createHash("sha256").update(`${a.id}|${fix?.id ?? ""}|${fix?.status ?? ""}|v1`).digest("hex").slice(0, 20);
+export async function simulate(a: Assessment, f: Finding | null, fix: Fix | null, opts: { force?: boolean; locale?: string } = {}): Promise<Simulation> {
+  const lang = /^[a-z]{2}(-[a-z]{2})?$/i.test(opts.locale ?? "") ? opts.locale!.toLowerCase() : "en";
+  const version = createHash("sha256").update(`${a.id}|${fix?.id ?? ""}|${fix?.status ?? ""}|${lang}|v1`).digest("hex").slice(0, 20);
   const key = `sim:${version}`;
   if (!opts.force) { const c = await kv.get<Simulation>(key); if (c) return c; }
   const repoFull = a.repo.split("/").slice(0, 2).join("/");
@@ -102,7 +103,8 @@ export async function simulate(a: Assessment, f: Finding | null, fix: Fix | null
   const listing = [...texts].map(([p, t]) => `=== ${p} ===\n${t.split("\n").slice(0, 300).map((l, i) => `${i + 1}| ${FAKE_DATA.test(l) ? "[credential-like line withheld]" : l}`).join("\n")}`).join("\n\n");
   const conds = a.conditions.map((c) => `- ${c.id} [${c.state}] ${c.text}${c.evidence[0] ? ` (${c.evidence[0].file}:${c.evidence[0].line ?? "?"})` : ""}`).join("\n");
   const fixText = fix && fix.files.length ? `FIX (${fix.agent === "muse-code" ? "made by Muse Code" : "proposed"}; status ${fix.status}${fix.runner?.tests?.executed ? `; tests ${fix.runner.tests.exit_code === 0 ? "passed" : "failed"}` : "; not tested"}):\n${fix.files.map((x) => x.patch).join("\n").slice(0, 12000)}` : "FIX: none provided";
-  const r = await sparkJSON<Parameters<typeof ground>[0]>({ system: `${READ_ONLY}\n${UNTRUSTED}\n${RULES}`, name: "simulate", schema: SCHEMA, temperature: 0.2,
+  const langRule = lang !== "en" ? `\n- Write persona, narration, screen text, consequence and with_fix text in the language with code "${lang}". Keep file paths, identifiers and code in English.` : "";
+  const r = await sparkJSON<Parameters<typeof ground>[0]>({ system: `${READ_ONLY}\n${UNTRUSTED}\n${RULES}${langRule}`, name: "simulate", schema: SCHEMA, temperature: 0.2,
     user: `THREAT (untrusted): ${f?.title ?? a.finding_id}\nSUMMARY (untrusted): ${f?.claim?.summary ?? ""}\nARGUS VERDICT: ${a.verdict} (${a.verdict_reason})\nCONDITIONS AS ASSESSED BY ARGUS:\n${conds}\n\n${fixText}\n\nREPOSITORY FILES (untrusted, numbered):\n${listing.slice(0, 60000)}` });
   const g = ground(r.out, a, new Set(texts.keys()), fix);
   const sim: Simulation = { ...g, model: r.model, ms: r.ms, created_at: new Date().toISOString(), version };

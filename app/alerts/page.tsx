@@ -59,6 +59,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
     const top = cards.slice(0, 40);
     const out = await tr(locale, top.map((c) => c.title), [...new Set(cards.flatMap((c) => c.f?.claim?.packages.map((p) => p.name) ?? []))]);
     top.forEach((c, i) => { c.title = out[i] || c.title; });
+    for (const c of cards) if (c.where.kind === "unverified" || c.where.kind === "none") c.where = { ...c.where, text: c.where.kind === "unverified" ? d.not_yet_confirmed : c.where.text };
   }
   const filter: Filter = (FILTERS as readonly string[]).includes(sp.f ?? "") ? (sp.f as Filter) : LEGACY[sp.f ?? ""] ?? "all";
   const isOpen = (c: CardData) => c.status.kind !== "not_affected" && c.status.kind !== "resolved" && c.status.kind !== "fix_ready";
@@ -69,7 +70,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
   const RANK = { bad: 0, warn: 1, ok: 2 } as const;
   const byRepo = new Map<string, ReturnType<typeof repoStatus>>();
   for (const r of repos) { const k = store.repoKey(r); const ur = mine.find((m) => m.repo_key === k); const st = repoStatus(r, { connected: !ur || !!ur.installation_id || !hasGitHubApp() }); const prev = byRepo.get(r.repo); if (!prev || RANK[st.tone] < RANK[prev.tone]) byRepo.set(r.repo, st); }
-  const repoLines = [...byRepo.entries()].map(([k, s]) => ({ k, s }));
+  const repoLines = [...byRepo.entries()].map(([k, s]) => ({ k, s: { ...s, label: s.label === "Monitoring active" ? d.monitoring_active : s.label === "Monitoring paused" ? d.monitoring_paused : s.label } }));
 
   return (
     <div className="mx-auto max-w-[1080px] px-4 sm:px-6 py-8 sm:py-10 grid gap-6">

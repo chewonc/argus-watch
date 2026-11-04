@@ -26,7 +26,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-full flex flex-col">
         <header className="border-b hair bg-[var(--bg)] sticky top-0 z-20">
           <div className="mx-auto max-w-[1080px] px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-            <Link href="/" className="flex items-center gap-2 no-underline text-[15px] font-semibold tracking-[-0.01em]"><span aria-hidden className="w-2 h-2 rounded-full bg-[var(--accent)]" />Argus Watch</Link>
+            <Link href="/" className="flex items-center gap-2 no-underline text-[15px] font-semibold tracking-[-0.01em] whitespace-nowrap shrink-0"><span aria-hidden className="w-2 h-2 rounded-full bg-[var(--accent)]" />Argus Watch</Link>
             <HeaderNav locale={locale} languages={langs} user={user ? { id: user.id, login: user.login, avatar: user.avatar } : null} authReady={hasAuth()} labels={{ alerts: d.nav_alerts, repos: d.nav_repos, monitoring: d.nav_monitoring, activity: d.nav_activity, settings: d.nav_settings, notifications: d.notifications, signIn: d.sign_in, signOut: d.sign_out, notConfigured: d.sign_in_not_configured }} />
           </div>
         </header>

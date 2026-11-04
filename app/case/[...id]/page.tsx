@@ -91,7 +91,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
       <MarkRead assessmentId={a.id} />
       <div className="grid gap-3">
         <Link href="/alerts" className="text-[13px] text-ink2 no-underline hover:text-ink w-fit">← {d.back_to_alerts}</Link>
-        <div className="flex flex-wrap items-center gap-2"><StatusPill s={status} /><CredibilityChip c={f?.credibility} /></div>
+        <div className="flex flex-wrap items-center gap-2"><StatusPill s={status} /><CredibilityChip c={f?.credibility} l={{ none: d.report_not_checked, prefix: d.report_prefix }} /></div>
         <h1 className="text-[26px] sm:text-[30px] font-semibold tracking-[-0.02em] leading-tight">{T.title}</h1>
         {where.kind === "file" || where.kind === "package"
           ? <div className="mono text-[13px] text-ink2 break-all">{where.kind === "file" && loc ? `${loc.file}:${loc.from}${loc.to !== loc.from ? `–${loc.to}` : ""}` : where.text}</div>
@@ -108,9 +108,9 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
         </div>
       )}
 
-      {a.verdict !== "Not Affected" && <div className="border-t hair pt-5"><SimulateImpact assessmentId={a.id} repo={repoOnly} sha={a.sha} title={d.what_if_not_fixed} button={d.simulate_impact} /></div>}
+      {a.verdict !== "Not Affected" && <div className="border-t hair pt-5"><SimulateImpact assessmentId={a.id} repo={repoOnly} sha={a.sha} title={d.what_if_not_fixed} button={d.simulate_impact} intro={d.simulate_intro} locale={locale} /></div>}
 
-      <div className="border-t hair pt-5"><CredibilityPanel c={f?.credibility} title={d.is_threat_real} /></div>
+      <div className="border-t hair pt-5"><CredibilityPanel c={f?.credibility} title={d.is_threat_real} none={d.report_not_checked_long} /></div>
 
       {(ghUrl || prFix?.pr_url) && (
         <div className="flex flex-wrap items-center gap-2">

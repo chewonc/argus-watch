@@ -16,7 +16,7 @@ export function HeaderNav({ user, authReady, labels, locale = "en", languages = 
   return (
     <nav className="flex items-center gap-3 sm:gap-4 text-[13px]">
       {languages.length > 1 && <LanguageSwitcher current={locale} languages={languages} compact />}
-      {user && <Link href="/alerts" aria-current={active ? "page" : undefined} className={`no-underline ${active ? "font-semibold" : "text-ink2 hover:text-ink"}`}>{labels.alerts}</Link>}
+      {user && <Link href="/alerts" aria-current={active ? "page" : undefined} className={`no-underline whitespace-nowrap ${active ? "font-semibold" : "text-ink2 hover:text-ink"}`}>{labels.alerts}</Link>}
       {user && <NotificationBell label={labels.notifications} />}
       {user ? <AccountMenu user={user} labels={labels} /> : authReady ? (
         <button type="button" className="btn" onClick={() => signInWithGitHub(path === "/" ? "/alerts" : path)}>{labels.signIn}</button>

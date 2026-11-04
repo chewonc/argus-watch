@@ -6,16 +6,16 @@ import { CREDIBILITY_TEXT, type Credibility } from "@/lib/verify";
 type Cred = NonNullable<Finding["credibility"]>;
 const TONE = { ok: "var(--observed)", warn: "var(--inferred)", bad: "var(--contradicted)", muted: "var(--ink-2)" };
 
-export function CredibilityChip({ c, compact = false }: { c: Cred | null | undefined; compact?: boolean }) {
-  if (!c) return compact ? null : <span className="chip" style={{ color: TONE.muted }} title="This report has not been fact-checked yet">Report not checked yet</span>;
+export function CredibilityChip({ c, compact = false, l = { none: "Report not checked yet", prefix: "Report" } }: { c: Cred | null | undefined; compact?: boolean; l?: { none: string; prefix: string } }) {
+  if (!c) return compact ? null : <span className="chip" style={{ color: TONE.muted }}>{l.none}</span>;
   const t = CREDIBILITY_TEXT[c.label as Credibility];
-  return <span className="chip" style={{ color: TONE[t.tone] }} title={`${t.help} ${c.reason}`}>{compact ? t.label : `Report: ${t.label}`}</span>;
+  return <span className="chip" style={{ color: TONE[t.tone] }} title={`${t.help} ${c.reason}`}>{compact ? t.label : `${l.prefix}: ${t.label}`}</span>;
 }
 
 const KIND: Record<string, string> = { artefact: "Registry record", primary_source: "Primary source", independent_report: "Independent report", copy: "Copy of the same origin", contradiction: "Contradiction", publisher: "Reported by", note: "Note" };
 
-export function CredibilityPanel({ c, title = "Is this threat real?" }: { c: Cred | null | undefined; title?: string }) {
-  if (!c) return <p className="text-[13px] text-ink2">This report has not been fact-checked yet.</p>;
+export function CredibilityPanel({ c, title = "Is this threat real?", none = "This report has not been fact-checked yet." }: { c: Cred | null | undefined; title?: string; none?: string }) {
+  if (!c) return <section className="grid gap-1"><h2 className="text-[15px] font-semibold">{title}</h2><p className="text-[13px] text-ink2">{none}</p></section>;
   const t = CREDIBILITY_TEXT[c.label as Credibility];
   const groups = ["artefact", "primary_source", "independent_report", "contradiction", "copy", "publisher"].map((k) => [k, c.evidence.filter((e) => e.kind === k)] as const).filter(([, xs]) => xs.length);
   const claims = c.evidence.filter((e) => e.kind === "note" && e.text.startsWith("claim: ")).map((e) => e.text.slice(7));

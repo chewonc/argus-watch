@@ -16,8 +16,8 @@ export function LanguageSwitcher({ current, languages, compact = false }: { curr
   const list = languages.some((l) => l.code === current) ? languages : [{ code: current, name: current }, ...languages];
   return (
     <label className="flex items-center gap-1 text-[14px]" aria-busy={pending} title="Language / 언어">
-      <span className="sr-only">Language</span>{compact && <span aria-hidden className="text-ink2 text-[13px]">🌐</span>}
-      <select value={value} onChange={(e) => { const code = e.target.value; setValue(code); try { localStorage.setItem("aw_locale", code); } catch { /* ignore */ } start(async () => { await setLocale(code); router.refresh(); }); }} className={`border hair rounded-[6px] bg-transparent ${compact ? "px-1 h-8 text-[13px] max-w-[110px] sm:max-w-[150px]" : "px-2 h-9 text-[14px] max-w-[260px]"}`} disabled={pending}>
+      <span className="sr-only">Language</span>{compact && <span aria-hidden className="text-ink2 text-[13px] max-sm:hidden">🌐</span>}
+      <select value={value} onChange={(e) => { const code = e.target.value; setValue(code); try { localStorage.setItem("aw_locale", code); } catch { /* ignore */ } start(async () => { await setLocale(code); router.refresh(); }); }} className={`border hair rounded-[6px] bg-transparent ${compact ? "px-1 h-8 text-[13px] max-w-[84px] sm:max-w-[150px]" : "px-2 h-9 text-[14px] max-w-[260px]"}`} disabled={pending}>
         {list.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
       </select>
     </label>
