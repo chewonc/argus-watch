@@ -4,7 +4,7 @@
 // depends on the assessment: confirmed findings may get a proposed fix (nothing changes until the user approves);
 // unconfirmed ones get read-only verification only. The full request is hidden behind Preview; Copy always copies all of it.
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 export type AskAgentLabels = { title: string; leadFix: string; leadVerify: string; copy: string; copied: string; preview: string };
 const DEFAULT: AskAgentLabels = { title: "Fix or verify with your AI agent", leadFix: "Your coding agent reads this finding through Argus, checks your copy of the code and proposes a fix. Nothing is changed until you approve it.", leadVerify: "Your coding agent reads this finding through Argus and checks whether it really affects your code. It does not change any code.", copy: "Copy instructions", copied: "Copied", preview: "Preview" };
@@ -19,7 +19,14 @@ export function AskAgent({ id, connected, verified, labels = DEFAULT }: { id: st
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
   const pid = useId();
+  const copyBtn = useRef<HTMLButtonElement>(null);
   const prompt = agentPrompt(id, verified);
+  // Arriving from a "Verify" action (?verify=1): show the read-only request and put focus on Copy.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("verify") !== "1") return;
+    const r = requestAnimationFrame(() => { setOpen(true); copyBtn.current?.focus({ preventScroll: true }); });
+    return () => cancelAnimationFrame(r);
+  }, []);
   return (
     <section className="border hair rounded-[10px] bg-raised p-4 grid gap-2" aria-labelledby={`${pid}-h`}>
       <h3 id={`${pid}-h`} className="text-[14px] font-semibold">{labels.title}</h3>
@@ -27,7 +34,7 @@ export function AskAgent({ id, connected, verified, labels = DEFAULT }: { id: st
       {connected ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className="btn-ghost" onClick={() => navigator.clipboard.writeText(prompt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); }).catch(() => {})}>
+            <button ref={copyBtn} type="button" className="btn-ghost" onClick={() => navigator.clipboard.writeText(prompt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); }).catch(() => {})}>
               {copied ? labels.copied : labels.copy}
             </button>
             <span className="sr-only" role="status" aria-live="polite">{copied ? labels.copied : ""}</span>

@@ -2,9 +2,11 @@
 // Technical monitoring detail lives on /monitoring; the product landing page is /.
 import Link from "next/link";
 import { AlertCard, type CardData } from "@/components/alerts";
+import { findingAction, latestFix } from "@/lib/actions";
+import { actionLabels } from "@/lib/action-labels";
+import type { Fix } from "@/lib/schema";
 import { redirect } from "next/navigation";
 import { env, hasGitHubApp } from "@/lib/env";
-import { canFix } from "@/lib/fixgate";
 import { installationPermissions } from "@/lib/github-app";
 import { getDict, getLocale, tr } from "@/lib/i18n";
 import { caseHref, discoveredAt, location, plainTitle, repoStatus, statusOf, localized, whereLine } from "@/lib/labels";
@@ -36,8 +38,8 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
   const latest = new Map<string, (typeof assessmentsAll)[number]>();
   for (const a of assessmentsAll) { if (!keys.has(a.repo)) continue; const k = `${a.finding_id}|${a.repo}`; if (!latest.has(k) || latest.get(k)!.timestamps.processed_at < a.timestamps.processed_at) latest.set(k, a); }
   const resolved = new Set(resolvedSet);
-  const fixStates = new Map<string, "none" | "pr_created" | "failed" | "drafted">();
-  await Promise.all([...latest.values()].filter((a) => a.verdict !== "Not Affected").map(async (a) => { const fx = await store.listFixes(a.id); fixStates.set(a.id, fx.some((x) => x.status === "pr_created") ? "pr_created" : fx.some((x) => x.status === "drafted" || x.status === "approved") ? "drafted" : fx.some((x) => x.status === "failed") ? "failed" : "none"); }));
+  const fixesBy = new Map<string, Fix[]>();
+  await Promise.all([...latest.values()].filter((a) => a.verdict !== "Not Affected").map(async (a) => { fixesBy.set(a.id, await store.listFixes(a.id)); }));
   // Write permission is only looked up when web Fix is switched on (one cached-per-request call per installation).
   const perms = new Map<number, boolean>();
   if (env.FIX_ENABLED && hasGitHubApp()) for (const id of new Set(mine.map((m) => m.installation_id).filter((x): x is number => !!x))) {
@@ -49,11 +51,14 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
     const r = rmap.get(a.repo);
     const ur = mine.find((m) => m.repo_key === a.repo);
     const sev = a.severity ?? deriveSeverity(a, []);
-    const fs = fixStates.get(a.id) ?? "none";
+    const fixes = fixesBy.get(a.id) ?? [];
+    const lf = latestFix(fixes);
     const loc = location(a);
-    const status = localized(statusOf(a, sev, { resolved: resolved.has(a.id), prOpen: fs === "pr_created" }), d);
-    const fix = status.kind !== "fix_ready" && status.kind !== "resolved" && canFix(a, { allowPr: !!ur?.allow_pr, isDemo: !ur, hasInstallation: !!ur?.installation_id, writePermission: ur?.installation_id ? perms.get(ur.installation_id) ?? null : null, loc, priorFailed: fs === "failed" });
-    return { a, f, sev, status, title: plainTitle(a, f, loc, r?.tech_tags, r?.packages.map((p) => p.name)), where: whereLine(a, loc), fix, caseHref: caseHref(a.id) };
+    // An open (or merged) pull request shows as "fix ready to review"; it is never marked resolved by Argus itself.
+    const status = localized(statusOf(a, sev, { resolved: resolved.has(a.id), prOpen: !!lf && ["pr_created", "blocked_by_protection", "merging", "merged"].includes(lf.status) }), d);
+    const href = caseHref(a.id);
+    const act = findingAction(a, fixes, { fixEnabled: env.FIX_ENABLED, allowPr: !!ur?.allow_pr, isDemo: !ur, hasInstallation: !!ur?.installation_id, writePermission: ur?.installation_id ? perms.get(ur.installation_id) ?? null : null }, href);
+    return { a, f, sev, status, title: plainTitle(a, f, loc, r?.tech_tags, r?.packages.map((p) => p.name)), where: whereLine(a, loc), act, caseHref: href };
   });
   if (locale !== "en") {
     const top = cards.slice(0, 40);
@@ -99,7 +104,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
             filter === "resolved" ? <Empty title={d.empty_resolved_title} body={d.empty_resolved_body} />
               : <Empty title={d.empty_clear_title} body={d.empty_clear_body} />
           ) : (
-            <ul className="border hair rounded-[10px] bg-raised overflow-hidden">{shown.map((c) => <AlertCard key={c.a.id} c={c} labels={{ view: d.view, fix: d.fix }} />)}</ul>
+            <ul className="border hair rounded-[10px] bg-raised overflow-hidden">{shown.map((c) => <AlertCard key={c.a.id} c={c} labels={actionLabels(d)} />)}</ul>
           )}
         </>
       )}

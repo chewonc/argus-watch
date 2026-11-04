@@ -143,6 +143,6 @@ ${fix.caveats.length ? `- Caveats from the drafting model: ${fix.caveats.join(";
 ${(as?.verification_required ?? ["Review the diff", "Run the existing test suite", "Deploy to a staging environment"]).map((v) => `- [ ] ${v}`).join("\n")}
 
 ---
-Drafted by model \`${fix.model}\` from the remediation brief (${appUrl}/api/remediation/${a.id.split("/").map(encodeURIComponent).join("/")}). Advisory text is untrusted data and is not reproduced here. Draft pull request for human review; do not merge without review.`;
+Drafted by model \`${fix.model}\` from the remediation brief (${appUrl}/api/remediation/${a.id.split("/").map(encodeURIComponent).join("/")}). Advisory text is untrusted data and is not reproduced here. ${fix.mode === "push" ? "The user authorized push mode: Argus Watch merges this pull request only after the repository's CI checks pass and branch protection allows it." : "Draft pull request for human review; do not merge without review."}`;
   return { title: `Argus Watch: proposed fix for ${ids} (not verified)`, body };
 }

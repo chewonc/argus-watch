@@ -23,7 +23,8 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
   useEffect(() => {
     if (!autoAct) return;
     if (!fix) { draft(); return; }
-    if (fix.status === "drafted" && allowPr && !isDemoRepo) dlg.current?.showModal();
+    // With the Muse Code runner the authorization dialog lives in <MuseFix autoOpen>; the manual dialog is for the non-runner path only.
+    if (fix.status === "drafted" && allowPr && !isDemoRepo && !museEnabled) dlg.current?.showModal();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fix?.status]);
 
@@ -75,7 +76,7 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
           <Assessment fix={fix} />
           {fix.caveats.length > 0 && <div className="text-[12px]"><div className="label">Caveats from the drafting model</div><ul className="list-disc pl-5">{fix.caveats.map((c, i) => <li key={i}>{c}</li>)}</ul></div>}
 
-          {museEnabled && !isDemoRepo && fix.files.length > 0 && <MuseFix fix={fix} onChange={setFix} labels={museLabels} />}
+          {museEnabled && !isDemoRepo && fix.files.length > 0 && <MuseFix fix={fix} onChange={setFix} labels={museLabels} autoOpen={autoAct && allowPr} />}
           {fix.status === "drafted" && !museEnabled && (
             <div className="flex flex-wrap items-center gap-3">
               <button className="btn" onClick={() => dlg.current?.showModal()} disabled={!allowPr || isDemoRepo} title={isDemoRepo ? "Shared demo repositories never receive pull requests" : !allowPr ? "Enable draft pull requests for this repository on the Repos page first" : ""}>{labels.approve}</button>

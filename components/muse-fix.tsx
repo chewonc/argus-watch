@@ -10,7 +10,7 @@ const ACTIVE = ["queued", "running", "validated", "merging"];
 
 export type MuseLabels = { title: string; pr: string; push: string; recommended: string };
 const MUSE_EN: MuseLabels = { title: "Automated fix · Meta Muse Code", pr: "Fix & create PR", push: "Fix & push", recommended: "recommended" };
-export function MuseFix({ fix: initial, onChange, labels = MUSE_EN }: { fix: Fix; onChange?: (f: Fix) => void; labels?: MuseLabels }) {
+export function MuseFix({ fix: initial, onChange, labels = MUSE_EN, autoOpen = false }: { fix: Fix; onChange?: (f: Fix) => void; labels?: MuseLabels; autoOpen?: boolean }) {
   const [fix, setFix] = useState<Fix>(initial);
   const [info, setInfo] = useState<Info | null>(null);
   const [mode, setMode] = useState<"pr" | "push">("pr");
@@ -42,12 +42,21 @@ export function MuseFix({ fix: initial, onChange, labels = MUSE_EN }: { fix: Fix
   }
 
   const canStart = ["drafted", "failed", "validation_failed"].includes(fix.status) && fix.files.length > 0 || fix.status === "validation_failed";
+  // Arriving from "Fix now" (?act=1): open the authorization dialog in PR mode once. Nothing runs until the user ticks
+  // "I reviewed…" and authorizes.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!autoOpen || !canStart || opened.current) return;
+    opened.current = true;
+    const r = requestAnimationFrame(() => { void open("pr"); });
+    return () => cancelAnimationFrame(r);
+  }, [autoOpen, canStart]); // eslint-disable-line react-hooks/exhaustive-deps
   const started = fix.mode && fix.events.length > 0;
   return (
     <div className="grid gap-3 border hair rounded-[6px] p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="label">{labels.title}</div>
-        <span className="text-[12px] text-ink2">Edits run in an isolated runner. Nothing is written until checks pass.</span>
+        <span className="text-[12px] text-ink2">Edits run in an isolated runner. Nothing is written to your repository until you authorize it and validation passes.</span>
       </div>
       {canStart && (
         <div className="flex flex-wrap gap-2">
@@ -65,8 +74,8 @@ export function MuseFix({ fix: initial, onChange, labels = MUSE_EN }: { fix: Fix
             <li>It may change only: <span className="mono">{info ? info.allowed_files.join(", ") : "…"}</span>. Any other change discards the whole result.</li>
             <li>Validation: syntax check and static remediation assessment always; repository tests: <b>{info ? (info.test_command ? <span className="mono">{info.test_command}</span> : "none detected, so no tests will run") : "…"}</b>. If tests fail, nothing is written.</li>
             {mode === "pr"
-              ? <li>Then Argus creates branch <span className="mono">argus/fix-{fix.id.slice(0, 8)}</span>, commits, and opens a pull request for your review. The default branch is not changed.</li>
-              : <li>Then Argus opens a pull request and <b>merges it into {info?.default_branch ?? "the default branch"}</b> only after your repository&apos;s checks pass. With no checks and no executed tests it refuses to merge. Branch protection rules are respected; if they require a review, the PR stays open.</li>}
+              ? <li>Then Argus creates branch <span className="mono">argus/fix-{fix.id.slice(0, 8)}</span>, commits, and opens a <b>draft</b> pull request for your review. The default branch is not changed and nothing is merged.</li>
+              : <li>Then Argus opens a pull request and <b>merges it into {info?.default_branch ?? "the default branch"}</b> only after your repository&apos;s CI checks pass. If the repository has no passing CI check, it refuses to merge and leaves the pull request open; the runner&apos;s own tests never replace CI. Branch protection rules are respected; if they require a review, the PR stays open.</li>}
             <li>The diff you see may differ from Muse Code&apos;s final edit; you get the final diff, test log and audit trail before anything merges{mode === "push" ? " (push mode merges automatically once checks pass)" : ""}.</li>
             <li>Passing tests do not prove the vulnerability is gone. <b>Security remediation: not verified.</b></li>
           </ul>

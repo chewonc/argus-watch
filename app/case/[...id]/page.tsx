@@ -8,6 +8,10 @@ import { FixPreview } from "@/components/fix-preview";
 import { CredibilityChip, CredibilityPanel } from "@/components/credibility";
 import { SimulateImpact } from "@/components/simulate-impact";
 import { cachedSimulation } from "@/lib/simulate";
+import { FindingActions } from "@/components/finding-actions";
+import { findingAction } from "@/lib/actions";
+import { actionLabels } from "@/lib/action-labels";
+import { caseHref } from "@/lib/labels";
 import { ThreatTimeline } from "@/components/threat-timeline";
 import { AskAgent } from "@/components/ask-agent";
 import { MarkRead } from "@/components/mark-read";
@@ -83,7 +87,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   }));
 
   const writeOk = env.FIX_ENABLED && ur?.installation_id && hasGitHubApp() ? await installationPermissions(ur.installation_id).then((p) => p.contents === "write" && p.pull_requests === "write").catch(() => false) : null;
-  const fixAllowed = !prFix && canFix(a, { allowPr: !!ur?.allow_pr, isDemo: demoRepo, hasInstallation: !!ur?.installation_id, writePermission: writeOk, loc, priorFailed: fixes.length > 0 && fixes.every((x) => x.status === "failed") });
+  const fixAllowed = !prFix && canFix(a, { allowPr: !!ur?.allow_pr, isDemo: demoRepo, hasInstallation: !!ur?.installation_id, writePermission: writeOk, loc, priorFailed: false }); // a failed attempt can be retried
   const agentConnected = (await listAgentTokens(user.id)).length > 0;
   const ghUrl = verified && loc ? permalink(repoOnly, a.sha, loc.file, loc.from, loc.to) : null;
   const severeUnverified = !verified && a.verdict !== "Not Affected" && (sev.level === "critical" || sev.level === "high");
@@ -97,6 +101,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
     : openCond ? d.ns_possible.replace("{x}", `${openCond.t.replace(/\.$/, "")}${openRef ? ` (${openRef.file.split("/").pop()}:${openRef.line})` : ""}.`)
     : missingT[0] ? d.ns_possible.replace("{x}", missingT[0])
     : d.ns_fallback;
+  const act = findingAction(a, fixes, { fixEnabled: env.FIX_ENABLED, allowPr: !!ur?.allow_pr, isDemo: demoRepo, hasInstallation: !!ur?.installation_id, writePermission: writeOk }, caseHref(a.id));
   const cachedSim = a.verdict === "Not Affected" ? null : await cachedSimulation(a, fixes.find((x) => x.files.length > 0) ?? null, locale).catch(() => null);
 
   return (
@@ -118,10 +123,11 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
       {T.problem && <section className="border-t hair pt-5 grid gap-1.5"><h2 className="text-[15px] font-semibold">{d.whats_wrong}</h2><p className="text-[15px] leading-relaxed">{T.problem}</p></section>}
 
       {a.verdict !== "Not Affected" && (T.fix || fixAllowed || ghUrl || prFix?.pr_url) && (
-        <section className="border-t hair pt-5 grid gap-3">
+        <section id="how-to-fix" className="border-t hair pt-5 grid gap-3 scroll-mt-20">
           <h2 className="text-[15px] font-semibold">{d.how_to_fix}</h2>
           {T.fix && <p className="text-[15px] leading-relaxed">{T.fix}</p>}
-          <AskAgent id={a.id} connected={agentConnected} verified={verified} labels={{ title: d.agent_title, leadFix: d.agent_lead_fix, leadVerify: d.agent_lead_verify, copy: d.copy_instructions, copied: d.copied, preview: d.preview }} />
+          <div id="agent" className="scroll-mt-20"><AskAgent id={a.id} connected={agentConnected} verified={verified} labels={{ title: d.agent_title, leadFix: d.agent_lead_fix, leadVerify: d.agent_lead_verify, copy: d.copy_instructions, copied: d.copied, preview: d.preview }} /></div>
+          <FindingActions act={act} labels={actionLabels(d)} secondary={fixAllowed ? { href: "#fix", label: d.act_view_changes } : null} />
           {(ghUrl || prFix?.pr_url) && (
             <div className="flex flex-wrap items-center gap-2">
               {ghUrl && <a href={ghUrl} target="_blank" rel="noreferrer" className="btn-ghost">{d.open_in_github} <span aria-hidden>↗</span></a>}

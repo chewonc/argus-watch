@@ -120,7 +120,7 @@ export async function acceptResult(fix: Fix, a: Assessment, f: Finding | null, i
   await store.putFix(next);
   try {
     const testsNote = tests?.executed ? `Repository tests executed in an isolated GitHub Actions runner: \`${tests.command}\` exited 0.` : "No test command was detected, so no tests were executed. Checks performed: syntax parse and static remediation assessment only.";
-    const applied = await applyFix({ ...next, status: "approved" }, a, f, installationId, { draft: false, author: "Meta Muse Code (automated remediation)", testsNote });
+    const applied = await applyFix({ ...next, status: "approved" }, a, f, installationId, { draft: next.mode !== "push", author: "Meta Muse Code (automated remediation)", testsNote }); // PR mode: a draft; push mode needs a mergeable PR
     next = event({ ...next, ...applied, events: next.events, runner: next.runner, mode: next.mode, agent: next.agent, allowed_files: next.allowed_files }, "argus", "pr_opened", `pull request #${applied.pr_number} on ${applied.branch}`, applied.pr_url);
     await store.putFix(next);
     await notifyFix(fix.user_id, "fix_pr_created", a, f, `${fix.repo}#${applied.pr_number}`).catch(() => {});
@@ -157,12 +157,12 @@ export async function tryMerge(fix: Fix, installationId: number, attempt: number
   const leave = async (action: string, reason: string) => { next = event({ ...next, status: "blocked_by_protection", error: `${reason}; pull request left open for review` }, "argus", action, reason); await store.putFix(next); return next; };
   if (d === "refuse_failed") return leave("merge_refused", "repository check-runs failed");
   if (d === "timeout") return leave("merge_timeout", "check-runs did not complete within 30 minutes");
-  if (d === "refuse_unvalidated") return leave("merge_refused", "no repository checks and no executed tests: refusing to merge unvalidated changes");
+  if (d === "refuse_unvalidated") return leave("merge_refused", "the repository has no passing CI check for this change: refusing to merge unvalidated changes");
   if (d === "wait") return scheduleMerge(next, attempt);
   try {
     const m = await ok.rest.pulls.merge({ owner, repo, pull_number: fix.pr_number, merge_method: "squash", commit_title: `Argus Watch automated fix ${fix.id.slice(0, 8)} (Meta Muse Code)` });
     const url = `https://github.com/${fix.repo}/commit/${m.data.sha}`;
-    next = event({ ...next, status: "merged", merge_sha: m.data.sha, commit_url: url }, "argus", "merged", `squash-merged into the default branch after ${runs.length} passing check-run(s)${testsPassed ? " and passing runner tests" : ""}`, url);
+    next = event({ ...next, status: "merged", merge_sha: m.data.sha, commit_url: url }, "argus", "merged", `squash-merged into the default branch after ${runs.filter((r) => r.conclusion === "success").length} passing check-run(s)${testsPassed ? " and passing runner tests" : ""}`, url);
     await store.putFix(next);
     await store.log({ kind: "fix", source: "runner", detail: `merged ${fix.repo} ${m.data.sha.slice(0, 7)}`, ref: fix.assessment_id });
     return next;

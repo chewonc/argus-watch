@@ -17,10 +17,12 @@ test("allowlist: only authorized paths pass; forbidden paths never pass even if 
 test("push-mode merge decision never merges unvalidated or failing changes", () => {
   const ok = { status: "completed", conclusion: "success" };
   assert.equal(mergeDecision([ok], false, 1), "merge");
+  assert.equal(mergeDecision([{ status: "completed", conclusion: "skipped" }], true, 4), "refuse_unvalidated"); // inconclusive CI never merges
   assert.equal(mergeDecision([ok, { status: "completed", conclusion: "failure" }], true, 1), "refuse_failed");
   assert.equal(mergeDecision([{ status: "in_progress", conclusion: null }], true, 1), "wait");
   assert.equal(mergeDecision([{ status: "queued", conclusion: null }], true, 15), "timeout");
-  assert.equal(mergeDecision([], true, 0), "merge"); // runner executed tests and they passed; repo has no CI
+  assert.equal(mergeDecision([], true, 0), "wait"); // CI may not have registered yet
+  assert.equal(mergeDecision([], true, 3), "refuse_unvalidated"); // runner tests never substitute for the repository's CI
   assert.equal(mergeDecision([], false, 0), "wait"); // CI may not have registered yet
   assert.equal(mergeDecision([], false, 3), "refuse_unvalidated");
 });

@@ -50,7 +50,7 @@ ${pt.body}` : pt.body;
   }
   const done: Fix = { ...fix, status: "pr_created", branch, pr_url: pr.html_url, pr_number: pr.number, pr_draft: pr.draft, approved_at: new Date().toISOString(), error: null };
   await store.putFix(done);
-  await store.markResolved(fix.user_id, a.id);
+  // An opened pull request is a proposal, not a resolution: the alert stays open (shown as "fix ready to review").
   await store.log({ kind: "fix", source: "apply", detail: `${pr.draft ? "draft " : ""}PR #${pr.number} on ${fix.repo} (${branch})${!draft || pr.draft ? "" : " [non-draft fallback]"}`, ref: a.id });
   // 4. read CI check-runs later (never triggered by us)
   if (hasQStash()) {

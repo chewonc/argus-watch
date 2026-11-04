@@ -20,12 +20,17 @@ export function outsideAllowlist(changed: string[], allowed: string[]): string[]
   return changed.filter((p) => !allowed.includes(p) || FORBIDDEN_PATH.test(p) || p.includes(".."));
 }
 
-/** Pure: merge decision for push mode, from the repository's check-runs and the runner's own test result. */
-export function mergeDecision(runs: { status: string; conclusion: string | null }[], testsPassed: boolean, attempt: number): "merge" | "wait" | "refuse_failed" | "refuse_unvalidated" | "timeout" {
+/**
+ * Pure: merge decision for push mode. Merges only when the repository's own CI ran and passed: at least one check-run
+ * concluded "success" and none failed. Missing CI (after a short grace period for checks to register) or only
+ * inconclusive results (neutral/skipped) refuse the merge; the runner's own tests never substitute for CI.
+ */
+export function mergeDecision(runs: { status: string; conclusion: string | null }[], _testsPassed: boolean, attempt: number): "merge" | "wait" | "refuse_failed" | "refuse_unvalidated" | "timeout" {
   if (runs.some((r) => r.conclusion && !["success", "neutral", "skipped"].includes(r.conclusion))) return "refuse_failed";
   const pending = runs.some((r) => r.status !== "completed");
-  if (pending || (!runs.length && !testsPassed && attempt < 3)) return attempt >= 15 ? "timeout" : "wait";
-  if (!runs.length && !testsPassed) return "refuse_unvalidated";
+  if (pending) return attempt >= 15 ? "timeout" : "wait";
+  if (!runs.length) return attempt < 3 ? "wait" : "refuse_unvalidated";
+  if (!runs.some((r) => r.conclusion === "success")) return "refuse_unvalidated";
   return "merge";
 }
 

@@ -3,6 +3,8 @@
 // finding; Fix appears only when lib/fixgate.ts allows it. Everything technical lives on the finding page.
 import Link from "next/link";
 import { CredibilityChip } from "./credibility";
+import { FindingActions, type ActionLabels } from "./finding-actions";
+import type { FindingAction } from "@/lib/actions";
 import { location as loc0, type Status } from "@/lib/labels";
 import type { Assessment, Finding, Severity } from "@/lib/schema";
 
@@ -20,9 +22,9 @@ export function StatusPill({ s }: { s: Pick<Status, "label" | "glyph" | "tone"> 
   return <span className={`status tone-${s.tone}`}><span aria-hidden>{s.glyph}</span>{s.label}</span>;
 }
 
-export type CardData = { a: Assessment; f: Finding | null; sev: Severity; status: Status; title: string; where: { kind: "file" | "package" | "unverified" | "none"; text: string }; fix: boolean; caseHref: string };
+export type CardData = { a: Assessment; f: Finding | null; sev: Severity; status: Status; title: string; where: { kind: "file" | "package" | "unverified" | "none"; text: string }; act: FindingAction; caseHref: string };
 
-export function AlertCard({ c, labels }: { c: CardData; labels: { view: string; fix: string } }) {
+export function AlertCard({ c, labels }: { c: CardData; labels: ActionLabels }) {
   return (
     <li className="fade grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-4 sm:px-5 py-4 border-b hair last:border-0">
       <div className="grid gap-1.5 min-w-0">
@@ -32,9 +34,8 @@ export function AlertCard({ c, labels }: { c: CardData; labels: { view: string; 
           {c.where.kind === "file" || c.where.kind === "package" ? <span aria-label="Affected file">{c.where.text}</span> : c.where.text}
         </div>
       </div>
-      <div className="flex items-center gap-2 max-sm:col-span-2 max-sm:mt-2">
-        <Link href={c.caseHref} className="btn-ghost">{labels.view}</Link>
-        {c.fix && <Link href={`${c.caseHref}?act=1#fix`} className="btn">{labels.fix}</Link>}
+      <div className="max-sm:col-span-2 max-sm:mt-2">
+        <FindingActions act={c.act} labels={labels} secondary={{ href: c.caseHref, label: labels.details }} showNote={false} align="end" />
       </div>
     </li>
   );
