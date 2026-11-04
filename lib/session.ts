@@ -49,7 +49,7 @@ async function devUser(login: string): Promise<User> {
   const uid = `dev:${login}`;
   let u = await store.getUser(uid);
   if (!u) {
-    u = { id: uid, login, name: `${login} (local dev stub)`, email: null, avatar: null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" } };
+    u = { id: uid, login, name: `${login} (local dev stub)`, email: null, avatar: null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" , remediation_mode: "pr" as const } };
     await store.putUser(u);
     await store.log({ kind: "auth", source: "dev", detail: `dev stub user ${login} (AW_DEV_USER; not available in production)` });
   }
@@ -75,7 +75,7 @@ export async function currentUser(): Promise<User | null> {
       uid = `gh:${gh.id}`;
       await kv.set(`uidmap:${baId}`, uid);
       if (!(await store.getUser(uid))) {
-        await store.putUser({ id: uid, login: gh.login, name: gh.name ?? s.user.name ?? null, email: gh.email ?? s.user.email ?? null, avatar: gh.avatar_url ?? s.user.image ?? null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" } });
+        await store.putUser({ id: uid, login: gh.login, name: gh.name ?? s.user.name ?? null, email: gh.email ?? s.user.email ?? null, avatar: gh.avatar_url ?? s.user.image ?? null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" , remediation_mode: "pr" as const } });
         await store.log({ kind: "auth", source: "github", detail: `new user ${gh.login}` });
       }
     } else {
@@ -86,7 +86,7 @@ export async function currentUser(): Promise<User | null> {
       await store.log({ kind: "auth", source: "github", detail: `session ok but no GitHub token: ${ghErr ?? "unknown"}; using session identity` });
       if (!(await store.getUser(uid))) {
         const login = (s.user.name || s.user.email || baId).replace(/\s+/g, "-").slice(0, 40);
-        await store.putUser({ id: uid, login, name: s.user.name ?? null, email: s.user.email ?? null, avatar: s.user.image ?? null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" } });
+        await store.putUser({ id: uid, login, name: s.user.name ?? null, email: s.user.email ?? null, avatar: s.user.image ?? null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" , remediation_mode: "pr" as const } });
       }
     }
   }

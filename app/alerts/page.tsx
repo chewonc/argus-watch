@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AlertCard, type CardData } from "@/components/alerts";
 import { RememberThreatsView, RepoFilter } from "@/components/repo-filter";
 import { findingAction, latestFix } from "@/lib/actions";
+import { modeOf } from "@/lib/remediation-mode";
 import { actionLabels } from "@/lib/action-labels";
 import type { Fix } from "@/lib/schema";
 import { redirect } from "next/navigation";
@@ -58,7 +59,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
     // An open (or merged) pull request shows as "fix ready to review"; it is never marked resolved by Argus itself.
     const status = localized(statusOf(a, sev, { resolved: resolved.has(a.id), prOpen: !!lf && ["pr_created", "blocked_by_protection", "merging", "merged"].includes(lf.status) }), d);
     const href = caseHref(a.id);
-    const act = findingAction(a, fixes, { fixEnabled: env.FIX_ENABLED, allowPr: !!ur?.allow_pr, isDemo: !ur, hasInstallation: !!ur?.installation_id, writePermission: ur?.installation_id ? perms.get(ur.installation_id) ?? null : null }, href);
+    const act = findingAction(a, fixes, { fixEnabled: env.FIX_ENABLED, allowPr: !!ur?.allow_pr, isDemo: !ur, hasInstallation: !!ur?.installation_id, writePermission: ur?.installation_id ? perms.get(ur.installation_id) ?? null : null, mode: modeOf(user?.settings) }, href);
     return { a, f, sev, status, title: plainTitle(a, f, loc, r?.tech_tags, r?.packages.map((p) => p.name)), where: whereLine(a, loc), act, caseHref: href };
   });
   if (locale !== "en") {

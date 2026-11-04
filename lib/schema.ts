@@ -171,6 +171,8 @@ export const UserSettings = z.object({
   push: z.boolean().default(false),
   webhook_url: z.string().nullable().default(null), // per-user Slack/Discord incoming webhook
   locale: z.string().default("en"),
+  // Automatic remediation behavior (lib/remediation-mode.ts). Chooses the destination only; each write still needs approval of the exact patch.
+  remediation_mode: z.enum(["preview", "pr", "branch"]).default("pr"),
 });
 export const User = z.object({
   id: z.string(), // "gh:<github numeric id>" or "system"
@@ -261,7 +263,9 @@ export const Fix = z.object({
     // automated remediation (Muse Code runner): queued → running → validated → pr_created → (push mode) merging → merged | blocked_by_protection
     "queued", "running", "validation_failed", "validated", "merging", "merged", "blocked_by_protection",
     // the user stopped a queued or running remediation; the runner's single-use credential is revoked
-    "cancelled"]),
+    "cancelled",
+    // branch preference: the approved patch was pushed to a new branch without a pull request
+    "branch_pushed"]),
   summary: z.string(),
   caveats: z.array(z.string()),
   files: z.array(z.object({ path: z.string(), before_sha: z.string(), patch: z.string(), after: z.string(), hunks: z.array(FixHunk) })),
@@ -280,7 +284,7 @@ export const Fix = z.object({
   approved_at: z.string().nullable().default(null),
   error: z.string().nullable().default(null),
   // ---- automated remediation (lib/runner.ts) ----
-  mode: z.enum(["pr", "push"]).nullable().default(null), // what the user authorized
+  mode: z.enum(["pr", "push", "branch", "preview"]).nullable().default(null), // what the user authorized (preview = no repository writes)
   agent: z.enum(["muse-spark", "muse-code"]).default("muse-spark"), // who produced fix.files
   allowed_files: z.array(z.string()).default([]), // the only paths the runner may change (enforced server-side on the result)
   nonce_hash: z.string().nullable().default(null), // single-use runner credential (sha256), cleared once consumed

@@ -12,6 +12,16 @@ export async function saveSettings(formData: FormData) {
   revalidatePath("/settings");
 }
 
+/** Automatic remediation behavior. Only a known value is stored; anything else keeps the current preference. */
+export async function saveRemediationMode(formData: FormData) {
+  const user = await requireUser("/settings");
+  const v = String(formData.get("remediation_mode") ?? "");
+  if (v !== "preview" && v !== "pr" && v !== "branch") return;
+  await store.putUser({ ...user, settings: { ...user.settings, remediation_mode: v } });
+  await store.log({ kind: "fix", source: "settings", detail: `${user.login} set remediation behavior to ${v}`, ref: user.id }).catch(() => {});
+  revalidatePath("/settings");
+}
+
 /** Create a personal agent token (returned once; only its hash is stored). */
 export async function createAgentTokenAction(label: string): Promise<string> {
   const user = await requireUser("/settings");

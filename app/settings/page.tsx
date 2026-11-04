@@ -8,7 +8,8 @@ import { getDict, getLocale } from "@/lib/i18n";
 import { languages } from "@/lib/i18n/translate";
 import { requireUser } from "@/lib/session";
 import { store } from "@/lib/store";
-import { createAgentTokenAction, revokeAgentTokenAction, saveSettings } from "./actions";
+import { REMEDIATION_MODES, modeOf } from "@/lib/remediation-mode";
+import { createAgentTokenAction, revokeAgentTokenAction, saveRemediationMode, saveSettings } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,17 @@ export default async function Settings() {
             </ul>
           )}
           <p className="text-[12px] text-ink2">Uses the Model Context Protocol (MCP). Your agent can read alerts and the cited code and report what it finds; Argus re-checks every line it cites. It cannot push code: changes stay in your editor until you approve them there.</p>
+        </Section>
+
+        <Section id="remediation" title="Automatic remediation behavior" desc="What Argus does after Muse Code prepares and validates a fix. This only chooses the destination: every change to your repository still needs your approval of the exact patch, and nothing is ever merged into your default branch without a separate action.">
+          <form action={saveRemediationMode} className="grid gap-2 text-[14px]">
+            <fieldset className="grid gap-2"><legend className="sr-only">After a fix is validated</legend>
+              {REMEDIATION_MODES.map((m) => (
+                <label key={m.id} className="flex items-start gap-2"><input type="radio" name="remediation_mode" value={m.id} defaultChecked={modeOf(user.settings) === m.id} className="mt-1" /><span><b>{m.title}</b>{m.id === "pr" ? " (default)" : ""}<span className="block text-[13px] text-ink2">{m.desc}</span></span></label>
+              ))}
+            </fieldset>
+            <button type="submit" className="btn w-fit">Save</button>
+          </form>
         </Section>
 
         <Section title={d.notifications} desc="How Argus Watch tells you about new security alerts.">

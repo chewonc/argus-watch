@@ -10,32 +10,40 @@ import { isVerified, location } from "./labels";
 import { UNFIXABLE } from "./fixgate";
 import type { Assessment, Fix } from "./schema";
 import { isStaleRun } from "./run-stale";
+import { needsWrite, type RemediationMode } from "./remediation-mode";
 
 export type ActionKind = "fix_now" | "retry" | "approve" | "verify" | "review_fix" | "view_pr" | "view_fix" | "view_progress";
 export type ActionTone = "muted" | "warn" | "bad" | "ok";
 export type FindingAction = {
   primary: { kind: ActionKind; href: string; external: boolean } | null;
-  state: { key: "awaiting" | "preparing" | "in_progress" | "patch_ready" | "creating_pr" | "checks" | "pr" | "blocked" | "failed" | "stalled" | "cancelled" | "merged"; tone: ActionTone } | null;
+  state: { key: "awaiting" | "preparing" | "in_progress" | "patch_ready" | "creating_pr" | "checks" | "pr" | "blocked" | "failed" | "stalled" | "cancelled" | "merged" | "pushed"; tone: ActionTone } | null;
   note: string | null;
 };
-export type ActionContext = { fixEnabled: boolean; allowPr: boolean; isDemo: boolean; hasInstallation: boolean; writePermission: boolean | null };
+// mode: the user's saved remediation preference. "preview" needs no write access, so missing write permission is not a blocker there.
+export type ActionContext = { fixEnabled: boolean; allowPr: boolean; isDemo: boolean; hasInstallation: boolean; writePermission: boolean | null; mode?: RemediationMode };
 
 const ACTIVE: Partial<Record<Fix["status"], NonNullable<FindingAction["state"]>["key"]>> = { drafting: "preparing", approved: "creating_pr", queued: "preparing", running: "in_progress", merging: "checks" };
 
 /** Newest fix record for the assessment (fixes are stored per assessment). */
 export const latestFix = (fixes: Fix[]) => [...fixes].sort((x, y) => y.created_at.localeCompare(x.created_at))[0] ?? null;
 
-/** Why automation cannot change this repository, or null when it can. Checked in the same order the server enforces. */
+/**
+ * Why automation cannot act here, or null when it can. Checked in the same order the server enforces, and each reason says
+ * which kind it is: deployment configuration (the operator), repository permission (the GitHub App / Repositories page),
+ * or the finding itself. The "No repository writes" preference is a choice, not a failure: it never blocks by itself.
+ */
 export function automationBlocker(a: Assessment, ctx: ActionContext): string | null {
   const loc = location(a);
-  if (!ctx.fixEnabled) return "Automated fixes are turned off on this deployment.";
+  const write = needsWrite(ctx.mode ?? "pr");
+  if (!ctx.fixEnabled) return "Deployment configuration: automated fixes are turned off on this deployment (FIX_ENABLED is not set).";
   if (ctx.isDemo) return "Shared demo repository: fixes are preview-only here.";
   if (!loc) return "No exact line was cited, so there is nothing safe to change automatically.";
   if (UNFIXABLE.test(loc.file)) return `${loc.file.split("/").pop()} can't be changed automatically (lockfiles, secrets and CI workflows are excluded).`;
-  if (!ctx.hasInstallation) return "Install the Argus Watch GitHub App on this repository to apply fixes.";
-  if (ctx.writePermission === false) return "The GitHub App needs write access to contents and pull requests.";
-  if (ctx.writePermission == null) return "Write access for this repository could not be confirmed.";
-  if (!ctx.allowPr) return "Changes are off for this repository: enable them on Repositories.";
+  if (!ctx.hasInstallation) return "Repository permission: install the Argus Watch GitHub App on this repository.";
+  if (!write) return null;
+  if (ctx.writePermission === false) return "Repository permission: the GitHub App needs write access to contents and pull requests.";
+  if (ctx.writePermission == null) return "Repository permission: write access for this repository could not be confirmed.";
+  if (!ctx.allowPr) return "Repository permission: changes are off for this repository (enable them on Repositories).";
   return null;
 }
 
@@ -51,6 +59,7 @@ export function findingAction(a: Assessment, fixes: Fix[], ctx: ActionContext, c
     if (fx.status === "validated") return { primary: { kind: "approve", href: `${caseHref}?act=1#fix`, external: false }, state: { key: "patch_ready", tone: "warn" }, note: "A validated patch is ready. Nothing has been written to your repository; review it and approve to open a draft pull request." };
     if (fx.status === "pr_created") return { primary: fx.pr_url ? { kind: "view_pr", href: fx.pr_url, external: true } : { kind: "view_progress", href: fixHref, external: false }, state: { key: "pr", tone: "ok" }, note: "A pull request is a proposed change: review and merge it on GitHub. The alert stays open until then." };
     if (fx.status === "blocked_by_protection") return { primary: fx.pr_url ? { kind: "view_pr", href: fx.pr_url, external: true } : { kind: "view_progress", href: fixHref, external: false }, state: { key: "blocked", tone: "warn" }, note: fx.error };
+    if (fx.status === "branch_pushed") return { primary: { kind: "view_fix", href: fx.commit_url ?? fixHref, external: !!fx.commit_url }, state: { key: "pushed", tone: "ok" }, note: `Pushed to branch ${fx.branch ?? ""} (no pull request). Your default branch was not changed.` };
     if (fx.status === "merged") return { primary: { kind: "view_fix", href: fx.commit_url ?? fx.pr_url ?? fixHref, external: !!(fx.commit_url ?? fx.pr_url) }, state: { key: "merged", tone: "ok" }, note: null };
   }
   // The user's own agent already checked it and found it does not apply: nothing further to verify here (Details stays).

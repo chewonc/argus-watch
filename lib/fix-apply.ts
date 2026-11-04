@@ -7,7 +7,7 @@ import { prText } from "./fix";
 import type { Assessment, Finding, Fix } from "./schema";
 import { store } from "./store";
 
-export type ApplyOpts = { draft?: boolean; author?: string; testsNote?: string };
+export type ApplyOpts = { draft?: boolean; author?: string; testsNote?: string; openPr?: boolean };
 export async function applyFix(fix: Fix, a: Assessment, f: Finding | null, installationId: number, opts: ApplyOpts = {}): Promise<Fix> {
   const draft = opts.draft ?? true;
   const [owner, repo] = fix.repo.split("/");
@@ -40,6 +40,13 @@ ${pt.body}` : pt.body;
   let branch = `argus/fix-${fix.id.slice(0, 8)}`;
   try { await ok.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commit.sha }); }
   catch (e) { if ((e as { status?: number }).status === 422) { branch = `${branch}-${Date.now().toString(36).slice(-4)}`; await ok.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commit.sha }); } else throw e; }
+  // Branch preference: the commit lives on a new branch only; no pull request, nothing merged, default branch untouched.
+  if (opts.openPr === false) {
+    const pushed: Fix = { ...fix, status: "branch_pushed", branch, pr_url: null, pr_number: null, pr_draft: null, commit_url: `https://github.com/${fix.repo}/commit/${commit.sha}`, approved_at: new Date().toISOString(), error: null };
+    await store.putFix(pushed);
+    await store.log({ kind: "fix", source: "apply", detail: `pushed ${branch} on ${fix.repo} (no pull request, by preference)`, ref: a.id });
+    return pushed;
+  }
   // 3. draft PR (non-draft fallback on plans that do not allow drafts on private repos)
   let pr: { html_url: string; number: number; draft: boolean };
   try { const r = await ok.rest.pulls.create({ owner, repo, head: branch, base, title, body, draft }); pr = { html_url: r.data.html_url, number: r.data.number, draft }; }

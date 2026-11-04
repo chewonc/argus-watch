@@ -7,18 +7,15 @@ import { CredibilityChip, CredibilityPanel } from "@/components/credibility";
 import { SimulateImpact } from "@/components/simulate-impact";
 import { cachedSimulation } from "@/lib/simulate";
 import { FindingActions } from "@/components/finding-actions";
-import { Remediation } from "@/components/remediation";
 import { BackToThreats } from "@/components/repo-filter";
-import { findingAction, latestFix as newestOf } from "@/lib/actions";
+import { findingAction } from "@/lib/actions";
+import { modeOf } from "@/lib/remediation-mode";
 import { actionLabels } from "@/lib/action-labels";
 import { caseHref } from "@/lib/labels";
 import { ThreatTimeline } from "@/components/threat-timeline";
-import { AskAgent } from "@/components/ask-agent";
 import { MarkRead } from "@/components/mark-read";
-import { listAgentTokens } from "@/lib/agent-token";
 import { Band, Chip, Timeline } from "@/components/ui";
-import { env, hasGitHubApp, hasRunner } from "@/lib/env";
-import { canFix } from "@/lib/fixgate";
+import { env, hasGitHubApp } from "@/lib/env";
 import { installationPermissions } from "@/lib/github-app";
 import { getDict, getLocale, tr } from "@/lib/i18n";
 import { isVerified, location, matchedTech, plainTitle, statusOf, localized, whereLine } from "@/lib/labels";
@@ -86,8 +83,6 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   }));
 
   const writeOk = env.FIX_ENABLED && ur?.installation_id && hasGitHubApp() ? await installationPermissions(ur.installation_id).then((p) => p.contents === "write" && p.pull_requests === "write").catch(() => false) : null;
-  const fixAllowed = !prFix && canFix(a, { allowPr: !!ur?.allow_pr, isDemo: demoRepo, hasInstallation: !!ur?.installation_id, writePermission: writeOk, loc, priorFailed: false }); // a failed attempt can be retried
-  const agentConnected = (await listAgentTokens(user.id)).length > 0;
   const ghUrl = verified && loc ? permalink(repoOnly, a.sha, loc.file, loc.from, loc.to) : null;
   const severeUnverified = !verified && a.verdict !== "Not Affected" && (sev.level === "critical" || sev.level === "high");
   // Next step: derived from the assessment only (no model call). Unconfirmed findings point at the first required
@@ -100,10 +95,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
     : openCond ? d.ns_possible.replace("{x}", `${openCond.t.replace(/\.$/, "")}${openRef ? ` (${openRef.file.split("/").pop()}:${openRef.line})` : ""}.`)
     : missingT[0] ? d.ns_possible.replace("{x}", missingT[0])
     : d.ns_fallback;
-  // One remediation workflow: shown when a fix can be started, or when one exists (progress / approval / result).
-  const newestFix = newestOf(fixes);
-  const showRemediation = fixAllowed || (!!newestFix && env.FIX_ENABLED && !demoRepo && newestFix.files.length > 0);
-  const act = findingAction(a, fixes, { fixEnabled: env.FIX_ENABLED, allowPr: !!ur?.allow_pr, isDemo: demoRepo, hasInstallation: !!ur?.installation_id, writePermission: writeOk }, caseHref(a.id));
+  const act = findingAction(a, fixes, { fixEnabled: env.FIX_ENABLED, allowPr: !!ur?.allow_pr, isDemo: demoRepo, hasInstallation: !!ur?.installation_id, writePermission: writeOk, mode: modeOf(user.settings) }, caseHref(a.id));
   const cachedSim = a.verdict === "Not Affected" ? null : await cachedSimulation(a, fixes.find((x) => x.files.length > 0) ?? null, locale).catch(() => null);
 
   return (
@@ -124,17 +116,11 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
 
       {T.problem && <section className="border-t hair pt-5 grid gap-1.5"><h2 className="text-[15px] font-semibold">{d.whats_wrong}</h2><p className="text-[15px] leading-relaxed">{T.problem}</p></section>}
 
-      {a.verdict !== "Not Affected" && (T.fix || fixAllowed || ghUrl || prFix?.pr_url) && (
+      {a.verdict !== "Not Affected" && (T.fix || act.primary || prFix?.pr_url) && (
         <section id="how-to-fix" className="border-t hair pt-5 grid gap-3 scroll-mt-20">
           <h2 className="text-[15px] font-semibold">{d.how_to_fix}</h2>
           {T.fix && <p className="text-[15px] leading-relaxed">{T.fix}</p>}
-          {showRemediation
-            ? <Remediation assessmentId={a.id} initial={newestFix} canAct={fixAllowed} runnerEnabled={hasRunner()} defaultBranch={w?.default_branch ?? "main"} repo={repoOnly} />
-            : <FindingActions act={act} labels={actionLabels(d)} />}
-          <details className="disclose" id="agent-wrap">
-            <summary>Use your own AI agent instead</summary>
-            <div className="mt-3"><div id="agent" className="scroll-mt-20"><AskAgent id={a.id} connected={agentConnected} verified={verified} labels={{ title: d.agent_title, leadFix: d.agent_lead_fix, leadVerify: d.agent_lead_verify, copy: d.copy_instructions, copied: d.copied, preview: d.preview }} /></div></div>
-          </details>
+          <FindingActions act={act} labels={actionLabels(d)} modalFor={a.id} autoOpen />
         </section>
       )}
 

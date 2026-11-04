@@ -35,7 +35,7 @@ export function AlertCard({ c, labels }: { c: CardData; labels: ActionLabels }) 
         </div>
       </div>
       <div className="max-sm:col-span-2 max-sm:mt-2">
-        <FindingActions act={c.act} labels={labels} secondary={{ href: c.caseHref, label: labels.details }} showNote={false} align="end" />
+        <FindingActions act={c.act} labels={labels} secondary={{ href: c.caseHref, label: labels.details }} showNote={false} align="end" modalFor={c.a.id} />
       </div>
     </li>
   );

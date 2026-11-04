@@ -3,6 +3,7 @@
 import { applyFix } from "@/lib/fix-apply";
 import { env, hasGitHubApp } from "@/lib/env";
 import { notifyFix } from "@/lib/notify";
+import { modeOf, writeModeFor } from "@/lib/remediation-mode";
 import { currentUser, isSystemRepo } from "@/lib/session";
 import { store } from "@/lib/store";
 
@@ -17,8 +18,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (fix.user_id !== user.id) return Response.json({ error: "only the user who drafted this fix can approve it" }, { status: 403 });
   // A failed apply (e.g. the App's write permission not yet accepted → 403) may be retried without re-drafting.
   if (fix.status !== "drafted" && fix.status !== "failed") return Response.json({ error: `fix is ${fix.status}` , fix }, { status: 409 });
-  const body = (await req.json().catch(() => ({}))) as { reviewed?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { reviewed?: boolean; mode?: string };
   if (!body.reviewed) return Response.json({ error: "approval requires confirming that the diff was reviewed" }, { status: 400 });
+  const wm = writeModeFor(modeOf(user.settings), body.mode ?? "pr");
+  if (!wm.ok || wm.mode === "push") return Response.json({ error: wm.ok ? "automatic merge is only offered for validated runner patches" : wm.error }, { status: 409 });
   if (await isSystemRepo(fix.repo_key)) return Response.json({ error: "shared demo repositories cannot receive pull requests" }, { status: 403 });
   const ur = await store.getUserRepo(user.id, fix.repo_key);
   if (!ur?.allow_pr) return Response.json({ error: "draft pull requests are not enabled for this repository (Repos → Allow draft pull requests)" }, { status: 403 });
@@ -29,8 +32,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!a) return Response.json({ error: "assessment missing" }, { status: 404 });
   const f = await store.getFinding(a.finding_id);
   try {
-    const done = await applyFix({ ...fix, status: "approved" }, a, f, inst);
-    await notifyFix(user.id, "fix_pr_created", a, f, `${fix.repo}#${done.pr_number}`).catch(() => {});
+    const done = await applyFix({ ...fix, status: "approved", mode: wm.mode }, a, f, inst, { openPr: wm.mode !== "branch" });
+    if (done.pr_number) await notifyFix(user.id, "fix_pr_created", a, f, `${fix.repo}#${done.pr_number}`).catch(() => {});
     return Response.json({ fix: done });
   } catch (e) {
     const status = (e as { status?: number }).status;

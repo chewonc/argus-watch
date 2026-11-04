@@ -33,7 +33,7 @@ export function allowedFilesFor(a: Assessment, fix: Fix): string[] {
 }
 
 /** Step 1: user authorization -> dispatch the workflow. Session, allow_pr, installation and FIX_ENABLED are checked by the route. */
-export async function startRun(fix: Fix, a: Assessment, mode: "pr" | "push", userLogin: string): Promise<Fix> {
+export async function startRun(fix: Fix, a: Assessment, mode: "pr" | "push" | "branch" | "preview", userLogin: string): Promise<Fix> {
   if (!hasRunner()) throw new RunnerError("automated remediation is not configured on this deployment (FIX_ENABLED, RUNNER_DISPATCH_TOKEN, ARGUS_RUNNER_SECRET)", 503);
   const nonce = randomBytes(24).toString("base64url");
   const allowed = allowedFilesFor(a, fix);
@@ -140,16 +140,22 @@ export async function acceptResult(fix: Fix, a: Assessment, f: Finding | null, i
 }
 
 /** The user's approval of the exact validated patch: only now does Argus write (branch, commit, PR). */
-export async function approveValidated(fix: Fix, a: Assessment, f: Finding | null, installationId: number, opts: { userLogin: string; patchVersion: string; mode: "pr" | "push" }): Promise<Fix> {
+export async function approveValidated(fix: Fix, a: Assessment, f: Finding | null, installationId: number, opts: { userLogin: string; patchVersion: string; mode: "pr" | "push" | "branch" }): Promise<Fix> {
   checkApprovable(fix, opts.patchVersion);
   // Claim the approval first so a double click cannot open two pull requests.
-  let next: Fix = event({ ...fix, status: "approved", mode: opts.mode, approved_at: now() }, opts.userLogin, "approved", `approved patch ${fix.patch_version} (${opts.mode === "push" ? "draft-free PR, merge after CI passes" : "draft pull request"})`);
+  let next: Fix = event({ ...fix, status: "approved", mode: opts.mode, approved_at: now() }, opts.userLogin, "approved", `approved patch ${fix.patch_version} (${opts.mode === "push" ? "draft-free PR, merge after CI passes" : opts.mode === "branch" ? "push to a new branch, no pull request" : "draft pull request"})`);
   await store.putFix(next);
   const tests = fix.runner?.tests ?? null;
   try {
     const testsNote = tests?.executed ? `Repository tests executed in an isolated GitHub Actions runner: \`${tests.command}\` exited 0.` : "No test command was detected, so no tests were executed. Checks performed: syntax parse and static remediation assessment only.";
-    const applied = await applyFix(next, a, f, installationId, { draft: opts.mode !== "push", author: "Meta Muse Code (automated remediation)", testsNote }); // PR mode: a draft; push mode needs a mergeable PR
-    next = event({ ...next, ...applied, events: next.events, runner: next.runner, mode: next.mode, agent: next.agent, allowed_files: next.allowed_files, patch_version: next.patch_version }, "argus", "pr_opened", `pull request #${applied.pr_number} on ${applied.branch}`, applied.pr_url);
+    const applied = await applyFix(next, a, f, installationId, { draft: opts.mode !== "push", openPr: opts.mode !== "branch", author: "Meta Muse Code (automated remediation)", testsNote }); // PR mode: a draft; push mode needs a mergeable PR
+    const keep = { events: next.events, runner: next.runner, mode: next.mode, agent: next.agent, allowed_files: next.allowed_files, patch_version: next.patch_version };
+    if (applied.status === "branch_pushed") {
+      next = event({ ...next, ...applied, ...keep }, "argus", "branch_pushed", `pushed ${applied.branch} (no pull request)`, applied.commit_url);
+      await store.putFix(next);
+      return next;
+    }
+    next = event({ ...next, ...applied, ...keep }, "argus", "pr_opened", `pull request #${applied.pr_number} on ${applied.branch}`, applied.pr_url);
     await store.putFix(next);
     await notifyFix(fix.user_id, "fix_pr_created", a, f, `${fix.repo}#${applied.pr_number}`).catch(() => {});
     if (next.mode === "push") next = await scheduleMerge(next, 0);
