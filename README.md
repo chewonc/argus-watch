@@ -53,7 +53,7 @@ Legend: **live** = observed on the production deployment; **local** = exercised 
 | Threat timeline (registries + Muse Spark, optional Muse Wonder conflict review) | **live** (Nov 4: case page on production built from GitHub Advisory DB, NVD and OSV records with a Muse Spark summary); Muse Wonder conflict review **local only** (off on production) (`docs/VALIDATION_TIMELINE.md`) |
 | User-impact simulation | local, in English and Korean |
 | Korean and other languages | local (Korean static dictionary; others via Muse Spark) |
-| Fix & create PR with Muse Code | **live**: draft PR chewonc/argus-demo-api#1 created in production. Only a trivial smoke test ran there, and the lockfile was not regenerated. Lockfile regeneration and separate install and test reporting are tested locally only (`docs/VALIDATION_MUSE_CODE.md`). |
+| Fix & create PR with Muse Code | **live**: draft PR chewonc/argus-demo-api#2 has Muse Code's edit, a runner-regenerated lockfile, and tests 2/2 passed. The patch was approved before any write; cancelling a run is also verified (`docs/VALIDATION_MUSE_CODE.md`). |
 | Fix & push (automatic merge after checks) | **implemented, not verified**: never run |
 | Muse Code → Argus MCP | **local**: Muse Code 1.4.14 called `list_findings` on a local Argus. Not verified from the Actions runner or against production. |
 | MCP server for coding agents | live (personal tokens, 4 tools) |
