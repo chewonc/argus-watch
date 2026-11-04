@@ -4,6 +4,8 @@ import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { env, hasQStash } from "@/lib/env";
 import { tick } from "@/lib/poll";
 import { store } from "@/lib/store";
+import { windowDeps } from "@/lib/window-deps";
+import { windowsTick } from "@/lib/window-tick";
 
 export const maxDuration = 300;
 
@@ -13,7 +15,9 @@ async function handler(req: Request) {
   const scheduled = !!req.headers.get("upstash-schedule-id");
   const r = await tick(force, scheduled);
   await store.log({ kind: "poll", source: "tick", detail: `${scheduled ? "scheduled" : force ? "forced" : "manual"} tick: ran ${r.ran.join(", ") || "nothing due"}` });
-  return Response.json({ ok: r.results.every((x) => x.ok), ...r });
+  // Autonomous remediation windows ride the same schedule; a failure here never fails source polling.
+  const windows = await windowsTick(windowDeps()).catch((e) => ({ opened: [], stepped: [], error: String((e as Error).message ?? e).slice(0, 200) }));
+  return Response.json({ ok: r.results.every((x) => x.ok), ...r, windows });
 }
 
 export async function POST(req: Request) {

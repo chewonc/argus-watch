@@ -222,7 +222,7 @@ export type UserRepo = z.infer<typeof UserRepo>;
 export const Notification = z.object({
   id: z.string(),
   user_id: z.string(),
-  kind: z.enum(["alert", "verdict_changed", "severity_changed", "fix_pr_created", "fix_failed"]),
+  kind: z.enum(["alert", "verdict_changed", "severity_changed", "fix_pr_created", "fix_failed", "window_report"]), // window_report: assessment_id holds "run:<window run id>"
   credibility: z.enum(["verified", "corroborated", "unverified", "disputed", "likely_false"]).nullable().optional(), // report credibility when notified
   withdrawn: z.boolean().optional(),
   assessment_id: z.string(),
@@ -298,6 +298,7 @@ export const Fix = z.object({
   approved_at: z.string().nullable().default(null),
   error: z.string().nullable().default(null),
   // ---- automated remediation (lib/runner.ts) ----
+  window_run_id: z.string().nullable().optional(), // set when an autonomous remediation window (lib/window-run.ts) started this fix
   mode: z.enum(["pr", "push", "branch", "preview"]).nullable().default(null), // what the user authorized (preview = no repository writes)
   // The user's approval of this exact patch for one destination (lib/write-auth.ts). Required at every repository write.
   grant: z.object({

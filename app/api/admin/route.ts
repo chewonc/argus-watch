@@ -94,8 +94,11 @@ export async function POST(req: Request) {
       const st = await store.getPollState<{ last_run: string }>("tick");
       const stale = !st || Date.now() - Date.parse(st.last_run) > TICK_MIN * 2 * 60e3;
       const r = stale ? await tick() : null;
+      // Remediation-window deadlines must not depend on QStash alone: the heartbeat always advances active windows.
+      const { windowsTick } = await import("@/lib/window-tick"); const { windowDeps } = await import("@/lib/window-deps");
+      const windows = await windowsTick(windowDeps(), 60e3).catch((e) => ({ opened: [], stepped: [], error: String(e).slice(0, 200) }));
       await store.log({ kind: "heartbeat", source: "admin", detail: stale ? `tick was stale; ran: ${r!.ran.join(", ") || "nothing due"}` : "tick fresh" });
-      return Response.json({ ok: true, stale, ran: r?.ran ?? [] });
+      return Response.json({ ok: true, stale, ran: r?.ran ?? [], windows });
     }
     default: return Response.json({ error: "unknown op" }, { status: 400 });
   }

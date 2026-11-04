@@ -11,7 +11,7 @@ function setup() { if (!configured && hasPush()) { webpush.setVapidDetails(env.V
 const RANK: Record<string, number> = { unknown: 0, none: 0, low: 1, moderate: 2, medium: 2, high: 3, critical: 4 };
 /** Push only alerts at or above the user's threshold. Fix notifications and tests always pass; unknown severity passes only at "low". */
 export function meetsThreshold(n: Pick<Notification, "kind" | "severity">, min: User["settings"]["push_min_severity"] | undefined): boolean {
-  if (n.kind === "fix_pr_created" || n.kind === "fix_failed") return true;
+  if (n.kind === "fix_pr_created" || n.kind === "fix_failed" || n.kind === "window_report") return true;
   return (RANK[n.severity?.level ?? "unknown"] ?? 0) >= (RANK[min ?? "low"] ?? 1) || (min ?? "low") === "low";
 }
 
@@ -21,6 +21,7 @@ export function pushPayload(n: Pick<Notification, "id" | "kind" | "verdict" | "r
   const url = `${appUrl}/case/${n.assessment_id.split("/").map(encodeURIComponent).join("/")}`;
   const base = { nid: n.id, tag: n.id, icon: "/icon-192.png", badge: "/icon-192.png", actions: [{ action: "view", title: "View alert" }] };
   if (opts.test) return { ...base, nid: null, title: "Argus Watch: test notification", body: "Notifications work on this device. Real alerts look like this.", url: `${appUrl}/settings` };
+  if (n.kind === "window_report") return { ...base, actions: [{ action: "view", title: "View report" }], title: "Argus Watch: remediation window report", body: n.title, url: `${appUrl}/runs/${encodeURIComponent(n.assessment_id.replace(/^run:/, ""))}` };
   if (n.kind === "fix_pr_created") return { ...base, title: "Argus Watch: fix ready to review", body: `A pull request with a proposed fix was opened in ${repo}.`, url };
   if (n.kind === "fix_failed") return { ...base, title: "Argus Watch: fix stopped", body: `The automated fix for ${repo} did not finish. Nothing was merged.`, url };
   if (n.withdrawn) return { ...base, title: "Argus Watch: advisory withdrawn", body: `An advisory that affected ${repo} was withdrawn by its publisher.`, url };

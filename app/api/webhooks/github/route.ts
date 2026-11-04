@@ -9,6 +9,7 @@ import { ingest } from "@/lib/pipeline";
 import { forgetInstallations, refreshRepo } from "@/lib/repo";
 import { ALERT_HISTORY, store } from "@/lib/store";
 import { refreshChecks } from "@/lib/fix-apply";
+import { revokeConsents } from "@/lib/window-consent";
 
 /** Open Argus pull requests on this repository, refreshed from GitHub. Returns how many are now merged. */
 async function syncOpenFixes(fullName: string): Promise<number> {
@@ -47,9 +48,20 @@ export async function POST(req: Request) {
     const { finding, queued, created } = await ingest(item);
     return Response.json({ ok: true, finding: finding.id, queued, created, discovered_at });
   }
+  if (event === "github_app_authorization") {
+    // The user revoked their authorization of the App: no further writes on their behalf, including remediation windows.
+    const sender = payload.sender as { id?: number; login?: string } | undefined;
+    const n = sender?.id ? await revokeConsents((c) => c.user_id === `gh:${sender.id}`, "you revoked the GitHub App's authorization") : 0;
+    await store.log({ kind: "webhook", source: "github", detail: `github_app_authorization.${String(payload.action)} ${sender?.login ?? "?"}: revoked ${n} window authorization(s)`, ref: delivery });
+    return Response.json({ ok: true, revoked: n });
+  }
   if (event === "installation") {
     const inst = payload.installation as { id: number; account: { login: string } };
     const action = String(payload.action);
+    if (action === "deleted" || action === "suspend") {
+      const repoKeys = new Set((await store.listRepos()).filter((w) => w.installation_id === inst.id).map((w) => store.repoKey(w)));
+      await revokeConsents((c) => c.repos.some((k) => repoKeys.has(k)), `the GitHub App installation was ${action === "deleted" ? "removed" : "suspended"}`);
+    }
     const ex = await store.getInstallation(inst.id);
     if (ex) await store.putInstallation({ ...ex, suspended: action === "suspend" || action === "deleted" ? true : action === "unsuspend" ? false : ex.suspended });
     forgetInstallations();
@@ -58,6 +70,8 @@ export async function POST(req: Request) {
   }
   if (event === "installation_repositories") {
     const removed = (payload.repositories_removed as { full_name: string }[] | undefined) ?? [];
+    const gone = new Set(removed.map((r) => r.full_name));
+    if (gone.size) await revokeConsents((c) => c.repos.some((k) => gone.has(k.split("/").slice(0, 2).join("/"))), "a repository was removed from the GitHub App installation");
     let dropped = 0;
     for (const r of removed) for (const w of await store.listRepos()) if (w.repo === r.full_name) {
       const k = store.repoKey(w);

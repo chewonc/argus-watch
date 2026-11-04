@@ -6,6 +6,10 @@ import Link from "next/link";
 import { AlertCard, type CardData } from "@/components/alerts";
 import { RememberThreatsView, RepoFilter } from "@/components/repo-filter";
 import { BulkFix } from "@/components/bulk-fix";
+import { StartNowForm } from "@/components/window-forms";
+import { startWindowNow } from "@/app/settings/window-actions";
+import { activeRunFor } from "@/lib/window-run";
+import { fmtLocal } from "@/lib/window-schedule";
 import { findingAction, latestFix } from "@/lib/actions";
 import { modeOf } from "@/lib/remediation-mode";
 import { actionLabels } from "@/lib/action-labels";
@@ -92,6 +96,7 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
   const RANK = { bad: 0, warn: 1, ok: 2 } as const;
   const byRepo = new Map<string, ReturnType<typeof repoStatus>>();
   for (const r of repos) { const k = store.repoKey(r); const ur = mine.find((m) => m.repo_key === k); const st = repoStatus(r, { connected: !ur || !!ur.installation_id || !hasGitHubApp() }); const prev = byRepo.get(r.repo); if (!prev || RANK[st.tone] < RANK[prev.tone]) byRepo.set(r.repo, st); }
+  const activeRun = await activeRunFor(user.id);
   const repoLines = [...byRepo.entries()].map(([k, s]) => ({ k, s: { ...s, label: s.label === "Monitoring active" ? d.monitoring_active : s.label === "Monitoring paused" ? d.monitoring_paused : s.label } }));
 
   return (
@@ -112,6 +117,19 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
           </div>
         )}
       </header>
+
+      {repos.length > 0 && (activeRun ? (
+        <Link href={`/runs/${encodeURIComponent(activeRun.id)}`} className="border hair rounded-[10px] px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-[calc(14px*var(--ui))] hover:bg-raised">
+          <span><b>Remediation window {activeRun.status === "paused" ? "paused" : "in progress"}</b> <span className="text-ink2">until {fmtLocal(activeRun.tz, activeRun.end_ms)} · {activeRun.items.length} finding(s) so far</span></span>
+          <span className="underline">View progress</span>
+        </Link>
+      ) : (
+        <details className="disclose border hair rounded-[10px] px-4 py-3 text-[calc(14px*var(--ui))]">
+          <summary className="font-medium">Away for a while? Start a remediation window</summary>
+          <p className="mt-2 mb-3 text-[calc(13px*var(--ui))] text-ink2">Argus re-checks your open findings and prepares tested fixes while you are away. Unless you choose draft pull requests, nothing is written to your repositories; you review each patch when you are back. Recurring windows are in <Link href="/settings#windows" className="underline">Settings</Link>.</p>
+          <StartNowForm action={startWindowNow} repos={mine.filter((m) => !m.paused && !m.access_lost).map((m) => m.repo_key)} />
+        </details>
+      ))}
 
       {repos.length === 0 ? (
         <Empty title={d.empty_connect_title} body={d.empty_connect_body} action={<Link href="/repos" className="btn">{d.connect_github}</Link>} />
