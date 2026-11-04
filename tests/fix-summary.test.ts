@@ -32,8 +32,11 @@ test("in-app Verify is read-only, scoped, rate-limited and keeps earlier evidenc
   assert.match(s, /canSee\(user\.id, prev\.repo\)/, "repository visibility is checked");
   assert.match(s, /store\.claim\(`verify:/, "one run per user and finding per window");
   assert.match(s, /hostedBudgetLeft/, "hosted budget applies");
-  assert.doesNotMatch(s, /fix-apply|applyFix|createRef|pulls\.|scopedRepoOctokit|startRun/, "no repository write path");
-  assert.match(s, /:v\$\{Date\.now\(\)\.toString\(36\)\}/, "an existing assessment is never overwritten");
+  // The verification itself is shared with remediation windows (lib/reverify.ts): same guarantees, checked there too.
+  const lib = readFileSync("lib/reverify.ts", "utf8");
+  assert.match(lib, /hostedBudgetLeft/, "hosted budget is re-checked in the shared verification");
+  for (const src of [s, lib]) assert.doesNotMatch(src, /fix-apply|applyFix|createRef|pulls\.|scopedRepoOctokit|startRun/, "no repository write path");
+  assert.match(lib, /:v\$\{Date\.now\(\)\.toString\(36\)\}/, "an existing assessment is never overwritten");
   const ui = readFileSync("components/fix-modal.tsx", "utf8");
   assert.match(ui, /\{ id: "verify", label: "Verify" \}, \{ id: "auto", label: "Auto Fix" \}, \{ id: "agent", label: "AI Agent" \}/);
   assert.doesNotMatch(ui, /Verify with your AI agent|Change preference/);

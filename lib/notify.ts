@@ -10,6 +10,13 @@ import type { Assessment, Finding, Item, Notification, Severity } from "./schema
 import { deriveSeverity } from "./severity";
 import { SYSTEM_USER, store } from "./store";
 
+/** True while the user has an active remediation window that asked for quiet (only critical alerts push). */
+export async function quietWindow(uid: string): Promise<boolean> {
+  const { activeRunFor } = await import("./window-run");
+  const r = await activeRunFor(uid).catch(() => null);
+  return !!r && r.quiet !== false && (r.status === "running" || r.status === "paused");
+}
+
 export async function recipientsFor(repoKey: string): Promise<string[]> {
   const users = await store.activeRepoUsers(repoKey); // users who paused monitoring of this repository are not notified
   // Shared demo repositories notify only users who opted in (Settings) and have not hidden them; never everyone (V5).
@@ -57,7 +64,13 @@ export async function notifyAssessment(a: Assessment, f: Finding | null, items: 
   }
   // Web Push: inline when the fan-out is small (one process call), else one QStash job
   const withPush: { uid: string; n: Notification }[] = [];
-  for (const t of pushTargets) { const u = await store.getUser(t.uid); if (u?.settings.push && hasPush() && (await store.listPush(t.uid)).length) withPush.push(t); }
+  for (const t of pushTargets) {
+    const u = await store.getUser(t.uid);
+    if (!(u?.settings.push && hasPush() && (await store.listPush(t.uid)).length)) continue;
+    // A remediation window in "quiet" mode lets only critical alerts interrupt; the rest stay in-app until the summary.
+    if (t.n.severity.level !== "critical" && (await quietWindow(t.uid))) continue;
+    withPush.push(t);
+  }
   if (withPush.length && withPush.length <= 20) { for (const t of withPush) await sendPushTo(t.uid, t.n).catch(() => {}); }
   else if (withPush.length && hasQStash()) {
     const { Client } = await import("@upstash/qstash");

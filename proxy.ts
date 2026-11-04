@@ -4,7 +4,7 @@ import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 
 
-const PRIVATE = [/^\/repos(\/|$)/, /^\/notifications(\/|$)/, /^\/settings(\/|$)/, /^\/monitoring(\/|$)/, /^\/activity(\/|$)/];
+const PRIVATE = [/^\/repos(\/|$)/, /^\/notifications(\/|$)/, /^\/settings(\/|$)/, /^\/monitoring(\/|$)/, /^\/activity(\/|$)/, /^\/windows(\/|$)/, /^\/runs(\/|$)/];
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -19,4 +19,4 @@ export function proxy(req: NextRequest) {
   return NextResponse.redirect(url);
 }
 
-export const config = { matcher: ["/repos/:path*", "/notifications/:path*", "/settings/:path*", "/monitoring/:path*", "/activity/:path*"] };
+export const config = { matcher: ["/repos/:path*", "/notifications/:path*", "/settings/:path*", "/monitoring/:path*", "/activity/:path*", "/windows/:path*", "/runs/:path*"] };

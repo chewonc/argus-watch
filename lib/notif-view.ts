@@ -14,6 +14,7 @@ const report = (label: Notification["credibility"] | undefined) => (label ? { la
 export async function viewNotifications(uid: string, list: Notification[]): Promise<NotificationView[]> {
   const resolved = new Set(await store.resolvedSet(uid));
   return Promise.all(list.map(async (x) => {
+    if (x.kind === "window_report") return { ...x, display_title: x.title, status: null, href: `/runs/${encodeURIComponent(x.assessment_id.replace(/^run:/, ""))}`, report: null };
     const a = await assessmentFor(uid, x.assessment_id);
     if (!a) return { ...x, display_title: x.title, status: null, href: caseHref(x.assessment_id), report: report(x.credibility) };
     const [f, r] = await Promise.all([store.getFinding(a.finding_id), store.getRepo(a.repo)]);

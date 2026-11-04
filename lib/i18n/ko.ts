@@ -8,6 +8,7 @@ export const dict: Partial<Dict> = {
   nav_sources: "소스",
   nav_alerts: "알림",
   nav_threats: "위협",
+  nav_windows: "자동 대응",
   nav_settings: "설정",
   sign_in: "GitHub로 로그인",
   sign_out: "로그아웃",

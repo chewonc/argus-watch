@@ -115,3 +115,22 @@ export async function installationPermissions(installationId: number): Promise<R
   const r = await githubApp().octokit.request("GET /app/installations/{installation_id}", { installation_id: installationId });
   return (r.data.permissions ?? {}) as Record<string, string>;
 }
+
+/**
+ * A user's CURRENT permission on a repository, read with the installation token (Metadata: read), so it can be checked
+ * when the user is not signed in. GitHub returns the highest role from every grant source; "maintain" maps to write.
+ * Throws on any API error: callers must treat an unknown answer as "not allowed".
+ */
+export async function liveUserPermission(installationId: number, full: string, login: string): Promise<{ permission: string; user_id: number | null }> {
+  const [owner, repo] = full.split("/");
+  const ok = await scopedRepoOctokit(installationId, repo, { metadata: "read" });
+  const r = await ok.request("GET /repos/{owner}/{repo}/collaborators/{username}/permission", { owner, repo, username: login });
+  return { permission: String(r.data.permission ?? "none"), user_id: (r.data.user as { id?: number } | null)?.id ?? null };
+}
+
+/** Current head commit of a branch, read with the installation token. */
+export async function liveBranchHead(installationId: number, full: string, branch: string): Promise<string> {
+  const [owner, repo] = full.split("/");
+  const ok = await scopedRepoOctokit(installationId, repo, { contents: "read", metadata: "read" });
+  return (await ok.rest.repos.getBranch({ owner, repo, branch })).data.commit.sha;
+}

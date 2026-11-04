@@ -315,6 +315,26 @@ export const store = {
   setCancelledAt: (fixId: string, at: string) => kv.set(`cancelled_at:${fixId}`, at),
   cancelledAt: (fixId: string) => kv.get<string>(`cancelled_at:${fixId}`),
 
+  // ---- autonomous remediation windows (lib/window-run.ts) ----
+  putSchedule: async <T extends { id: string; user_id: string }>(s: T) => { await kv.set(`wsched:${s.id}`, s); await kv.sadd(`user:${s.user_id}:wscheds`, s.id); await kv.sadd("wscheds", s.id); },
+  getSchedule: <T>(id: string) => kv.get<T>(`wsched:${id}`),
+  async deleteSchedule(uid: string, id: string) { await kv.del(`wsched:${id}`); await kv.srem(`user:${uid}:wscheds`, id); await kv.srem("wscheds", id); },
+  async listSchedules<T>(uid?: string): Promise<T[]> {
+    const ids = await kv.smembers(uid ? `user:${uid}:wscheds` : "wscheds");
+    return ids.length ? (await kv.mget<T>(ids.map((i) => `wsched:${i}`))).filter((x): x is Awaited<T> & T => !!x) : [];
+  },
+  async putRun(r: { id: string; user_id: string }, isNew = false) {
+    await kv.set(`wrun:${r.id}`, r);
+    if (isNew) { await kv.lpush(`user:${r.user_id}:wruns`, r.id); await kv.sadd("wruns:active", r.id); }
+  },
+  getRun: <T>(id: string) => kv.get<T>(`wrun:${id}`),
+  async listRuns<T>(uid: string, n = 20): Promise<T[]> {
+    const ids = [...new Set(await kv.lrange<string>(`user:${uid}:wruns`, 0, n - 1))];
+    return ids.length ? (await kv.mget<T>(ids.map((i) => `wrun:${i}`))).filter((x): x is Awaited<T> & T => !!x) : [];
+  },
+  activeRunIds: () => kv.smembers("wruns:active"),
+  retireRun: (id: string) => kv.srem("wruns:active", id),
+
   // ---- installation token cache (KV has no TTL; expiry checked by the caller) ----
   getToken: (inst: number) => kv.get<{ token: string; exp: string }>(K.ghtok(inst)),
   setToken: (inst: number, v: { token: string; exp: string }) => kv.set(K.ghtok(inst), v),
