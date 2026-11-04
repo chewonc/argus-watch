@@ -50,7 +50,7 @@ Legend: **live** = observed on the production deployment; **local** = exercised 
 | Agentic investigation | local: 3 fixtures, verdicts unchanged, 2–8 tool calls each |
 | GitHub sign-in | live |
 | Connect repository + initial scan of the last 30 days | implemented; App install picker exercised locally |
-| Threat timeline (registries + Muse Spark, optional Muse Wonder conflict review) | **local**: live checks on a GHSA/NVD threat, a CVE-free research post and a date conflict reviewed by Muse Wonder (`docs/VALIDATION_TIMELINE.md`); not yet deployed |
+| Threat timeline (registries + Muse Spark, optional Muse Wonder conflict review) | **live** (Nov 4: case page on production built from GitHub Advisory DB, NVD and OSV records with a Muse Spark summary); Muse Wonder conflict review **local only** (off on production) (`docs/VALIDATION_TIMELINE.md`) |
 | User-impact simulation | local, in English and Korean |
 | Korean and other languages | local (Korean static dictionary; others via Muse Spark) |
 | Fix & create PR / Fix & push with Muse Code | **local**: Muse Code 1.4.14 ran headless and sandboxed (no shell, no web) through the full runner script and produced the correct fix (`docs/VALIDATION_MUSE_CODE.md`). Not yet run on Actions or production: needs `FIX_ENABLED`, `RUNNER_DISPATCH_TOKEN`, `ARGUS_RUNNER_SECRET` and Actions secrets (SETUP §1b). No pull request created yet. |

@@ -73,7 +73,7 @@ export function ThreatTimeline({ assessmentId, title = "Threat timeline" }: { as
                     {e.basis === "model_extracted" && <span className="text-ink2" title="Proposed by Meta Muse Spark; date and claim were found verbatim in the source">read by Muse Spark · quote checked</span>}
                     {conflict.length > 0 && <span style={{ color: "var(--unclear)" }}>⚠ dates differ between sources</span>}
                   </div>
-                  <div className="text-[14px] break-words">{e.title}</div>
+                  <div className="text-[14px] [overflow-wrap:anywhere]">{e.title}</div>
                   {e.detail && <div className="text-[12px] text-ink2">{e.detail}</div>}
                   <div className="text-[12px] flex flex-wrap gap-x-3">{e.sources.map((s, i) => s.url ? <a key={i} href={s.url} target="_blank" rel="noreferrer nofollow" className="break-all">{s.publisher} ↗</a> : <span key={i} className="text-ink2">{s.publisher}</span>)}</div>
                   {e.quote && <details className="disclose"><summary>Source text</summary><blockquote className="text-[12px] mt-1 border-l-2 hair pl-3">“{e.quote}”{e.date_quote && <span className="block text-ink2 mt-1">Date as written: “{e.date_quote}”</span>}</blockquote></details>}

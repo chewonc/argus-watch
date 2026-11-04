@@ -1,6 +1,6 @@
 # Validation: Threat Timeline (Nov 4 2026)
 
-**Result: implemented and verified locally against real registries, the real Meta Model API (Muse Spark 1.3 and Muse Wonder 1.0) and in the browser. Not committed, not deployed; production has no timeline yet.**
+**Result: verified locally against real registries, the real Meta Model API (Muse Spark 1.3 and Muse Wonder 1.0) and in the browser; deployed (commit 4ca2497) and verified on production, signed in, on Nov 4 2026. Muse Wonder review is off on production (`WONDER_ESCALATION` unset).**
 
 ## What it is
 
@@ -34,9 +34,13 @@ Not exercised live: a Wonder answer that prefers one date (covered by unit tests
 
 Timeline renders and hydrates; "All / Confirmed only" filter works (5 Confirmed events remain); repository lane shows "Checked … affected (confirmed from code evidence)" and "You were alerted". At 375 px the page is exactly 375 px wide (fixed while testing: the case page grid, the AI-agent prompt and the header nav were widening the page on phones). An older fix record without an audit trail crashed the repository lane on first load (error state shown correctly); fixed and covered by a test.
 
+## Production check (Nov 4 2026, signed in)
+
+Case `c13_mcp_toxic_flow_affected`, finding GHSA-8r9q-7v3j-jr4g / CVE-2026-0621 (MCP TypeScript SDK ReDoS). First build on production took about 30 s. 6 events from 4 sources: published in OSV 2026-01-05 21:30 UTC (Confirmed; OSV, GitHub Advisory Database and NVD merged), patched version @modelcontextprotocol/sdk 1.25.2 listed (Inferred date), advisory updated 2026-07-15 (Confirmed), Argus discovery, and the repository lane (checked: possible issue, not confirmed; alerted). Registry: GHSA found, NVD found. Muse Spark proposed 1 development and it was rejected (date not in the source text); the Spark summary passed the lint. At 375 px the timeline's repository path and a technical-details path widened the page to 451 px; fixed in 18aa0ac.
+
 ## Known limitations
 
-- Production: not deployed (no commit yet). `WONDER_ESCALATION` should stay unset on Vercel until the owner decides.
+- `WONDER_ESCALATION` stays unset on Vercel until the owner decides; the Wonder path is verified locally only.
 - Timeline body text is English; only the heading is localized.
 - Feed items keep only their summary; the timeline fetches the linked page (robots.txt, rate-limited) like the pipeline, so a page that blocks crawlers yields fewer extracted events.
 - One Wonder review per build; a threat with several conflicts shows the rest side by side without review.
