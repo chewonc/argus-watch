@@ -55,9 +55,9 @@ The runner clones the repository at the assessed commit with a short-lived insta
 5. **Backup heartbeat:** `.github/workflows/heartbeat.yml` calls `/api/admin` `{"op":"heartbeat"}` every 15 minutes and runs the tick if QStash has not run it for 10 minutes. Add repository secrets `APP_URL` and `ADMIN_TOKEN`.
 6. **After deploying the identity layer:** run `{"op":"migrate_system"}` once so repositories registered earlier stay visible (as demo repos).
 
-### 2.1 Checklist to unblock the end-to-end journey (status Nov 2 2026: none of these is configured on the deployment)
+### 2.1 Checklist for a new deployment
 
-The production landing page shows "Sign-in is not configured on this deployment yet" and `POST /api/auth/sign-in/social` answers 503 until step C is done. Nothing in steps 1–2 and 7 of the user journey (sign in, connect a repository, open a draft PR) can be exercised by anyone before then.
+Status of the reference deployment (argus-watch-three.vercel.app, Nov 4 2026, from `/api/status.features`): sign-in, GitHub App, `FIX_ENABLED` and the Muse Code runner are configured; the 5-minute tick schedule is delivering; **Web Push is not configured** (no VAPID keys). On a new deployment the landing page shows "Sign-in is not configured on this deployment yet" and `POST /api/auth/sign-in/social` answers 503 until step C is done.
 
 A. **GitHub App → OAuth client (for sign-in).** On the App's settings page (github.com/settings/apps/<slug>): under "Identifying and authorizing users" set Callback URL `https://argus-watch-three.vercel.app/api/auth/callback/github`; tick **Expire user authorization tokens** off or on (both work); leave "Request user authorization (OAuth) during installation" **off**. Click **Generate a new client secret**; copy the **Client ID** and the secret.
 B. **GitHub App → private key, permissions, events.** Under "Private keys" click **Generate a private key** (downloads a `.pem`). Under "Permissions & events": Repository → Metadata Read, Contents **Read and write**, Pull requests **Read and write**, Checks Read; Account → Email addresses Read; Subscribe to events: Security advisory, Push, Installation, Installation repositories. Save. GitHub then asks every existing installation (your account) to **accept the new permissions**: open github.com/settings/installations → Argus Watch → "Review request" and accept. Set Setup URL `https://argus-watch-three.vercel.app/api/github/setup` with **Redirect on update** ticked.
@@ -65,7 +65,7 @@ C. **Vercel → Project → Settings → Environment Variables (Production)** ad
 D. **Verify:** open the site: the landing page shows **Sign in with GitHub**; sign in; **Repos → Connect GitHub** installs the App on a repository you own; tick it, **Watch selected**; packages > 0 appear. Enable **Allow draft pull requests** for that repository.
 E. **Produce an alert on your repository** (one of): wait for a matching live advisory; or, for a demo, add `"next": "14.2.10"` to a `package.json` + lockfile in that repository and replay GHSA-f82v (section 4). Then on the case page: **Draft fix** → diff → **Approve & open draft PR…** → the draft PR link and the "Repository CI" panel appear.
 F. **QStash schedule** (section 2 step 4) and **heartbeat secrets** (step 5). `/api/status` → `infra.scheduler.tick_schedule_detected` becomes `true` after the first delivery from the schedule; until then the legacy `rss`/`kev` schedules also run every other due poller.
-G. Optional for the demo: `ALERT_WEBHOOK_URL` (Slack/Discord), `GOOGLE_TRANSLATE_API_KEY`, VAPID keys (section 1).
+G. Optional for the demo: `ALERT_WEBHOOK_URL` (Slack/Discord), `GOOGLE_TRANSLATE_API_KEY`, VAPID keys (section 1; generate with `npx web-push generate-vapid-keys`, set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, redeploy). Then Settings → Enable browser push → **Send test notification** proves delivery to that device.
 
 ## 3. Register demo repositories (admin API; users use the Repos page instead)
 
@@ -105,5 +105,7 @@ npm run typecheck && npm run lint
 ```
 
 Set at least `META_API_KEY`, `GITHUB_TOKEN`, `ADMIN_TOKEN` in `.env.local`; add the sign-in and App variables to try onboarding locally (GitHub callback URLs must then point at `http://localhost:3000`). Trigger the scheduler with `curl -X POST "localhost:3000/api/poll/tick?force=1" -H "authorization: Bearer $ADMIN_TOKEN"`.
+
+**Second dev server from the same checkout:** set `NEXT_DIST_DIR=.next-<name>` and a different port (see `.claude/launch.json`). `next.config.ts` then generates a git-ignored `tsconfig.next-<name>.json` that extends `tsconfig.json`, and points Next.js at it, because Next.js adds the dist dir's type paths to the `include` of whichever tsconfig it uses. The tracked `tsconfig.json` is therefore never rewritten by a dev server, and `git pull` is not blocked by it. Do not commit the generated files.
 
 **Signed-in UI without OAuth credentials (local only):** `AW_DEV_USER=<login>` in `.env.local` signs in a stub user `dev:<login>`. It is honoured only when `NODE_ENV` is not `production` **and** none of the sign-in variables is set, so it can never activate on Vercel. With `DEMO_SHARED_REPOS=1` the stub sees admin-registered repos; `{"op":"watch","repo":"owner/name","subdir":"…","user_id":"dev:<login>","allow_pr":true}` links a repository to the stub so the approval dialog can be exercised (the apply is still refused without an App installation).

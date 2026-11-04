@@ -45,3 +45,6 @@ yarn-error.log*
 .env*
 
 !.env.example
+
+# generated per-distDir tsconfig for a second dev server (next.config.ts)
+/tsconfig.next-*.json
