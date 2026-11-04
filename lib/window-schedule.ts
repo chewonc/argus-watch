@@ -10,8 +10,6 @@ import { z } from "zod";
 
 export const LEVELS = ["investigate", "prepare", "draft_pr"] as const;
 export type Level = (typeof LEVELS)[number];
-/** Levels the server accepts. "draft_pr" additionally needs a per-window consent (lib/window-consent.ts) checked at every write. */
-export const ENABLED_LEVELS: readonly Level[] = ["investigate", "prepare", "draft_pr"];
 
 export const LEVEL_TEXT: Record<Level, { title: string; desc: string }> = {
   investigate: { title: "Investigate only", desc: "Re-check findings against your current code. Nothing is changed." },
@@ -41,6 +39,7 @@ export const WindowSchedule = z.object({
   max_jobs: z.number().int().min(1).max(LIMITS.maxJobs).default(1),
   budget_usd: z.number().min(0.1).max(LIMITS.maxBudgetUsd).default(5),
   level: z.enum(LEVELS).default("prepare"),
+  quiet: z.boolean().default(true), // while the window runs, push only critical alerts (others stay in-app); the summary is always sent
   deadline: z.enum(["finish", "stop"]).default("finish"), // in-flight runner jobs at the deadline: let them finish (results held) or cancel them
   created_at: z.string(),
   updated_at: z.string(),
@@ -165,7 +164,7 @@ export function scheduleErrors(s: Pick<WindowSchedule, "kind" | "tz" | "start" |
     if (!s.date || !DATE.test(s.date)) e.push("Pick a date for a one-time window.");
     else if (!e.length && occurrenceOn(s as Times, s.date).end_ms <= now) e.push("That window has already ended.");
   }
-  if (!ENABLED_LEVELS.includes(s.level)) e.push("Creating pull requests without you is not available yet. Choose Investigate only or Prepare fixes.");
+  if (!LEVELS.includes(s.level)) e.push("Unknown level.");
   if (allowedRepos) for (const r of s.repos) if (!allowedRepos.has(r)) e.push(`You do not monitor ${r}.`);
   return e;
 }

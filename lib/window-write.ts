@@ -33,7 +33,7 @@ export type WriteDeps = {
   approveDraftPr(fix: Fix, a: Assessment, f: Finding | null, installationId: number, approver: string): Promise<Fix>;
 };
 
-export type WriteOutcome = { ok: true; pr_url: string | null } | { ok: false; held: string };
+export type WriteOutcome = { ok: true; pr_url: string | null } | { ok: false; held: string; transient?: boolean };
 
 const hold = (why: string): WriteOutcome => ({ ok: false, held: why });
 
@@ -46,7 +46,8 @@ export async function openDraftPr(run: WindowRun, fixId: string, d: WriteDeps): 
     const fix = await d.getFix(fixId);
     if (!fix || fix.user_id !== run.user_id) return hold("the fix record is missing");
     const repoKey = fix.repo_key;
-    const cp = consentProblem(await d.consent(run.occurrence_key), { userId: run.user_id, occurrenceKey: run.occurrence_key, repoKey, now });
+    const consent = await d.consent(run.occurrence_key); // read once: the login below comes from the consent that was validated
+    const cp = consentProblem(consent, { userId: run.user_id, occurrenceKey: run.occurrence_key, repoKey, now });
     if (cp) return hold(cp);
     if (!d.fixEnabled()) return hold("automated fixes are turned off on this deployment");
     if (await d.isSystemRepo(repoKey)) return hold("shared demo repositories never receive changes");
@@ -60,7 +61,7 @@ export async function openDraftPr(run: WindowRun, fixId: string, d: WriteDeps): 
     if (!i || i.suspended) return hold("the GitHub App installation is suspended or removed");
     const p = await d.installationPermissions(inst);
     if (p.contents !== "write" || p.pull_requests !== "write") return hold("the GitHub App installation lacks Contents and Pull requests write access");
-    const login = (await d.consent(run.occurrence_key))!.login;
+    const login = consent!.login;
     const live = await d.livePermission(inst, fix.repo, login);
     const ghId = Number(run.user_id.replace(/^gh:/, ""));
     if (!live.user_id || live.user_id !== ghId) return hold("GitHub could not confirm your identity on this repository");
@@ -76,6 +77,7 @@ export async function openDraftPr(run: WindowRun, fixId: string, d: WriteDeps): 
     const done = await d.approveDraftPr(fix, ctx.a, ctx.f, inst, `${login} (autonomous window ${run.id.slice(0, 24)})`);
     return { ok: true, pr_url: done.pr_url ?? null };
   } catch (e) {
-    return hold(`a check could not be completed (${String((e as Error).message ?? e).slice(0, 140)}), so no pull request was opened`);
+    // Unknown is never "allowed": hold. Marked temporary so the window may try again later (lib/window-run.ts PR_TRIES).
+    return { ok: false, held: `a check could not be completed (${String((e as Error).message ?? e).slice(0, 140)}), so no pull request was opened`, transient: true };
   }
 }

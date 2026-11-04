@@ -49,7 +49,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
             <Stat n={r.investigated} label="Investigated" /><Stat n={r.confirmed} label="Confirmed" /><Stat n={r.fixes_generated} label="Fixes generated" /><Stat n={r.validated} label="Fixes ready to review" />
             <Stat n={r.tests_failed} label="Tests failed" /><Stat n={r.needs_review} label="Need your review" /><Stat n={r.prs_created} label="Draft PRs created" /><Stat n={`$${r.spent_usd.toFixed(2)}`} label={`Estimated cost · ${dur(r.duration_ms)}`} />
           </div>
-          <p className="text-[calc(13px*var(--ui))] text-ink2">Costs are estimates per operation. Validated fixes passed the repository&apos;s tests (or static checks where no tests exist) in an isolated runner; whether the vulnerability is gone is not verified by execution. Open a finding to review and approve its patch.</p>
+          <p className="text-[calc(13px*var(--ui))] text-ink2">Costs are estimates per operation. Validated fixes passed the repository&apos;s tests (or static checks where no tests exist) in an isolated runner, and the patched code was re-checked statically against the finding&apos;s conditions (shown per finding). Whether the vulnerability is gone is not proven by running an exploit. Open a finding to review and approve its patch.</p>
         </section>
       )}
 

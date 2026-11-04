@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { authorizeNextWindow, deleteWindowSchedule, saveWindowSchedule, toggleWindowSchedule } from "@/app/settings/window-actions";
 import { consentFor, consentProblem } from "@/lib/window-consent";
-import { ScheduleForm } from "@/components/window-forms";
+import { AuthorizeButton, ScheduleForm } from "@/components/window-forms";
 import { store } from "@/lib/store";
 import type { WindowRun } from "@/lib/window-run";
-import { addDays, dateKey, fmtLocal, LEVEL_TEXT, nextOccurrence, wallAt, type WindowSchedule } from "@/lib/window-schedule";
+import { dateKey, fmtLocal, LEVEL_TEXT, nextOccurrence, occurrenceOn, wallAt, type WindowSchedule } from "@/lib/window-schedule";
 
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const RUN_STATUS: Record<string, string> = { running: "Running", paused: "Paused", finishing: "Finishing running tests", completed: "Finished", cancelled: "Cancelled" };
@@ -22,7 +22,7 @@ async function load(userId: string) {
   const now = Date.now();
   return {
     now, runs, repos: mine.filter((u) => !u.paused && !u.access_lost).map((u) => u.repo_key), today: dateKey(wallAt("UTC", now)),
-    list: await Promise.all(schedules.filter((s) => !(s.kind === "once" && !nextOccurrence(s, now))).sort((a, b) => a.created_at.localeCompare(b.created_at)).map(async (s) => {
+    list: await Promise.all(schedules.filter((s) => !(s.kind === "once" && !!s.date && occurrenceOn(s, s.date).end_ms <= now)).sort((a, b) => a.created_at.localeCompare(b.created_at)).map(async (s) => {
       const next = nextOccurrence(s, now);
       // draft_pr: is the next occurrence authorized? (any repository it lists counts; each PR re-checks its own repository)
       const c = s.level === "draft_pr" && next ? await consentFor(next.key) : null;
@@ -48,7 +48,7 @@ export async function RemediationWindows({ userId }: { userId: string }) {
                     {s.level === "draft_pr" && s.enabled && next && <span className={`text-[calc(13px*var(--ui))] ${authorized ? "tone-ok" : "tone-warn"}`}>{authorized ? "Draft pull requests authorized for this window." : `Draft pull requests not authorized for this window (${authProblem}); fixes will be prepared and held for your review.`}</span>}
                   </span>
                   <span className="flex gap-2">
-                    {s.level === "draft_pr" && s.enabled && next && !authorized && <form action={authorizeNextWindow}><input type="hidden" name="id" value={s.id} /><button type="submit" className="btn-ghost">Authorize this window</button></form>}
+                    {s.level === "draft_pr" && s.enabled && next && !authorized && <AuthorizeButton action={authorizeNextWindow} id={s.id} />}
                     <form action={toggleWindowSchedule}><input type="hidden" name="id" value={s.id} /><button type="submit" className="btn-ghost">{s.enabled ? "Turn off" : "Turn on"}</button></form>
                     <form action={deleteWindowSchedule}><input type="hidden" name="id" value={s.id} /><button type="submit" className="btn-ghost btn-danger">Delete</button></form>
                   </span>
@@ -59,7 +59,7 @@ export async function RemediationWindows({ userId }: { userId: string }) {
           })}
         </ul>
       )}
-      <details className="disclose" open={list.length === 0}><summary className="font-medium">Add a window</summary><div className="mt-2"><ScheduleForm action={saveWindowSchedule} repos={repos} today={addDays(today, 0).key} /></div></details>
+      <details className="disclose" open={list.length === 0}><summary className="font-medium">Add a window</summary><div className="mt-2"><ScheduleForm action={saveWindowSchedule} repos={repos} today={today} /></div></details>
       {runs.length > 0 && (
         <div className="grid gap-1">
           <div className="label">Recent runs</div>

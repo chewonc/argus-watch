@@ -55,6 +55,7 @@ function Common({ repos, d }: { repos: string[]; d?: Partial<Record<string, unkn
           <select name="min_severity" defaultValue={(d?.min_severity as string) ?? "low"} className={input}><option value="low">All</option><option value="moderate">Moderate+</option><option value="high">High+</option><option value="critical">Critical</option></select>
         </label>
       </div>
+      <label className="flex items-center gap-2"><input type="checkbox" name="quiet" defaultChecked={(d?.quiet as boolean | undefined) ?? true} /> Only critical alerts may interrupt me during the window (others wait for the summary)</label>
       <label className="grid gap-1 w-fit">At the end of the window
         <select name="deadline" defaultValue={(d?.deadline as string) ?? "finish"} className={input}><option value="finish">Let running tests finish (results held for review)</option><option value="stop">Stop running tests</option></select>
       </label>
@@ -68,12 +69,14 @@ function Result({ s }: { s: FormState }) {
   return null;
 }
 
-export type ScheduleDefaults = { id?: string; kind?: "once" | "recurring"; tz?: string; start?: string; end?: string; days?: number[]; date?: string | null; label?: string; level?: string; repos?: string[]; max_issues?: number; max_jobs?: number; budget_usd?: number; min_severity?: string; deadline?: string };
+export type ScheduleDefaults = { id?: string; kind?: "once" | "recurring"; tz?: string; start?: string; end?: string; days?: number[]; date?: string | null; label?: string; level?: string; repos?: string[]; max_issues?: number; max_jobs?: number; budget_usd?: number; min_severity?: string; deadline?: string; quiet?: boolean };
 
 export function ScheduleForm({ action, repos, d, today }: { action: Action; repos: string[]; d?: ScheduleDefaults; today: string }) {
   const [state, run, pending] = useActionState(action, { ok: false, error: null });
   const z = useZones(d?.tz);
   const [kind, setKind] = useState<"once" | "recurring">(d?.kind ?? "recurring");
+  // The browser's own date (en-CA formats as YYYY-MM-DD); the server's UTC date is only the first-render fallback.
+  const localToday = useSyncExternalStore(noSubscribe, () => new Date().toLocaleDateString("en-CA"), () => today);
   return (
     <form action={run} className="grid gap-3 text-[calc(14px*var(--ui))] border hair rounded-[8px] p-3">
       {d?.id && <input type="hidden" name="id" value={d.id} />}
@@ -82,7 +85,7 @@ export function ScheduleForm({ action, repos, d, today }: { action: Action; repo
         <label className="grid gap-1">Repeats
           <select name="kind" value={kind} onChange={(e) => setKind(e.target.value as "once" | "recurring")} className={input}><option value="recurring">Recurring</option><option value="once">One time</option></select>
         </label>
-        {kind === "once" && <label className="grid gap-1">Date<input name="date" type="date" defaultValue={d?.date ?? today} className={input} required /></label>}
+        {kind === "once" && <label className="grid gap-1">Date<input key={localToday} name="date" type="date" defaultValue={d?.date ?? localToday} className={input} required /></label>}
         <label className="grid gap-1">Start<input name="start" type="time" defaultValue={d?.start ?? "23:00"} className={input} required /></label>
         <label className="grid gap-1">End<input name="end" type="time" defaultValue={d?.end ?? "07:00"} className={input} required /></label>
         <ZoneSelect {...z} />
@@ -112,6 +115,18 @@ export function StartNowForm({ action, repos }: { action: Action; repos: string[
       </div>
       <Common repos={repos} />
       <div className="flex items-center gap-3"><button type="submit" className="btn btn-primary w-fit" disabled={pending}>{pending ? "Starting…" : "Start window now"}</button><Result s={state} /></div>
+    </form>
+  );
+}
+
+/** "Authorize this window" for a recurring draft-PR window; shows why when the server refuses. */
+export function AuthorizeButton({ action, id }: { action: Action; id: string }) {
+  const [state, run, pending] = useActionState(action, { ok: false, error: null });
+  return (
+    <form action={run} className="grid gap-1 justify-items-end">
+      <input type="hidden" name="id" value={id} />
+      <button type="submit" className="btn-ghost" disabled={pending}>{pending ? "Checking access…" : "Authorize this window"}</button>
+      {state.error && <span role="alert" className="tone-warn text-[calc(12px*var(--ui))] max-w-[calc(320px*var(--ui))] text-right">{state.error}</span>}
     </form>
   );
 }

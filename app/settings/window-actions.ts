@@ -10,9 +10,9 @@ import type { User } from "@/lib/schema";
 import { githubUserToken, isSystemRepo, requireUser } from "@/lib/session";
 import { issueConsent, revokeConsents } from "@/lib/window-consent";
 import { store } from "@/lib/store";
-import { windowDeps } from "@/lib/window-deps";
-import { openRun } from "@/lib/window-run";
-import { addDays, dateKey, LIMITS, nextOccurrence, occurrenceOn, scheduleErrors, wallAt, WindowSchedule } from "@/lib/window-schedule";
+import { activeRepoKeys as activeRepos, windowDeps } from "@/lib/window-deps";
+import { activeRunFor, controlRun, openRun } from "@/lib/window-run";
+import { dateKey, LIMITS, nextOccurrence, scheduleErrors, wallAt, WindowSchedule } from "@/lib/window-schedule";
 
 export type FormState = { ok: boolean; error: string | null };
 
@@ -45,8 +45,10 @@ async function authorize(user: User, s: WindowSchedule, occ: { key: string; end_
   return null;
 }
 
-async function activeRepos(uid: string): Promise<string[]> {
-  return (await store.listUserRepos(uid)).filter((u) => !u.paused && !u.access_lost).map((u) => u.repo_key);
+/** Turning a window off or deleting it also stops its run in progress (in-flight tests are cancelled). */
+async function stopActiveRunOf(uid: string, scheduleId: string): Promise<void> {
+  const r = await activeRunFor(uid);
+  if (r && r.schedule_id === scheduleId) await controlRun(r.id, uid, "cancel", windowDeps());
 }
 
 function parseCommon(fd: FormData) {
@@ -61,6 +63,7 @@ function parseCommon(fd: FormData) {
     max_jobs: Math.round(num(fd.get("max_jobs"), 1)),
     budget_usd: num(fd.get("budget_usd"), 5),
     deadline: (fd.get("deadline") === "stop" ? "stop" : "finish") as WindowSchedule["deadline"],
+    quiet: fd.get("quiet") === "on",
   };
 }
 
@@ -99,7 +102,7 @@ export async function toggleWindowSchedule(fd: FormData) {
   const s = await store.getSchedule<WindowSchedule>(String(fd.get("id") ?? ""));
   if (!s || s.user_id !== user.id) return;
   await store.putSchedule({ ...s, enabled: !s.enabled, updated_at: new Date().toISOString() });
-  if (s.enabled) await revokeConsents((c) => c.schedule_id === s.id, "window turned off");
+  if (s.enabled) { await revokeConsents((c) => c.schedule_id === s.id, "window turned off"); await stopActiveRunOf(user.id, s.id); }
   revalidatePath("/settings");
 }
 
@@ -108,6 +111,7 @@ export async function deleteWindowSchedule(fd: FormData) {
   const s = await store.getSchedule<WindowSchedule>(String(fd.get("id") ?? ""));
   if (!s || s.user_id !== user.id) return;
   await revokeConsents((c) => c.schedule_id === s.id, "window deleted");
+  await stopActiveRunOf(user.id, s.id);
   await store.deleteSchedule(user.id, s.id);
   revalidatePath("/settings");
 }
@@ -117,39 +121,47 @@ export async function startWindowNow(_prev: FormState, fd: FormData): Promise<Fo
   const user = await requireUser("/alerts");
   const tz = String(fd.get("tz") ?? "").trim();
   const hours = Math.min(LIMITS.maxHours, Math.max(1, Math.round(num(fd.get("hours"), 8))));
-  let local;
-  try { local = wallAt(tz, Date.now()); } catch { return { ok: false, error: `Unknown timezone "${tz}".` }; }
-  const startMin = local.h * 60 + local.min, endMin = (startMin + hours * 60) % 1440;
+  const active = await activeRunFor(user.id);
+  if (active) return { ok: false, error: "A remediation window is already running. Open it from the banner above, or cancel it first." };
+  // Exactly `hours` of real time from this minute, even on a daylight-saving changeover day.
+  const startMs = Math.floor(Date.now() / 60e3) * 60e3, endMs = startMs + hours * 36e5;
+  let local, localEnd;
+  try { local = wallAt(tz, startMs); localEnd = wallAt(tz, endMs); } catch { return { ok: false, error: `Unknown timezone "${tz}".` }; }
   const now = new Date().toISOString();
   const parsed = WindowSchedule.safeParse({
     ...parseCommon(fd), id: `w${randomBytes(6).toString("hex")}`, user_id: user.id, enabled: true, kind: "once", tz,
-    start: `${pad(local.h)}:${pad(local.min)}`, end: `${pad(Math.floor(endMin / 60))}:${pad(endMin % 60)}`, date: dateKey(local), label: String(fd.get("label") ?? "") || "Started from the dashboard",
+    start: `${pad(local.h)}:${pad(local.min)}`, end: `${pad(localEnd.h)}:${pad(localEnd.min)}`, date: dateKey(local), label: String(fd.get("label") ?? "") || "Started from the dashboard",
     created_at: now, updated_at: now,
   });
   if (!parsed.success) return { ok: false, error: `Check the limits: at most ${LIMITS.maxIssues} issues, ${LIMITS.maxJobs} parallel jobs and $${LIMITS.maxBudgetUsd} per window.` };
   const errs = scheduleErrors(parsed.data, Date.now(), new Set(await activeRepos(user.id)));
   if (errs.length) return { ok: false, error: errs[0] };
   const lb = levelBlocked(parsed.data.level); if (lb) return { ok: false, error: lb };
-  const occ = occurrenceOn(parsed.data, parsed.data.date!);
-  if (parsed.data.level === "draft_pr") { const err = await authorize(user, parsed.data, { key: `${parsed.data.id}:${parsed.data.date}`, end_ms: occ.end_ms }); if (err) return { ok: false, error: err }; }
-  if (!(await store.claim(`wocc:${parsed.data.id}:${parsed.data.date}`))) return { ok: false, error: "That window is already open." };
+  const occ = { key: `${parsed.data.id}:${parsed.data.date}`, start_ms: startMs, end_ms: endMs };
+  if (parsed.data.level === "draft_pr") { const err = await authorize(user, parsed.data, occ); if (err) return { ok: false, error: err }; }
+  if (!(await store.claim(`wocc:${occ.key}`))) return { ok: false, error: "That window is already open." };
   await store.putSchedule(parsed.data);
-  const run = await openRun(parsed.data, { key: `${parsed.data.id}:${parsed.data.date}`, start_ms: occ.start_ms, end_ms: occ.end_ms }, windowDeps());
-  if (!run) return { ok: false, error: "The window could not be opened." };
-  if (run.status === "cancelled") return { ok: false, error: run.stop_reason ?? "Another window is already running." };
+  const run = await openRun(parsed.data, occ, windowDeps());
+  if (!run || run.status === "cancelled") {
+    // Refused (another window started meanwhile): leave nothing behind, no live authorization and no orphan schedule.
+    await revokeConsents((c) => c.schedule_id === parsed.data.id, "the window could not start");
+    await store.deleteSchedule(user.id, parsed.data.id);
+    return { ok: false, error: run?.stop_reason ?? "The window could not be opened." };
+  }
   revalidatePath("/alerts"); revalidatePath("/settings");
   redirect(`/runs/${encodeURIComponent(run.id)}`);
 }
 
-/** Recurring draft-PR windows: authorize the next occurrence (consent covers one occurrence at a time). */
-export async function authorizeNextWindow(fd: FormData) {
+/** Recurring draft-PR windows: authorize the next occurrence (consent covers one occurrence at a time). The reason is shown when refused. */
+export async function authorizeNextWindow(_prev: FormState, fd: FormData): Promise<FormState> {
   const user = await requireUser("/settings");
   const s = await store.getSchedule<WindowSchedule>(String(fd.get("id") ?? ""));
-  if (!s || s.user_id !== user.id || s.level !== "draft_pr" || !s.enabled) return;
+  if (!s || s.user_id !== user.id) return { ok: false, error: "That window no longer exists." };
+  if (s.level !== "draft_pr" || !s.enabled) return { ok: false, error: "This window does not create pull requests, or it is turned off." };
   const occ = nextOccurrence(s, Date.now());
-  if (occ) { const err = await authorize(user, s, occ); if (err) await store.log({ kind: "fix", source: "settings", detail: `authorization refused: ${err}`, ref: s.id }).catch(() => {}); }
+  if (!occ) return { ok: false, error: "This window has no upcoming run." };
+  const err = await authorize(user, s, occ);
+  if (err) return { ok: false, error: err };
   revalidatePath("/settings");
+  return { ok: true, error: null };
 }
-
-/** Today's local date in a zone, for the one-time form default. */
-export async function localDateIn(tz: string, plusDays = 0): Promise<string> { return addDays(dateKey(wallAt(tz, Date.now())), plusDays).key; }

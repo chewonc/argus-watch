@@ -20,7 +20,7 @@
 //   - failures: every operation is isolated; three consecutive failures stop new work for the rest of the window
 import { randomBytes } from "node:crypto";
 import { activeOccurrence, type Level, type WindowSchedule } from "./window-schedule";
-import { store } from "./store";
+import { kv, store } from "./store";
 
 export const COST_USD = { verify: 0.04, draft: 0.03, runner: 0.3 } as const; // estimates per operation, shown as estimates
 export const RUNNER_MARGIN_MS = 20 * 60e3;
@@ -28,6 +28,8 @@ export const VERIFY_MARGIN_MS = 3 * 60e3;
 export const END_GRACE_MS = 30 * 60e3;
 export const RUNNER_TIMEOUT_MS = 45 * 60e3;
 export const OPS_PER_STEP = 3;
+export const LEASE_MS = 6 * 60e3; // longer than one step can run (route maxDuration 300 s)
+export const PR_TRIES = 3;
 const MAX_EVENTS = 150;
 
 export type ItemStage = "verifying" | "confirmed" | "not_affected" | "unclear" | "drafted" | "running" | "validated" | "pr_created" | "tests_failed" | "failed" | "cancelled" | "timed_out";
@@ -35,15 +37,16 @@ export type RunItem = {
   assessment_id: string; repo: string; finding_id: string; title: string; severity: string;
   stage: ItemStage; fix_id: string | null; note: string; cost_usd: number; started_at: string; updated_at: string;
   retry?: boolean; // drafted, runner deferred by a limit that can clear (concurrency): try again on a later step
-  pr_tried?: boolean; // draft_pr level: one pull-request attempt per validated patch; a held patch waits for the user
+  pr_tried?: boolean; // draft_pr level: the pull-request decision is final (opened, or held for a definite reason)
+  pr_tries?: number; // attempts that failed for a temporary reason (GitHub errors); retried up to PR_TRIES
   pr_url?: string | null;
 };
 export type RunStatus = "running" | "paused" | "finishing" | "completed" | "cancelled";
 export type WindowRun = {
   id: string; schedule_id: string; user_id: string; occurrence_key: string; label: string; tz: string; level: Level; deadline: "finish" | "stop";
-  start_ms: number; end_ms: number; repos: string[]; min_severity: string;
+  start_ms: number; end_ms: number; repos: string[]; min_severity: string; quiet?: boolean;
   limits: { max_issues: number; max_jobs: number; budget_usd: number };
-  status: RunStatus; stop_reason: string | null; spent_usd: number; failures_in_row: number;
+  status: RunStatus; stop_reason: string | null; stop_final?: boolean; spent_usd: number; failures_in_row: number;
   items: RunItem[]; events: { at: string; kind: string; detail: string }[];
   created_at: string; finished_at: string | null; report: RunReport | null;
 };
@@ -57,7 +60,7 @@ export class Precondition extends Error { readonly precondition = true; }
 const refused = (e: unknown) => !!(e && typeof e === "object" && "precondition" in e);
 
 export type Candidate = { assessment_id: string; repo: string; finding_id: string; title: string; severity: string; verified: boolean; kev: boolean };
-export type FixState = { status: string; error: string | null; pr_url: string | null; dispatched_at: string | null };
+export type FixState = { status: string; error: string | null; pr_url: string | null; dispatched_at: string | null; tests?: string | null; recheck?: string | null };
 
 /** Side effects the driver needs. Production wiring: lib/window-deps.ts. Tests pass fakes. */
 export type Deps = {
@@ -74,7 +77,7 @@ export type Deps = {
   cancelFix(fixId: string): Promise<void>;
   notify(run: WindowRun): Promise<void>;
   /** draft_pr level only: lib/window-write.ts openDraftPr (all authorization checks inside). */
-  openDraftPr(fixId: string, run: WindowRun): Promise<{ ok: true; pr_url: string | null } | { ok: false; held: string }>;
+  openDraftPr(fixId: string, run: WindowRun): Promise<{ ok: true; pr_url: string | null } | { ok: false; held: string; transient?: boolean }>;
 };
 
 const SEV_RANK: Record<string, number> = { critical: 4, high: 3, moderate: 2, medium: 2, low: 1, unknown: 0, none: 0 };
@@ -118,7 +121,7 @@ function ev(r: WindowRun, now: number, kind: string, detail: string): void {
 export function newRun(s: WindowSchedule, occ: { key: string; start_ms: number; end_ms: number }, now: number, repos: string[]): WindowRun {
   return {
     id: `${occ.key.replace(/[^A-Za-z0-9-]/g, "-")}-${randomBytes(4).toString("hex")}`, schedule_id: s.id, user_id: s.user_id, occurrence_key: occ.key, label: s.label || (s.kind === "once" ? "One-time window" : "Recurring window"),
-    tz: s.tz, level: s.level, deadline: s.deadline, start_ms: occ.start_ms, end_ms: occ.end_ms, repos, min_severity: s.min_severity,
+    tz: s.tz, level: s.level, deadline: s.deadline, start_ms: occ.start_ms, end_ms: occ.end_ms, repos, min_severity: s.min_severity, quiet: s.quiet,
     limits: { max_issues: s.max_issues, max_jobs: s.max_jobs, budget_usd: s.budget_usd },
     status: "running", stop_reason: null, spent_usd: 0, failures_in_row: 0, items: [], events: [{ at: iso(now), kind: "started", detail: `window opened (${s.level}); ends ${iso(occ.end_ms)}` }],
     created_at: iso(now), finished_at: null, report: null,
@@ -134,6 +137,21 @@ export function summarize(r: WindowRun, now: number): RunReport {
     needs_review: n(["validated", "pr_created", "drafted", "unclear", "confirmed"]), prs_created: n(["pr_created"]), duration_ms: Math.max(0, Math.min(now, r.end_ms) - r.start_ms), spent_usd: Math.round(r.spent_usd * 100) / 100, stop_reason: r.stop_reason,
   };
 }
+
+/**
+ * Exclusive lease on a run (set-if-absent holding an expiry; an expired lease is taken over). Every mutation of a run
+ * happens under it, so two steps, or a step and a user control, never overwrite each other's changes.
+ */
+async function acquire(key: string, now: number): Promise<boolean> {
+  if (await kv.setnx(key, now + LEASE_MS)) return true;
+  const held = await kv.get<number>(key);
+  if (typeof held === "number" && held > now) return false;
+  await kv.del(key);
+  return kv.setnx(key, now + LEASE_MS);
+}
+const leaseKey = (id: string) => `wlease:${id}`;
+const controlKey = (id: string) => `wctl:${id}`;
+const userKey = (uid: string) => `wactive:${uid}`;
 
 /** Start a run for every enabled schedule whose occurrence is in progress. Idempotent: the occurrence claim makes a second call a no-op. */
 export async function startDueRuns(deps: Deps, schedules?: WindowSchedule[]): Promise<string[]> {
@@ -156,13 +174,24 @@ export async function openRun(s: WindowSchedule, occ: { key: string; start_ms: n
   const mine = new Set(await deps.activeRepos(s.user_id));
   const repos = (s.repos.length ? s.repos : [...mine]).filter((r) => mine.has(r));
   const run = newRun(s, occ, now, repos);
-  if (active) {
-    run.status = "cancelled"; run.stop_reason = `another window was already running (${active.id})`; run.finished_at = iso(now);
+  // One active run per user, atomically: the user's slot holds the run id until that run is finalized.
+  let slot = !active && (await kv.setnx(userKey(s.user_id), run.id));
+  if (!active && !slot) {
+    const holder = await kv.get<string>(userKey(s.user_id));
+    const h = holder ? await store.getRun<WindowRun>(holder) : null;
+    if (!h || isTerminal(h)) { await kv.del(userKey(s.user_id)); slot = await kv.setnx(userKey(s.user_id), run.id); }
+  }
+  if (active || !slot) {
+    run.status = "cancelled"; run.stop_reason = `another window was already running${active ? ` (${active.id})` : ""}`; run.finished_at = iso(now);
     ev(run, now, "skipped", run.stop_reason); run.report = summarize(run, now);
     await store.putRun(run, true); await store.retireRun(run.id);
     return run;
   }
   if (!repos.length) ev(run, now, "warning", "no monitored repositories are in scope for this window");
+  if (s.level === "draft_pr") {
+    const { consentFor } = await import("./window-consent");
+    if (!(await consentFor(occ.key))) ev(run, now, "warning", "draft pull requests were not authorized for this window; validated fixes will wait for your review");
+  }
   await store.putRun(run, true);
   await store.log({ kind: "fix", source: "window", detail: `remediation window opened for ${s.user_id} (${s.level}, ${repos.length} repositories)`, ref: run.id });
   return run;
@@ -180,6 +209,7 @@ async function finalize(r: WindowRun, now: number, deps: Deps, status: "complete
   r.status = status; r.finished_at = iso(now); r.report = summarize(r, now);
   ev(r, now, status, `${r.report.investigated} investigated, ${r.report.validated} validated fix(es), ${r.report.needs_review} need review; estimated cost $${r.report.spent_usd.toFixed(2)}`);
   await store.putRun(r); await store.retireRun(r.id);
+  if ((await kv.get<string>(userKey(r.user_id))) === r.id) await kv.del(userKey(r.user_id));
   await deps.notify(r).catch((e) => store.log({ kind: "error", source: "window", detail: `report notification failed: ${String(e).slice(0, 160)}`, ref: r.id }));
   return r;
 }
@@ -188,7 +218,7 @@ async function finalize(r: WindowRun, now: number, deps: Deps, status: "complete
 function applyFixState(it: RunItem, st: FixState | null, now: number): void {
   if (!st) { it.stage = "failed"; it.note = "fix record missing"; return; }
   const was = it.stage;
-  if (st.status === "validated") { it.stage = "validated"; it.note = "tests passed or static checks only; waiting for your review"; }
+  if (st.status === "validated") { it.stage = "validated"; it.note = `${st.tests ?? "no tests were run (static checks only)"}; ${st.recheck ? `re-check of the patched code: ${st.recheck}` : "patched code not re-checked"}; waiting for your review`; }
   else if (st.status === "validation_failed") { it.stage = "tests_failed"; it.note = st.error ?? "the patch failed validation"; }
   else if (st.status === "failed") { it.stage = "failed"; it.note = st.error ?? "the runner failed"; }
   else if (st.status === "cancelled") { it.stage = "cancelled"; it.note = "runner cancelled"; }
@@ -196,16 +226,13 @@ function applyFixState(it: RunItem, st: FixState | null, now: number): void {
   if (it.stage !== was) it.updated_at = iso(now);
 }
 
-/** User controls. Pause stops new work (in-flight jobs continue); resume continues before the deadline; cancel stops everything now. */
-export async function controlRun(id: string, uid: string, action: "pause" | "resume" | "cancel", deps: Deps): Promise<WindowRun> {
-  const r = await store.getRun<WindowRun>(id);
-  if (!r || r.user_id !== uid) throw new Error("not found");
-  const now = deps.now();
+/** Apply a user control to a run already held under its lease. Returns the run as stored. */
+async function applyControl(r: WindowRun, action: "pause" | "resume" | "cancel", now: number, deps: Deps): Promise<WindowRun> {
   if (isTerminal(r)) return r;
   if (action === "pause" && r.status === "running") { r.status = "paused"; ev(r, now, "paused", "paused by you; no new work starts"); }
   else if (action === "resume" && r.status === "paused") { if (now >= r.end_ms) throw new Error("the window has already ended"); r.status = "running"; ev(r, now, "resumed", "resumed by you"); }
   else if (action === "cancel") {
-    for (const it of r.items.filter((i) => i.stage === "running" && i.fix_id)) { await deps.cancelFix(it.fix_id!).catch(() => {}); it.stage = "cancelled"; it.note = "cancelled with the window"; it.updated_at = iso(now); }
+    for (const it of r.items.filter((i) => i.stage === "running" || i.stage === "verifying")) { if (it.fix_id) await deps.cancelFix(it.fix_id).catch(() => {}); it.stage = "cancelled"; it.note = "cancelled with the window"; it.updated_at = iso(now); }
     ev(r, now, "cancel", "cancelled by you");
     await import("./window-consent").then((m) => m.revokeConsents((c) => c.occurrence_key === r.occurrence_key && c.user_id === r.user_id, "window cancelled")).catch(() => {});
     return finalize(r, now, deps, "cancelled");
@@ -214,15 +241,48 @@ export async function controlRun(id: string, uid: string, action: "pause" | "res
   return r;
 }
 
-/** One bounded step of an active run. Safe to call concurrently and repeatedly: a per-minute claim admits one caller. */
+/**
+ * User controls. Pause stops new work (in-flight jobs continue); resume continues before the deadline; cancel stops
+ * everything now. If a step holds the run, the request is queued and that step applies it before it stores anything.
+ */
+export async function controlRun(id: string, uid: string, action: "pause" | "resume" | "cancel", deps: Deps): Promise<WindowRun> {
+  const r0 = await store.getRun<WindowRun>(id);
+  if (!r0 || r0.user_id !== uid) throw new Error("not found");
+  const now = deps.now();
+  if (isTerminal(r0)) return r0;
+  if (!(await acquire(leaseKey(id), now))) { await kv.set(controlKey(id), action); return r0; }
+  try { return await applyControl((await store.getRun<WindowRun>(id)) ?? r0, action, now, deps); }
+  finally { await kv.del(leaseKey(id)); }
+}
+
+/** A control queued while a step held the run. */
+async function takeControl(id: string): Promise<"pause" | "resume" | "cancel" | null> {
+  const a = await kv.get<string>(controlKey(id));
+  if (!a) return null;
+  await kv.del(controlKey(id));
+  return a === "pause" || a === "resume" || a === "cancel" ? a : null;
+}
+
+/** One bounded step of an active run. Safe to call concurrently and repeatedly: the run's lease admits one caller at a time. */
 export async function stepRun(id: string, deps: Deps): Promise<{ run: WindowRun | null; did: string[] }> {
   const now = deps.now();
+  const first = await store.getRun<WindowRun>(id);
+  if (!first) { await store.retireRun(id); return { run: null, did: [] }; }
+  if (isTerminal(first)) { await store.retireRun(id); return { run: first, did: [] }; }
+  if (!(await acquire(leaseKey(id), now))) return { run: first, did: ["busy"] };
+  try {
+    let r = (await store.getRun<WindowRun>(id)) ?? first; // re-read under the lease
+    if (isTerminal(r)) return { run: r, did: [] };
+    const queued = await takeControl(id);
+    if (queued) { r = await applyControl(r, queued, now, deps); if (isTerminal(r)) return { run: r, did: [`${queued} applied`] }; }
+    if (r.status === "paused" && now < r.end_ms) return { run: r, did: ["paused"] };
+    return await stepLocked(r, now, deps);
+  } finally { await kv.del(leaseKey(id)); }
+}
+
+async function stepLocked(r: WindowRun, now: number, deps: Deps): Promise<{ run: WindowRun | null; did: string[] }> {
   const did: string[] = [];
-  let r = await store.getRun<WindowRun>(id);
-  if (!r) { await store.retireRun(id); return { run: null, did }; }
-  if (isTerminal(r)) { await store.retireRun(id); return { run: r, did }; }
-  if (r.status === "paused" && now < r.end_ms) return { run: r, did: ["paused"] }; // nothing to do; does not use up this minute's step
-  if (!(await store.claim(`wstep:${id}:${Math.floor(now / 60e3)}`))) return { run: r, did: ["busy"] };
+  const id = r.id;
 
   // 1. Follow in-flight runner jobs.
   for (const it of r.items.filter((i) => i.stage === "running" && i.fix_id)) applyFixState(it, await deps.fixState(it.fix_id!).catch(() => null), now);
@@ -235,10 +295,12 @@ export async function stepRun(id: string, deps: Deps): Promise<{ run: WindowRun 
   // 2b. draft_pr level: one pull-request attempt per validated patch, only while the window is active.
   if (r.level === "draft_pr" && r.status === "running" && now < r.end_ms) {
     for (const it of r.items.filter((i) => i.stage === "validated" && !i.pr_tried && i.fix_id)) {
-      it.pr_tried = true;
-      const out = await deps.openDraftPr(it.fix_id!, r).catch((e) => ({ ok: false as const, held: String((e as Error).message ?? e).slice(0, 160) }));
+      const out = await deps.openDraftPr(it.fix_id!, r).catch((e) => ({ ok: false as const, held: String((e as Error).message ?? e).slice(0, 160), transient: true }));
+      it.pr_tries = (it.pr_tries ?? 0) + 1;
+      const retry = !out.ok && !!out.transient && it.pr_tries < PR_TRIES;
+      it.pr_tried = !retry;
       if (out.ok) { it.stage = "pr_created"; it.pr_url = out.pr_url; it.note = "draft pull request opened for your review"; ev(r, now, "pr", `draft pull request for ${it.repo}${out.pr_url ? `: ${out.pr_url}` : ""}`); did.push(`draft PR ${it.repo}`); }
-      else { it.note = `validated; pull request held for your review: ${out.held}`; ev(r, now, "held", `${it.repo}: ${out.held}`); }
+      else { it.note = retry ? `validated; pull request not opened yet, will retry: ${out.held}` : `validated; pull request held for your review: ${out.held}`; ev(r, now, retry ? "retry" : "held", `${it.repo}: ${out.held}`); }
       it.updated_at = iso(now);
     }
   }
@@ -249,7 +311,8 @@ export async function stepRun(id: string, deps: Deps): Promise<{ run: WindowRun 
       r.status = "finishing"; ev(r, now, "deadline", `window ended; ${r.deadline === "stop" ? "cancelling in-flight jobs" : "letting in-flight jobs finish, results held for review"}`);
       if (r.deadline === "stop") for (const it of r.items.filter((i) => i.stage === "running" && i.fix_id)) { await deps.cancelFix(it.fix_id!).catch(() => {}); it.stage = "cancelled"; it.note = "cancelled at the window deadline"; it.updated_at = iso(now); }
     }
-    if (now >= r.end_ms + END_GRACE_MS) for (const it of r.items.filter((i) => i.stage === "running" && i.fix_id)) { await deps.cancelFix(it.fix_id!).catch(() => {}); it.stage = "timed_out"; it.note = "still running 30 minutes after the window ended; cancelled"; it.updated_at = iso(now); }
+    // Recovery: whatever is still in flight 30 minutes after the end (a runner, or a step that crashed mid-check) is closed.
+    if (now >= r.end_ms + END_GRACE_MS) for (const it of r.items.filter((i) => INFLIGHT.includes(i.stage))) { if (it.fix_id) await deps.cancelFix(it.fix_id).catch(() => {}); it.stage = "timed_out"; it.note = "still in progress 30 minutes after the window ended; stopped"; it.updated_at = iso(now); }
     if (!r.items.some((i) => INFLIGHT.includes(i.stage))) return { run: await finalize(r, now, deps), did: ["finalized"] };
     await store.putRun(r);
     return { run: r, did: ["waiting for in-flight jobs"] };
@@ -258,12 +321,14 @@ export async function stepRun(id: string, deps: Deps): Promise<{ run: WindowRun 
 
   // 4. New work, bounded per step.
   const seen = new Set(r.items.map((i) => i.finding_id + "|" + i.repo));
-  const all = prioritize((await deps.candidates(r, r.repos).catch(() => [] as Candidate[])).filter((c) => r!.repos.includes(c.repo) && severityAtLeast(c.severity, r!.min_severity)));
+  let lookupFailed = false;
+  const listed = await deps.candidates(r, r.repos).catch((e) => { lookupFailed = true; r.failures_in_row++; ev(r, now, "error", `could not list findings: ${String((e as Error).message ?? e).slice(0, 160)}`); return [] as Candidate[]; });
+  const all = prioritize(listed.filter((c) => r.repos.includes(c.repo) && severityAtLeast(c.severity, r.min_severity)));
   // Items confirmed earlier in this run that still need a fix (prepare level), then new candidates.
   const pending = prepares(r) ? r.items.filter((i) => i.stage === "confirmed" || (i.stage === "drafted" && i.retry)) : [];
   const fresh = all.filter((c) => !seen.has(c.finding_id + "|" + c.repo));
   let ops = 0;
-  const stop = (reason: string) => { if (r!.stop_reason !== reason) { r!.stop_reason = reason; ev(r!, now, "limit", reason); } };
+  const stop = (reason: string, final: boolean) => { if (final) r.stop_final = true; if (r.stop_reason !== reason) { r.stop_reason = reason; ev(r, now, "limit", reason); } };
 
   for (const it of pending) {
     if (ops >= OPS_PER_STEP) break;
@@ -272,8 +337,8 @@ export async function stepRun(id: string, deps: Deps): Promise<{ run: WindowRun 
   for (const c of fresh) {
     if (ops >= OPS_PER_STEP) break;
     const kind = c.verified ? (prepares(r) ? "draft" : null) : "verify";
-    if (kind) { const g = gate(r, now, kind, true); if (!g.ok) { stop(g.reason); if (g.final) break; continue; } }
-    else if (issuesStarted(r) >= r.limits.max_issues) { stop(`reached the limit of ${r.limits.max_issues} issue(s)`); break; }
+    if (kind) { const g = gate(r, now, kind, true); if (!g.ok) { stop(g.reason, g.final); if (g.final) break; continue; } }
+    else if (issuesStarted(r) >= r.limits.max_issues) { stop(`reached the limit of ${r.limits.max_issues} issue(s)`, true); break; }
     if (!(await store.claim(`witem:${r.id}:${c.assessment_id}`))) continue;
     const it: RunItem = { assessment_id: c.assessment_id, repo: c.repo, finding_id: c.finding_id, title: c.title, severity: c.severity, stage: c.verified ? "confirmed" : "verifying", fix_id: null, note: c.verified ? "already confirmed" : "", cost_usd: 0, started_at: iso(now), updated_at: iso(now) };
     r.items.push(it);
@@ -297,21 +362,25 @@ export async function stepRun(id: string, deps: Deps): Promise<{ run: WindowRun 
   }
 
   // 5. Nothing left to do and nothing in flight: close early.
-  const remaining = fresh.filter((c) => !r!.items.some((i) => i.finding_id === c.finding_id && i.repo === c.repo)).length + (prepares(r) ? r.items.filter((i) => i.stage === "confirmed" || (i.stage === "drafted" && i.retry)).length : 0);
-  const blocked = !!r.stop_reason && /limit|budget|failures/.test(r.stop_reason);
-  if (!r.items.some((i) => INFLIGHT.includes(i.stage)) && (remaining === 0 || blocked)) {
+  const remaining = fresh.filter((c) => !r!.items.some((i) => i.finding_id === c.finding_id && i.repo === c.repo)).length + (prepares(r) ? r.items.filter((i) => i.stage === "confirmed" || (i.stage === "drafted" && i.retry)).length : 0)
+    + (r.level === "draft_pr" ? r.items.filter((i) => i.stage === "validated" && !i.pr_tried && i.fix_id).length : 0); // a pull request still to retry
+  const blocked = !!r.stop_final || r.failures_in_row >= 3;
+  if (!lookupFailed && !r.items.some((i) => INFLIGHT.includes(i.stage)) && (remaining === 0 || blocked)) {
+    if (!r.stop_reason && r.failures_in_row >= 3) r.stop_reason = "stopped after three consecutive failures";
     if (!r.stop_reason) r.stop_reason = "no eligible findings left";
     return { run: await finalize(r, now, deps), did: [...did, "finalized"] };
   }
+  // A control that arrived during this step is applied before the step's changes are stored.
+  const late = await takeControl(id);
+  if (late) return { run: await applyControl(r, late, now, deps), did: [...did, `${late} applied`] };
   await store.putRun(r);
-  r = await store.getRun<WindowRun>(id) ?? r;
   return { run: r, did };
 }
 
 /** Draft a fix and start the isolated runner (preview mode) for a confirmed item. */
 async function prepareItem(r: WindowRun, it: RunItem, now: number, deps: Deps): Promise<"did" | "skip" | "stop"> {
   if (!it.fix_id) {
-    const g = gate(r, now, "draft", false); if (!g.ok) { if (r.stop_reason !== g.reason) { r.stop_reason = g.reason; ev(r, now, "limit", g.reason); } return g.final ? "stop" : "skip"; }
+    const g = gate(r, now, "draft", false); if (!g.ok) { if (g.final) r.stop_final = true; if (r.stop_reason !== g.reason) { r.stop_reason = g.reason; ev(r, now, "limit", g.reason); } return g.final ? "stop" : "skip"; }
     r.spent_usd += COST_USD.draft; it.cost_usd += COST_USD.draft;
     try {
       const d = await deps.draft(it.assessment_id, r.user_id);

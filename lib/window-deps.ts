@@ -23,12 +23,15 @@ const ACTOR = "autonomous window";
 /** Fix states that mean the finding is already being handled (or waits for the user): a window never starts a second attempt. */
 const BUSY = new Set(["drafting", "queued", "running", "validated", "approved", "pr_created", "merging", "merged", "branch_pushed"]);
 
+/** Repositories the user monitors and may act on: not paused, access not lost. Shared by the driver and the Settings actions. */
+export async function activeRepoKeys(uid: string): Promise<string[]> {
+  return (await store.listUserRepos(uid)).filter((u) => !u.paused && !u.access_lost).map((u) => u.repo_key);
+}
+
 export const windowDeps = (): Deps => ({
   now: () => Date.now(),
 
-  async activeRepos(uid) {
-    return (await store.listUserRepos(uid)).filter((u) => !u.paused && !u.access_lost).map((u) => u.repo_key);
-  },
+  activeRepos: activeRepoKeys,
 
   async candidates(run, repos) {
     const scope = new Set(repos);
@@ -92,7 +95,12 @@ export const windowDeps = (): Deps => ({
 
   async fixState(fixId) {
     const f = await store.getFix(fixId);
-    return f ? { status: f.status, error: f.error, pr_url: f.pr_url, dispatched_at: f.runner?.dispatched_at ?? null } : null;
+    if (!f) return null;
+    const t = f.runner?.tests;
+    const tests = t?.executed ? (t.summary ? `${t.summary.passed} of ${t.summary.total} tests passed` : `${t.command} exited ${t.exit_code}`) : null;
+    const a = f.assessment;
+    const recheck = a ? `${a.predicted_verdict ? `predicted ${a.predicted_verdict}` : "no prediction"} (${a.label.replace(/_/g, " ")})` : null;
+    return { status: f.status, error: f.error, pr_url: f.pr_url, dispatched_at: f.runner?.dispatched_at ?? null, tests, recheck };
   },
 
   async cancelFix(fixId) {
