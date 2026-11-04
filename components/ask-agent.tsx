@@ -4,10 +4,10 @@
 // get_file_context), checks the user's checkout and reports back with report_result. The request text depends on the
 // assessment: confirmed findings may get a proposed fix (nothing changes until the user approves); unconfirmed ones get
 // read-only verification only. Setup (endpoint, token, per-agent commands) lives on Settings → Connect AI agent.
-import { useState } from "react";
+import { useId, useState } from "react";
 
-export type AskAgentLabels = { lead: string; copy: string; copied: string; setup: string; foot: string };
-const DEFAULT: AskAgentLabels = { lead: "Connect your coding agent to Argus Watch via MCP to read findings and the affected code, verify them in your repository, and report results or proposed fixes back.", copy: "Copy instructions", copied: "Copied", setup: "Set up MCP", foot: "Your agent works in your repository. No code changes without your approval." };
+export type AskAgentLabels = { title: string; lead: string; copy: string; copied: string; mcp: string; setup: string; foot: string };
+const DEFAULT: AskAgentLabels = { title: "Use your own AI agent", lead: "Use Claude Code, Codex, or Muse Code to verify this finding or propose a fix in your repository.", copy: "Copy instructions", copied: "Copied", mcp: "You can also connect your AI agent to Argus Watch through MCP.", setup: "How to connect MCP", foot: "Your agent works in your repository. No code changes without your approval." };
 
 export function agentPrompt(id: string, verified: boolean) {
   return verified
@@ -15,21 +15,25 @@ export function agentPrompt(id: string, verified: boolean) {
     : `Use Argus Watch to check alert ${id}: does it really affect this repository? Read the relevant code, cite the exact lines, and report your result back to Argus Watch. Don't change any code.`;
 }
 
-export function AskAgent({ id, connected, verified, labels = DEFAULT }: { id: string; connected: boolean; verified: boolean; labels?: AskAgentLabels }) {
+export function AskAgent({ id, verified, labels = DEFAULT }: { id: string; connected?: boolean; verified: boolean; labels?: AskAgentLabels }) {
   const [copied, setCopied] = useState(false);
+  const pid = useId();
   const prompt = agentPrompt(id, verified);
   return (
     <div className="grid gap-3 text-[13px]">
-      <p className="text-[14px]">{labels.lead}</p>
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className="btn" onClick={() => navigator.clipboard.writeText(prompt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); }).catch(() => {})}>
+      <div className="grid gap-1">
+        <h3 className="text-[14px] font-semibold">{labels.title}</h3>
+        <p className="text-ink2">{labels.lead}</p>
+      </div>
+      <div>
+        <button type="button" className="btn" aria-describedby={pid} onClick={() => navigator.clipboard.writeText(prompt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); }).catch(() => {})}>
           {copied ? labels.copied : labels.copy}
         </button>
         <span className="sr-only" role="status" aria-live="polite">{copied ? labels.copied : ""}</span>
-        {/* New tab, so the modal stays as it is here. */}
-        <a href="/settings#connect-agent" target="_blank" rel="noreferrer" className="btn-ghost no-underline">{labels.setup} <span aria-hidden>↗</span><span className="sr-only"> (opens in a new tab)</span></a>
       </div>
-      {!connected && <p className="text-ink2">No agent is connected yet: set up MCP once, then paste the instructions into your agent.</p>}
+      {/* Exactly the text Copy puts on the clipboard (same variable), always visible and selectable. */}
+      <pre id={pid} className="mono text-[12px] whitespace-pre-wrap [overflow-wrap:anywhere] border hair rounded-[8px] bg-[var(--sunken)] p-3 max-h-[160px] overflow-auto">{prompt}</pre>
+      <p className="text-ink2">{labels.mcp} <a href="/settings#connect-agent" target="_blank" rel="noreferrer">{labels.setup} <span aria-hidden>↗</span><span className="sr-only"> (opens in a new tab)</span></a></p>
       <p className="text-ink2">{labels.foot}</p>
     </div>
   );

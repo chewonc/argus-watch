@@ -213,7 +213,7 @@ export const store = {
   getInstallation: (id: number) => kv.get<Installation>(K.inst(id)),
   async listUserInstallations(uid: string): Promise<Installation[]> {
     const ids = await kv.smembers(K.userInsts(uid));
-    return (await kv.mget<Installation>(ids.map((i) => K.inst(Number(i))))).filter((x): x is Installation => !!x);
+    return (await kv.mget<Installation>(ids.map((i) => K.inst(Number(i))))).filter((x): x is Installation => !!x && x.user_ids.includes(uid));
   },
   async addUserRepo(ur: Omit<UserRepo, "paused"> & { paused?: boolean }) { await kv.set(K.urepo(ur.user_id, ur.repo_key), ur); await kv.sadd(K.userRepos(ur.user_id), ur.repo_key); await kv.sadd(K.repoUsers(ur.repo_key), ur.user_id); },
   getUserRepo: (uid: string, k: string) => kv.get<UserRepo>(K.urepo(uid, k)),
@@ -233,7 +233,7 @@ export const store = {
   async activeRepoUsers(k: string): Promise<string[]> {
     const users = await kv.smembers(K.repoUsers(k));
     const links = await Promise.all(users.map((u) => (u === SYSTEM_USER ? null : kv.get<UserRepo>(K.urepo(u, k)))));
-    return users.filter((u, i) => u === SYSTEM_USER || !links[i]?.paused);
+    return users.filter((u, i) => u === SYSTEM_USER || (!links[i]?.paused && !links[i]?.access_lost));
   },
 
   // ---- per-user read / resolved state ---------------------------------------
@@ -288,6 +288,21 @@ export const store = {
     const ids = [...new Set(await kv.lrange<string>(K.fixesFor(aid), 0, 19))];
     return (await kv.mget<Fix>(ids.map(K.fix))).filter((x): x is Fix => !!x);
   },
+
+  // ---- per-user AI-agent reports (lib/authz.ts withAgentFor): never stored on the shared assessment ----
+  putAgentReport: (uid: string, assessmentId: string, r: NonNullable<Assessment["agent"]>) => kv.set(`agentreport:${uid}:${assessmentId}`, r),
+  getAgentReports: (uid: string, assessmentIds: string[]) => (assessmentIds.length ? kv.mget<NonNullable<Assessment["agent"]>>(assessmentIds.map((id) => `agentreport:${uid}:${id}`)) : Promise.resolve([])),
+
+  // ---- access revalidation (lib/access.ts) ----
+  getAccessChecked: (uid: string) => kv.get<string>(`access_checked:${uid}`),
+  setAccessChecked: (uid: string, at: string) => kv.set(`access_checked:${uid}`, at),
+
+  // ---- write authorization (lib/write-auth.ts) ----
+  /** Atomic single-use claim (KV SETNX): true for the first caller only. */
+  claim: (k: string) => kv.setnx(`claim:${k}`, new Date().toISOString()),
+  /** When the user last cancelled this fix; any grant issued before it is void. */
+  setCancelledAt: (fixId: string, at: string) => kv.set(`cancelled_at:${fixId}`, at),
+  cancelledAt: (fixId: string) => kv.get<string>(`cancelled_at:${fixId}`),
 
   // ---- installation token cache (KV has no TTL; expiry checked by the caller) ----
   getToken: (inst: number) => kv.get<{ token: string; exp: string }>(K.ghtok(inst)),

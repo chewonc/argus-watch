@@ -94,7 +94,6 @@ function AccountMenu({ user, labels, locale, languages }: { user: NonNullable<He
           </div>
           <Item href="/monitoring" current={path.startsWith("/monitoring")}>{labels.monitoring}</Item>
           <Item href="/activity" current={path.startsWith("/activity")}>{labels.activity}</Item>
-          <Item href="/settings#connect-agent">Connect AI agent</Item>
           <Item href="/settings" current={path.startsWith("/settings")}>{labels.settings}</Item>
           {langs.length > 1 && (
             <button role="menuitem" tabIndex={-1} type="button" data-lang-item aria-haspopup="menu" onClick={openLang} className="!flex items-center justify-between gap-3">

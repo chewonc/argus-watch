@@ -30,6 +30,11 @@ export async function listAgentTokens(uid: string): Promise<AgentToken[]> {
   return (await Promise.all(hs.map((h) => kv.get<AgentToken>(K.tok(h))))).filter((x): x is AgentToken => !!x).sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
+/** Revoke the per-run MCP token issued to the isolated runner for one fix (read/report only, but it should not outlive the run). */
+export async function revokeRunnerTokens(uid: string, fixId: string) {
+  for (const t of await listAgentTokens(uid)) if (t.label === `muse-code runner ${fixId.slice(0, 8)}`) await revokeAgentToken(uid, t.hash);
+}
+
 export async function revokeAgentToken(uid: string, hash: string) {
   const rec = await kv.get<AgentToken>(K.tok(hash));
   if (rec?.user_id !== uid) return;

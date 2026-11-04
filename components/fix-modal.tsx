@@ -42,7 +42,10 @@ export function FixButton({ assessmentId, label = "Fix", className = "btn", auto
   );
 }
 
-export function FixModal({ assessmentId, onClose }: { assessmentId: string; onClose: () => void }) {
+export function FixModal({ assessmentId: initialId, onClose }: { assessmentId: string; onClose: () => void }) {
+  // A fresh verification stores a new assessment record; the modal follows it.
+  const [assessmentId, setAssessmentId] = useState(initialId);
+  const [reload, setReload] = useState(0);
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -67,27 +70,27 @@ export function FixModal({ assessmentId, onClose }: { assessmentId: string; onCl
       .then((j) => { if (!live) return; setCtx(j); setTab((t) => t ?? (j.verified ? "auto" : "verify")); })
       .catch((e) => live && setErr(String((e as Error).message)));
     return () => { live = false; };
-  }, [assessmentId]);
+  }, [assessmentId, reload]);
   const close = () => { ref.current?.close(); };
 
-  const tabs: { id: Tab; label: string }[] = [{ id: "verify", label: "Verify" }, { id: "agent", label: "AI Agent" }, { id: "auto", label: "Auto Fix" }];
+  const tabs: { id: Tab; label: string }[] = [{ id: "verify", label: "Verify" }, { id: "auto", label: "Auto Fix" }, { id: "agent", label: "AI Agent" }];
   return (
     <dialog ref={ref} aria-labelledby={titleId} onClick={(e) => { if (e.target === ref.current) close(); }}
       className="modal m-auto w-[min(640px,calc(100vw-32px))] max-h-[min(86vh,820px)] rounded-[12px] border hair bg-raised text-ink p-0 backdrop:bg-black/40">
-      <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3 border-b hair">
+      <div className="flex items-center justify-between gap-3 px-4 sm:px-5 pt-4 pb-3 border-b hair">
         <h2 id={titleId} className="text-[16px] font-semibold">Fix security issue</h2>
-        <button type="button" className="text-ink2 hover:text-ink text-[20px] leading-none px-1" aria-label="Close" onClick={close}>×</button>
+        <button type="button" className="text-ink2 hover:text-ink text-[22px] leading-none w-10 h-10 -mr-2 grid place-items-center" aria-label="Close" onClick={close}>×</button>
       </div>
-      <div role="tablist" aria-label="Ways to fix" className="flex gap-1 px-5 pt-3">
+      <div role="tablist" aria-label="Ways to fix" className="flex gap-1 px-4 sm:px-5 pt-3 overflow-x-auto">
         {tabs.map((t) => (
           <button key={t.id} type="button" role="tab" id={`${titleId}-${t.id}`} aria-selected={tab === t.id} aria-controls={`${titleId}-panel`} disabled={!ctx}
-            className={`px-3 h-8 rounded-[6px] text-[13px] ${tab === t.id ? "bg-[var(--line)] font-semibold" : "text-ink2 hover:text-ink"}`} onClick={() => setTab(t.id)}>{t.label}</button>
+            className={`px-2.5 sm:px-3 h-9 rounded-[6px] text-[13px] whitespace-nowrap ${tab === t.id ? "bg-[var(--line)] font-semibold" : "text-ink2 hover:text-ink"}`} onClick={() => setTab(t.id)}>{t.label}</button>
         ))}
       </div>
-      <div id={`${titleId}-panel`} role="tabpanel" aria-labelledby={tab ? `${titleId}-${tab}` : undefined} className="px-5 py-4 overflow-auto max-h-[calc(min(86vh,820px)-110px)] grid gap-4">
+      <div id={`${titleId}-panel`} role="tabpanel" aria-labelledby={tab ? `${titleId}-${tab}` : undefined} className="px-4 sm:px-5 py-4 overflow-auto max-h-[calc(min(86vh,820px)-110px)] grid gap-4">
         {err && <p role="alert" className="text-[13px] tone-bad">Could not load this finding: {err}</p>}
         {!ctx && !err && <p className="text-[13px] text-ink2" aria-live="polite">Loading…</p>}
-        {ctx && tab === "verify" && <VerifyTab c={ctx} goAgent={() => setTab("agent")} />}
+        {ctx && tab === "verify" && <VerifyTab c={ctx} goFix={() => setTab("auto")} onVerified={(id) => { changed.current = true; if (id !== assessmentId) setAssessmentId(id); else setReload((n) => n + 1); }} />}
         {ctx && tab === "agent" && <AskAgent id={ctx.assessment_id} connected={ctx.agent_connected} verified={ctx.verified} />}
         {ctx && tab === "auto" && <AutoTab c={ctx} onChange={() => { changed.current = true; }} goVerify={() => setTab("verify")} />}
       </div>
@@ -95,29 +98,57 @@ export function FixModal({ assessmentId, onClose }: { assessmentId: string; onCl
   );
 }
 
-function VerifyTab({ c, goAgent }: { c: Ctx; goAgent: () => void }) {
+function VerifyTab({ c, goFix, onVerified }: { c: Ctx; goFix: () => void; onVerified: (assessmentId: string) => void }) {
+  const [state, setState] = useState<"idle" | "checking" | "done">("idle");
+  const [err, setErr] = useState<string | null>(null);
   const fileName = c.location ? c.location.split("/").pop() : null;
+  // Runs a fresh, read-only check in Argus (POST /api/verify): same analyzer and evidence rules as the pipeline.
+  const verify = async () => {
+    setState("checking"); setErr(null);
+    try {
+      const r = await fetch("/api/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ assessment_id: c.assessment_id }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error ?? r.statusText);
+      setState("done"); onVerified(j.assessment.id);
+    } catch (e) { setErr(String((e as Error).message)); setState("idle"); }
+  };
+  const result = c.verified ? "confirmed" : c.verdict === "Not Affected" ? "not_affected" : state === "done" ? "unclear" : "possible";
+  const head = { confirmed: "Confirmed", not_affected: "Not affected", unclear: "Unable to confirm", possible: "Possible issue" }[result];
+  const text = {
+    confirmed: "We found evidence that this vulnerability affects your code.",
+    not_affected: "The required vulnerability conditions were not found in your code.",
+    unclear: "There isn't enough evidence to determine whether your code is affected.",
+    possible: "We haven't confirmed whether this vulnerability affects your code.",
+  }[result];
+  if (state === "checking") return (
+    <div className="grid gap-2 text-[13px]" aria-live="polite">
+      <p className="text-[15px] font-semibold">Checking your code…</p>
+      <p className="text-ink2">Reading the relevant files at the latest commit. This can take a minute or two. Nothing in your repository is changed.</p>
+    </div>
+  );
   return (
     <div className="grid gap-4 text-[13px]">
       <div className="grid gap-1">
-        <p className={`text-[15px] font-semibold ${c.verified ? "tone-bad" : "tone-warn"}`}>{c.verified ? "Confirmed vulnerability" : "Possible issue — not confirmed"}</p>
-        <p className="text-ink2">{c.verified ? "Argus established every condition required for this vulnerability in your code." : "Argus has not established every condition required for this vulnerability, so it is not treated as confirmed."}</p>
+        <p className={`text-[15px] font-semibold ${result === "confirmed" ? "tone-bad" : result === "not_affected" ? "tone-ok" : "tone-warn"}`}>{head}</p>
+        <p className="text-ink2">{text}</p>
       </div>
-      {c.location && (
-        <div className="grid gap-1.5">
-          <div className="label">Affected code</div>
+      {c.location && result !== "not_affected" && (
+        <div className="flex flex-wrap items-center gap-2">
           {c.code_url
             ? <a href={c.code_url} target="_blank" rel="noreferrer" className="btn-ghost w-fit no-underline" title={c.location}>View code on GitHub <span aria-hidden>↗</span><span className="sr-only"> (opens {c.location} in a new tab)</span></a>
-            : <p className="text-ink2">An exact GitHub link could not be built for <span className="mono">{fileName}</span>; open the repository at the assessed commit to find it.</p>}
+            : <span className="text-ink2">Exact GitHub link unavailable for</span>}
           <span className="mono text-[12px] text-ink2" title={c.location}>{fileName}</span>
         </div>
       )}
-      {c.missing.length > 0 && <div className="grid gap-1"><div className="label">Missing evidence</div><ul className="list-disc pl-5 grid gap-0.5">{c.missing.map((m) => <li key={m}>{m}</li>)}</ul></div>}
+      {c.missing.length > 0 && result !== "confirmed" && <details className="disclose"><summary>Missing evidence ({c.missing.length})</summary><ul className="list-disc pl-5 grid gap-0.5 mt-2">{c.missing.map((m) => <li key={m}>{m}</li>)}</ul></details>}
       {c.evidence.length > 0 && <EvidenceList items={c.evidence} />}
-      <div className="grid gap-1.5 border-t hair pt-3">
-        {!c.verified && <button type="button" className="btn w-fit" onClick={goAgent}>Verify with your AI agent</button>}
-        <p className="text-ink2">Verification is read-only. Argus does not re-run its analysis from this tab; {c.verified ? "your AI agent can re-check it" : "your AI agent checks your checkout, cites the exact lines and reports back"} without changing code. Opening this tab does not change the finding.</p>
+      {err && <p role="alert" className="tone-bad">{err}</p>}
+      <div className="flex flex-wrap gap-2">
+        {result === "confirmed" ? <button type="button" className="btn" onClick={goFix}>Fix</button>
+          : <button type="button" className="btn" onClick={verify}>{result === "unclear" ? "Try again" : "Verify"}</button>}
+        {result === "confirmed" && <button type="button" className="btn-ghost" onClick={verify}>Check again</button>}
       </div>
+      <p className="text-[12px] text-ink2">Verification is read-only and runs in Argus Watch. A result is recorded only when it meets the same evidence rules as the original analysis.</p>
     </div>
   );
 }
@@ -127,7 +158,7 @@ export function EvidenceList({ items }: { items: Evidence[] }) {
   return (
     <details className="disclose">
       <summary>Evidence ({items.length})</summary>
-      <ul className="grid gap-3 mt-3 max-h-[40vh] overflow-auto pr-1">{items.map((e, i) => (
+      <ul className="grid gap-3 mt-3">{items.map((e, i) => (
         <li key={i} className="grid gap-1">
           <div><span className={e.state === "Observed" ? "tone-ok" : e.state === "Unknown" ? "tone-warn" : "text-ink2"}>{STATE_WORD[e.state] ?? e.state}</span>{e.computed ? " (computed)" : ""} · {e.text}</div>
           {e.refs.map((r, j) => (
@@ -145,25 +176,22 @@ export function EvidenceList({ items }: { items: Evidence[] }) {
 function AutoTab({ c, onChange, goVerify }: { c: Ctx; onChange: () => void; goVerify: () => void }) {
   if (!c.verified) return (
     <div className="grid gap-2 text-[13px]">
-      <p className="text-[14px]">Verification is required first.</p>
-      <p>This finding is a possible issue, not a confirmed vulnerability. Automatic fixes are only prepared for confirmed findings, and opening this tab does not authorize any change.</p>
-      <button type="button" className="btn w-fit" onClick={goVerify}>Go to Verify</button>
+      <p className="text-[15px] font-semibold">Verification needed first</p>
+      <p className="text-ink2">This is a possible issue, not a confirmed vulnerability. Fixes are prepared only for confirmed findings.</p>
+      <button type="button" className="btn w-fit" onClick={goVerify}>Verify</button>
     </div>
   );
   const pending = c.fix && !["failed", "validation_failed", "cancelled", "drafted"].includes(c.fix.status);
   return (
     <div className="grid gap-3">
-      <p className="text-[13px] flex flex-wrap gap-x-2 items-baseline"><span className="text-ink2">After fixing:</span> <b>{c.after_fix}</b> <Link href="/settings#remediation" className="text-[12px]">Change preference</Link></p>
-      {c.mode === "branch" && <p className="text-[12px] text-ink2">Pushes to a new branch only. Merging into {c.default_branch} always needs your separate action on GitHub.</p>}
       {c.blocker && !pending && (
-        <div role="note" className="text-[13px] border hair rounded-[8px] p-3 grid gap-1">
-          <p><b>Auto Fix is unavailable here.</b> {c.blocker}</p>
-          <p className="text-ink2">{c.blocker.startsWith("Deployment configuration") ? "This is a server setting for the operator of this deployment, not a problem with your repository." : c.blocker.startsWith("Repository permission") ? <>Fix the permission on <Link href="/repos">Repositories</Link>, or choose &quot;No repository writes&quot; in <Link href="/settings#remediation">Settings</Link>.</> : null} Verify and AI Agent remain available.</p>
+        <div role="note" className="text-[13px] grid gap-1">
+          <p className="text-[15px] font-semibold">Auto Fix is unavailable</p>
+          <p className="text-ink2">{((b) => b.charAt(0).toUpperCase() + b.slice(1))(c.blocker.replace(/^(Deployment configuration|Repository permission): /, ""))}</p>
+          {c.blocker.startsWith("Repository permission") && <p className="text-ink2">Manage access on <Link href="/repos">Repositories</Link>. The AI Agent tab still works.</p>}
         </div>
       )}
-      {c.runner_note && <p className="text-[12px] text-ink2">{c.runner_note}</p>}
-      {(c.can_act || pending) && <Remediation embedded assessmentId={c.assessment_id} initial={c.fix} canAct={c.can_act} runnerEnabled={c.runner_enabled} defaultBranch={c.default_branch} repo={c.repo} mode={c.mode} onChange={onChange} />}
-      <p className="text-[12px] text-ink2">Your saved preference only chooses the destination. Every repository change still needs your approval of the exact patch.</p>
+      {(c.can_act || pending) && <Remediation assessmentId={c.assessment_id} initial={c.fix} canAct={c.can_act} runnerEnabled={c.runner_enabled} defaultBranch={c.default_branch} repo={c.repo} mode={c.mode} onChange={onChange} />}
     </div>
   );
 }

@@ -59,7 +59,14 @@ export function matchedTech(f: Finding | null, repoTags: string[] = [], repoPkgs
  * Card / page title. Never an article title. Verified findings name the problem and the affected area from
  * cited evidence; unverified ones only say which technology the news concerns.
  */
+/** Presentation-only cleanup of model or third-party text shown in our UI: no em dashes (the stored text is unchanged). */
+const EM = new RegExp("\\s*" + String.fromCharCode(0x2014) + "\\s*", "g");
+export const tidy = (s: string) => s.replace(EM, ", ").replace(/, ([.,;:])/g, "$1");
+
 export function plainTitle(a: Assessment, f: Finding | null, loc: { file: string } | null, repoTags: string[] = [], repoPkgs: string[] = []): string {
+  return tidy(plainTitleRaw(a, f, loc, repoTags, repoPkgs));
+}
+function plainTitleRaw(a: Assessment, f: Finding | null, loc: { file: string } | null, repoTags: string[] = [], repoPkgs: string[] = []): string {
   const tech = matchedTech(f, repoTags, repoPkgs);
   if (!isVerified(a)) return `Possible security issue with ${tech ?? "a tool you use"}`;
   const pt = f?.claim?.plain_title?.trim();
@@ -85,7 +92,7 @@ export function whereLine(a: Assessment, loc: { file: string; from: number; to: 
 /** Best timestamp for "newest first": discovery, then processing, then publication. */
 export const discoveredAt = (a: Assessment) => a.timestamps.discovered_at || a.timestamps.processed_at || a.timestamps.published_at || "";
 
-export const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "—");
+export const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "Unknown date");
 
 /** Repository monitoring status in everyday words. */
 export function repoStatus(r: { refreshed_at: string | null; sha: string | null } | null, opts: { connected: boolean; now?: number }): { label: string; glyph: string; tone: "ok" | "warn" | "bad" } {

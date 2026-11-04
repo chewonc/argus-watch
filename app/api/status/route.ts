@@ -1,4 +1,4 @@
-// Public read-only status: source coverage classes with measured intervals, per-stage latency, counts, recent log.
+// Public read-only status: source coverage classes with measured intervals, per-stage latency and counts. Aggregates only.
 import { computeLatency } from "@/lib/latency";
 import { POLLERS, TICK_MIN, type PollState, type TickState } from "@/lib/poll";
 import { FEEDS } from "@/lib/sources/rss";
@@ -52,6 +52,6 @@ export async function GET() {
     counts: { findings: findings.length, by_status: Object.fromEntries(["new", "not_relevant", "not_actionable", "analyzing", "assessed", "error"].map((s) => [s, findings.filter((f) => f.status === s).length])), assessments: assessments.length, live_assessments: live.length, replayed_assessments: assessments.length - live.length, watched_repos: repos.length },
     latency,
     unattended_24h: { near_realtime_poll_runs_logged: tickRuns, expected_at_5_min: Math.round(2 * 1440 / TICK_MIN), note: "AT-3: counts rss+ghadv poll runs in the last 24 h of the log (log holds the latest 2000 entries)" },
-    log: log.slice(0, 100),
+    // No raw log here: this endpoint is public, and log entries name users, repositories and actions (V1).
   });
 }

@@ -8,6 +8,7 @@ import type { Assessment, Finding, Fix, FixHunk, Item } from "./schema";
 import { assessFix } from "./fixassess";
 import { LOCKFILES, readFile, tree } from "./repo";
 import { permalink, provenanceOf } from "./remediation";
+import { patchVersion } from "./remediation-control";
 import { READ_ONLY, UNTRUSTED, sparkJSON } from "./spark";
 import { store } from "./store";
 
@@ -68,7 +69,7 @@ export function syntaxCheck(path: string, text: string): { path: string; ok: boo
 export async function draftFix(a: Assessment, f: Finding | null, items: Item[], userId: string): Promise<Fix> {
   const repoFull = a.repo.split("/").slice(0, 2).join("/");
   const id = createHash("sha256").update(`${a.id}:${userId}:${Date.now()}`).digest("hex").slice(0, 16);
-  const base: Fix = { id, assessment_id: a.id, user_id: userId, repo: repoFull, repo_key: a.repo, base_sha: a.sha, status: "drafting", summary: "", caveats: [], files: [], rejected_hunks: [], syntax_check: [], assessment: null, verified: false, branch: null, pr_url: null, pr_number: null, pr_draft: null, check_runs: [], checks_at: null, model: "none", created_at: new Date().toISOString(), approved_at: null, error: null, mode: null, agent: "muse-spark", allowed_files: [], nonce_hash: null, events: [], runner: null, merge_sha: null, commit_url: null, merge_attempts: 0, patch_version: null };
+  const base: Fix = { id, assessment_id: a.id, user_id: userId, repo: repoFull, repo_key: a.repo, base_sha: a.sha, status: "drafting", summary: "", caveats: [], files: [], rejected_hunks: [], syntax_check: [], assessment: null, verified: false, branch: null, pr_url: null, pr_number: null, pr_draft: null, check_runs: [], checks_at: null, model: "none", created_at: new Date().toISOString(), approved_at: null, error: null, mode: null, agent: "muse-spark", allowed_files: [], nonce_hash: null, events: [], runner: null, merge_sha: null, commit_url: null, merge_attempts: 0, patch_version: null, grant: null };
   const paths = fixableFiles(a);
   // When the advisory names a package, the manifest that declares it is editable too (an upgrade is the usual root-cause fix),
   // even if the assessment cited only the lockfile.
@@ -103,6 +104,8 @@ export async function draftFix(a: Assessment, f: Finding | null, items: Item[], 
   for (const h of out.hunks) if (!before.has(h.path)) rejected.push({ ...h, reason: "path is not one of the cited files" });
   const syntax = files.map((x) => syntaxCheck(x.path, x.after));
   const fix: Fix = { ...base, status: files.length ? "drafted" : "failed", summary: out.summary, caveats: out.caveats, files, rejected_hunks: rejected, syntax_check: syntax, model, error: files.length ? null : "The model produced no applicable hunks (see rejected hunks)." };
+  // Version of exactly what the user will review; an approval must name it (lib/write-auth.ts).
+  if (files.length) fix.patch_version = patchVersion(files);
   if (files.length) fix.assessment = await assessFix(a, f, fix, before).catch((e) => ({ label: "not_assessable" as const, summary: `assessment failed: ${String(e).slice(0, 160)}`, coverage: [], predicted_verdict: null, predicted_reason: null, version_check: null, risk_flags: [], model_judgement: [], uncertain: ["static assessment did not run"], verification_required: ["review the diff manually"] }));
   await store.putFix(fix, true);
   await store.log({ kind: "fix", source: "draft", detail: `${fix.status}: ${files.length} file(s), ${rejected.length} rejected hunk(s), assessment ${fix.assessment?.label ?? "none"}`, ref: a.id });
@@ -119,7 +122,7 @@ export function prText(fix: Fix, a: Assessment, f: Finding | null, appUrl: strin
 **Repository:** ${fix.repo} at \`${fix.base_sha}\` · **Verdict:** ${a.verdict} (${a.tier}) · **Case:** ${caseUrl}
 
 ### What changes
-${fix.files.map((x) => x.hunks.length ? `- \`${x.path}\`: ${x.hunks.length} hunk(s) — ${x.hunks.map((h) => h.rationale).join("; ")}` : `- \`${x.path}\`: edited by ${fix.agent === "muse-code" ? "Meta Muse Code" : "the drafting model"} (+${(x.patch.match(/^\+(?!\+\+)/gm) ?? []).length} / -${(x.patch.match(/^-(?!--)/gm) ?? []).length} lines)`).join("\n")}
+${fix.files.map((x) => x.hunks.length ? `- \`${x.path}\`: ${x.hunks.length} hunk(s): ${x.hunks.map((h) => h.rationale).join("; ")}` : `- \`${x.path}\`: edited by ${fix.agent === "muse-code" ? "Meta Muse Code" : "the drafting model"} (+${(x.patch.match(/^\+(?!\+\+)/gm) ?? []).length} / -${(x.patch.match(/^-(?!--)/gm) ?? []).length} lines)`).join("\n")}
 
 ${fix.summary}
 
@@ -128,10 +131,10 @@ ${as?.summary ?? ""}
 ${as ? as.coverage.filter((c) => c.driving).map((c) => `- ${c.condition_id}: ${c.before} → ${c.after ?? "unchanged"} [${c.tag}] ${c.text}`).join("\n") : ""}
 ${as?.version_check ? `- Version check (computed): ${as.version_check.note}` : ""}
 ${as?.risk_flags.length ? `\n**Risk flags:** ${as.risk_flags.join("; ")}` : ""}
-${as?.predicted_verdict ? `\nPredicted verdict after this change (static): **${as.predicted_verdict}** — ${as.predicted_reason}` : ""}
+${as?.predicted_verdict ? `\nPredicted verdict after this change (static): **${as.predicted_verdict}**. ${as.predicted_reason}` : ""}
 
 ### Evidence used
-${a.conditions.map((c) => `- ${c.state}${c.computed ? " (computed)" : ""}: ${c.text}${c.evidence[0] ? ` — ${permalink(fix.repo, a.sha, c.evidence[0].file, c.evidence[0].line)}` : ""}`).join("\n")}
+${a.conditions.map((c) => `- ${c.state}${c.computed ? " (computed)" : ""}: ${c.text}${c.evidence[0] ? ` (${permalink(fix.repo, a.sha, c.evidence[0].file, c.evidence[0].line)}` : ""}`).join("\n")}
 
 ### What was NOT verified
 - Syntax only: ${fix.syntax_check.map((s) => `${s.path} ${s.ok ? "parsed" : "FAILED"}`).join(", ") || "n/a"}. Not type-checked here, not executed, no tests were run by Argus Watch.

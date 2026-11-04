@@ -32,7 +32,7 @@ export function PushToggle({ vapidPublicKey, enabled }: { vapidPublicKey: string
     setState("busy");
     try { const reg = await navigator.serviceWorker.getRegistration("/sw.js"); const sub = await reg?.pushManager.getSubscription(); if (sub) { await fetch("/api/push/subscribe", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }); await sub.unsubscribe(); } } finally { setState("off"); }
   }
-  if (!vapidPublicKey) return <p className="text-[13px] text-ink2">Browser push is not configured on this deployment (VAPID keys missing).</p>;
+  if (!vapidPublicKey) return <p className="text-[13px] text-ink2">Not configured</p>;
   if (state === "unsupported") return <p className="text-[13px] text-ink2">This browser does not support Web Push. On iOS, add the site to the Home Screen first (iOS 16.4+).</p>;
   if (state === "denied") return <p className="text-[13px] text-ink2">Notifications are blocked for this site in the browser settings; allow them there to enable push.</p>;
   return (

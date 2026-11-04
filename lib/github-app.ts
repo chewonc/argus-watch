@@ -24,11 +24,48 @@ export async function installationToken(installationId: number): Promise<string>
   return token;
 }
 
+/**
+ * Least privilege: a short-lived installation token limited to ONE repository and the named permissions (never cached,
+ * never more than the installation itself grants). Used for the isolated runner's clone (contents:read) and for each
+ * approved write (only what that write needs), so no general write-capable token leaves the write boundary.
+ */
+export async function scopedRepoToken(installationId: number, repoName: string, permissions: Record<string, "read" | "write">): Promise<string> {
+  // Request only what the installation holds (GitHub refuses the whole token otherwise); a missing *write* permission is an error.
+  const held = await installationPermissions(installationId);
+  const want: Record<string, "read" | "write"> = {};
+  for (const [k, v] of Object.entries(permissions)) {
+    if (held[k] === "write" || (v === "read" && held[k] === "read")) want[k] = v;
+    else if (v === "write") throw Object.assign(new Error(`the GitHub App installation lacks ${k}:write`), { status: 403 });
+  }
+  const r = await githubApp().octokit.request("POST /app/installations/{installation_id}/access_tokens", { installation_id: installationId, repositories: [repoName], permissions: want });
+  return r.data.token;
+}
+export const scopedRepoOctokit = async (installationId: number, repoName: string, permissions: Record<string, "read" | "write">) =>
+  new Octokit({ auth: await scopedRepoToken(installationId, repoName, permissions), userAgent: "ArgusWatch/0.1" });
+
 export const installationOctokit = async (installationId: number) => new Octokit({ auth: await installationToken(installationId), userAgent: "ArgusWatch/0.1" });
 export const userOctokit = (token: string) => new Octokit({ auth: token, userAgent: "ArgusWatch/0.1" });
 
 export type UserInstallation = { id: number; account: string; account_type: "User" | "Organization"; repository_selection: "all" | "selected"; permissions: Record<string, string> };
 /** Installations of this App that the signed-in user can see (GET /user/installations with the user token). */
+/** Repositories of one installation that THIS user can access (GitHub intersects the installation with the user's own permissions). */
+export async function listUserInstallationRepos(userToken: string, installationId: number): Promise<{ full_name: string; permissions: Record<string, boolean> }[]> {
+  const out: { full_name: string; permissions: Record<string, boolean> }[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const r = await userOctokit(userToken).request("GET /user/installations/{installation_id}/repositories", { installation_id: installationId, per_page: 100, page });
+    out.push(...r.data.repositories.map((x) => ({ full_name: x.full_name, permissions: (x.permissions ?? {}) as Record<string, boolean> })));
+    if (r.data.repositories.length < 100) break;
+  }
+  return out;
+}
+
+/** The signed-in user's own permission on a repository (null when GitHub does not let them see it). */
+export async function userRepoPermission(userToken: string, full: string): Promise<{ pull: boolean; push: boolean } | null> {
+  const [owner, repo] = full.split("/");
+  try { const r = await userOctokit(userToken).rest.repos.get({ owner, repo }); return { pull: !!r.data.permissions?.pull, push: !!r.data.permissions?.push }; }
+  catch (e) { if ((e as { status?: number }).status === 404 || (e as { status?: number }).status === 403) return null; throw e; }
+}
+
 export async function listUserInstallations(userToken: string): Promise<UserInstallation[]> {
   const r = await userOctokit(userToken).request("GET /user/installations", { per_page: 100 });
   return r.data.installations.map((i) => ({ id: i.id, account: (i.account as { login?: string; slug?: string } | null)?.login ?? (i.account as { slug?: string } | null)?.slug ?? "?", account_type: ((i.account as { type?: string } | null)?.type === "Organization" ? "Organization" : "User"), repository_selection: i.repository_selection as "all" | "selected", permissions: (i.permissions ?? {}) as Record<string, string> }));

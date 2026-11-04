@@ -101,7 +101,10 @@ export default async function Repos({ searchParams }: { searchParams: Promise<Re
             {watching.map(({ key, ur, w, demo: isDemo }) => { const st = ur?.paused ? { label: "Paused by you", glyph: "⏸", tone: "warn" as const } : repoStatus(w, { connected: !ur || !!ur.installation_id || !hasGitHubApp() }); return (
               <li key={key} className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b hair last:border-0">
                 <div className="grid min-w-0">
-                  <span className="text-[14px] font-medium truncate">{key}{isDemo && <span className="text-ink2 font-normal text-[12px] ml-2">shared demo</span>}</span>
+                  {/* Monorepo folders: lead with the folder name so rows stay distinguishable on narrow screens; the full path wraps below. */}
+                  <span className="text-[14px] font-medium [overflow-wrap:anywhere]" title={key}>{key.split("/").length > 2 ? key.split("/").pop() : key}</span>
+                  {key.split("/").length > 2 && <span className="text-[12px] text-ink2 mono [overflow-wrap:anywhere]">{key}</span>}
+                  {isDemo && <span className="text-ink2 text-[12px]">Shared demo</span>}
                   <span className={`text-[13px] tone-${st.tone}`}><span aria-hidden>{st.glyph}</span> {st.label}</span>
                 </div>
                 {ur && (

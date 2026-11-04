@@ -6,6 +6,8 @@
 // - No tool writes to GitHub or runs code. `report_result` writes only to Argus's own store, and only after every
 //   cited file:line has been re-read at the assessed commit and the quoted text matched. The server's own verdict is
 //   never overwritten; the agent's result is stored and labelled separately.
+import { assessmentFor, withAgentFor } from "./authz";
+import { fixesFor } from "./authz";
 import { firstSentence, suggestedFix } from "@/components/alerts";
 import { caseHref, discoveredAt, isVerified, location, plainTitle, statusOf, whereLine } from "./labels";
 import { permalink, redact } from "./remediation";
@@ -28,18 +30,18 @@ async function latestForUser(uid: string): Promise<Assessment[]> {
   const keys = await visibleRepoKeys(uid);
   const latest = new Map<string, Assessment>();
   for (const a of await store.listAssessments(400)) { if (!keys.has(a.repo)) continue; const k = `${a.finding_id}|${a.repo}`; if (!latest.has(k) || latest.get(k)!.timestamps.processed_at < a.timestamps.processed_at) latest.set(k, a); }
-  return [...latest.values()].sort((x, y) => discoveredAt(y).localeCompare(discoveredAt(x)));
+  return (await withAgentFor(uid, [...latest.values()])).sort((x, y) => discoveredAt(y).localeCompare(discoveredAt(x)));
 }
 
 async function load(uid: string, id: unknown) {
   if (typeof id !== "string" || !id) throw new McpError(-32602, "id is required");
-  const a = await store.getAssessment(id);
+  const a = await assessmentFor(uid, id);
   if (!a || !(await canSee(uid, a.repo))) throw new McpError(-32602, "No such finding for this account");
   return a;
 }
 
 async function summary(uid: string, a: Assessment) {
-  const [f, r, resolved, fixes] = await Promise.all([store.getFinding(a.finding_id), store.getRepo(a.repo), store.resolvedSet(uid), store.listFixes(a.id)]);
+  const [f, r, resolved, fixes] = await Promise.all([store.getFinding(a.finding_id), store.getRepo(a.repo), store.resolvedSet(uid), fixesFor(uid, a.id)]);
   const loc = location(a);
   const st = statusOf(a, a.severity ?? deriveSeverity(a, []), { resolved: resolved.includes(a.id), prOpen: fixes.some((x) => x.status === "pr_created") });
   return { a, f, loc, st, title: plainTitle(a, f, loc, r?.tech_tags, r?.packages.map((p) => p.name)), where: whereLine(a, loc) };
@@ -139,7 +141,8 @@ export const TOOLS: Tool[] = [
         pr = args.pr_url as string;
       }
       const agent = { status, summary: clean(String(args.summary ?? ""), 600), evidence: ev.map((e) => ({ file: String(e.file), line: Number(e.line), quote: String(e.quote).slice(0, 300) })), pr_url: pr, client, at: new Date().toISOString() } as const;
-      await store.putAssessment({ ...a, agent: { ...agent, evidence: [...agent.evidence] } });
+      // Stored per user: a report changes only this user's view, never the shared assessment other users see (V4).
+      await store.putAgentReport(uid, a.id, { ...agent, evidence: [...agent.evidence] });
       await store.log({ kind: "process", source: "agent", detail: `agent reported ${status} (${agent.evidence.length} verified citation(s))`, ref: a.id });
       const label = status === "confirmed" ? "Shown as confirmed in the user's dashboard, labelled as checked by their AI agent." : status === "not_affected" ? "Moved to Resolved in the user's dashboard, labelled as checked by their AI agent; Argus's own verdict is unchanged." : "Shown as a fix ready for review.";
       return { accepted: true, dashboard: label, url: `${env.APP_URL}${caseHref(a.id)}` };

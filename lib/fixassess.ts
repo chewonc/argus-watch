@@ -70,7 +70,7 @@ export async function assessFix(a: Assessment, f: Finding | null, fix: Fix, befo
     const changed = m.state !== c.state;
     const tag = !changed ? "UNCHANGED" as const : m.verified ? "CITATION-VERIFIED" as const : "MODEL-ASSUMPTION" as const;
     const state = changed && !m.verified && (m.state === "Contradicted" || m.state === "Observed") ? c.state : m.state; // unverified flips do not count
-    return { condition_id: c.id, text: c.text, driving: driving(c), touched: true, before: c.state, after: state, after_evidence: m.file ? `${m.file}:${m.line ?? "?"} — ${m.reasoning}` : m.reasoning, tag: state === c.state && changed ? "MODEL-ASSUMPTION" as const : tag };
+    return { condition_id: c.id, text: c.text, driving: driving(c), touched: true, before: c.state, after: state, after_evidence: m.file ? `${m.file}:${m.line ?? "?"}: ${m.reasoning}` : m.reasoning, tag: state === c.state && changed ? "MODEL-ASSUMPTION" as const : tag };
   });
   const predictedConds: ConditionResult[] = a.conditions.map((c) => { const cv = coverage.find((x) => x.condition_id === c.id)!; return { ...c, state: cv.after ?? c.state }; });
   const pv = decide(predictedConds, a.tier);

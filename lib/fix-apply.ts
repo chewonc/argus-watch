@@ -1,9 +1,12 @@
 // Apply an approved fix: new branch + commit via the Git Data API (no clone) and a DRAFT pull request.
-// Preconditions are enforced by the route: session, fix owner, per-repo allow_pr, App installation present.
-// The default branch is never written; nothing is merged; CI results are read, never triggered.
+// Routes check session, fix owner, per-repo allow_pr and the App installation; this function additionally refuses to
+// write unless the stored fix carries the user's live approval grant for exactly this patch and destination
+// (lib/write-auth.ts), checked right before the branch is created and again before the pull request is opened.
+// The default branch is never written; nothing is merged here; CI results are read, never triggered.
 import { env, hasQStash } from "./env";
-import { installationOctokit } from "./github-app";
+import { scopedRepoOctokit } from "./github-app";
 import { prText } from "./fix";
+import { assertWrite, fixBranch, stillAllowed } from "./write-auth";
 import type { Assessment, Finding, Fix } from "./schema";
 import { store } from "./store";
 
@@ -11,9 +14,15 @@ export type ApplyOpts = { draft?: boolean; author?: string; testsNote?: string; 
 export async function applyFix(fix: Fix, a: Assessment, f: Finding | null, installationId: number, opts: ApplyOpts = {}): Promise<Fix> {
   const draft = opts.draft ?? true;
   const [owner, repo] = fix.repo.split("/");
-  const ok = await installationOctokit(installationId);
   const w = await store.getRepo(fix.repo_key);
   const base = w?.default_branch ?? "main";
+  const branch = fixBranch(fix.id);
+  const files = fix.files.map((x) => ({ path: x.path, after: x.after }));
+  const target = { repo: fix.repo, branch, baseBranch: base, files };
+  // 0. approval must be live before any write-capable token is even requested
+  await stillAllowed(fix.id, { kind: "create_branch", ...target });
+  // Token limited to this repository and to what this write needs (no pull_requests permission for a branch push).
+  const ok = await scopedRepoOctokit(installationId, repo, opts.openPr === false ? { contents: "write", metadata: "read" } : { contents: "write", pull_requests: "write", metadata: "read" });
   // 1. head of the default branch; refuse if any cited file changed since the analysis
   const { data: ref } = await ok.rest.git.getRef({ owner, repo, ref: `heads/${base}` });
   const headSha = ref.object.sha;
@@ -37,9 +46,16 @@ export async function applyFix(fix: Fix, a: Assessment, f: Finding | null, insta
 
 ${pt.body}` : pt.body;
   const { data: commit } = await ok.rest.git.createCommit({ owner, repo, message: `${title}\n\n${fix.summary}\n\n${opts.testsNote ?? "Syntax-checked only; not executed."} Remediation not verified. ${opts.author ? `Edited by ${opts.author}; ` : "Drafted by "}Argus Watch, assessment ${a.id}.`, tree: newTree.sha, parents: [headSha] });
-  let branch = `argus/fix-${fix.id.slice(0, 8)}`;
+  // Blobs, tree and commit above are unreferenced objects; creating the branch is the first visible write.
+  await assertWrite(fix.id, { kind: "create_branch", ...target });
   try { await ok.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commit.sha }); }
-  catch (e) { if ((e as { status?: number }).status === 422) { branch = `${branch}-${Date.now().toString(36).slice(-4)}`; await ok.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commit.sha }); } else throw e; }
+  catch (e) {
+    if ((e as { status?: number }).status !== 422) throw e;
+    // The branch exists (an earlier approved attempt). Reuse it only if it already holds exactly this patch; never force-update.
+    const { data: cur } = await ok.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
+    const { data: curCommit } = await ok.rest.git.getCommit({ owner, repo, commit_sha: cur.object.sha });
+    if (curCommit.tree.sha !== newTree.sha) throw Object.assign(new Error(`branch ${branch} already exists with different content; delete it on GitHub or start a new fix`), { status: 409 });
+  }
   // Branch preference: the commit lives on a new branch only; no pull request, nothing merged, default branch untouched.
   if (opts.openPr === false) {
     const pushed: Fix = { ...fix, status: "branch_pushed", branch, pr_url: null, pr_number: null, pr_draft: null, commit_url: `https://github.com/${fix.repo}/commit/${commit.sha}`, approved_at: new Date().toISOString(), error: null };
@@ -48,6 +64,7 @@ ${pt.body}` : pt.body;
     return pushed;
   }
   // 3. draft PR (non-draft fallback on plans that do not allow drafts on private repos)
+  await assertWrite(fix.id, { kind: "create_pr", ...target });
   let pr: { html_url: string; number: number; draft: boolean };
   try { const r = await ok.rest.pulls.create({ owner, repo, head: branch, base, title, body, draft }); pr = { html_url: r.data.html_url, number: r.data.number, draft }; }
   catch (e) {
@@ -72,7 +89,7 @@ ${pt.body}` : pt.body;
 export async function refreshChecks(fix: Fix, installationId: number): Promise<Fix> {
   if (!fix.branch) return fix;
   const [owner, repo] = fix.repo.split("/");
-  const ok = await installationOctokit(installationId);
+  const ok = await scopedRepoOctokit(installationId, repo, { checks: "read", metadata: "read" }); // read-only
   const { data } = await ok.rest.checks.listForRef({ owner, repo, ref: fix.branch, per_page: 50, filter: "latest" });
   const runs = data.check_runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion ?? null, url: r.html_url ?? null }));
   const out: Fix = { ...fix, check_runs: runs, checks_at: new Date().toISOString() };

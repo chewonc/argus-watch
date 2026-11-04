@@ -173,6 +173,9 @@ export const UserSettings = z.object({
   locale: z.string().default("en"),
   // Automatic remediation behavior (lib/remediation-mode.ts). Chooses the destination only; each write still needs approval of the exact patch.
   remediation_mode: z.enum(["preview", "pr", "branch"]).default("pr"),
+  // Shared demo repositories (admin-registered, public code): shown unless hidden; their alerts are opt-in.
+  hide_demo: z.boolean().default(false),
+  demo_alerts: z.boolean().default(false),
 });
 export const User = z.object({
   id: z.string(), // "gh:<github numeric id>" or "system"
@@ -202,6 +205,9 @@ export const UserRepo = z.object({
   allow_pr: z.boolean().default(false), // explicit per-repo opt-in before any draft PR can be opened
   local_root: z.string().nullable().default(null), // absolute local checkout path for IDE deep links (client-provided)
   paused: z.boolean().default(false), // the user paused monitoring: no new assessments or notifications for them; history stays
+  // GitHub no longer grants this user access (left the org, repo removed from the installation): hidden and not notified
+  // until access returns (lib/access.ts). Not a deletion: findings and settings stay.
+  access_lost: z.boolean().optional(),
   added_at: z.string(),
 });
 export type UserRepo = z.infer<typeof UserRepo>;
@@ -285,6 +291,12 @@ export const Fix = z.object({
   error: z.string().nullable().default(null),
   // ---- automated remediation (lib/runner.ts) ----
   mode: z.enum(["pr", "push", "branch", "preview"]).nullable().default(null), // what the user authorized (preview = no repository writes)
+  // The user's approval of this exact patch for one destination (lib/write-auth.ts). Required at every repository write.
+  grant: z.object({
+    id: z.string(), user_id: z.string(), approved_by: z.string(), repo: z.string(), base_sha: z.string(), patch_version: z.string(), files: z.array(z.string()),
+    action: z.enum(["pr", "branch", "pr_then_merge"]), branch: z.string(), base_branch: z.string(),
+    issued_at: z.string(), expires_at: z.string(), merge_expires_at: z.string().nullable(), revoked_at: z.string().nullable(),
+  }).nullable().default(null),
   agent: z.enum(["muse-spark", "muse-code"]).default("muse-spark"), // who produced fix.files
   allowed_files: z.array(z.string()).default([]), // the only paths the runner may change (enforced server-side on the result)
   nonce_hash: z.string().nullable().default(null), // single-use runner credential (sha256), cleared once consumed

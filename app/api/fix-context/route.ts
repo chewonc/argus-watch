@@ -1,6 +1,8 @@
 // GET ?assessment_id= — everything the Fix modal needs, without any model call or runner job (opening the modal is cheap).
 // Read-only: the saved remediation preference, why automation can or cannot act (deployment configuration vs repository
 // permission vs the finding itself), the newest fix record, and the evidence / missing evidence for the Verify tab.
+import { assessmentFor } from "@/lib/authz";
+import { fixesFor } from "@/lib/authz";
 import { automationBlocker, latestFix } from "@/lib/actions";
 import { listAgentTokens } from "@/lib/agent-token";
 import { env, hasGitHubApp, hasRunner } from "@/lib/env";
@@ -15,9 +17,9 @@ export async function GET(req: Request) {
   const user = await currentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
   const id = new URL(req.url).searchParams.get("assessment_id") ?? "";
-  const a = id ? await store.getAssessment(id) : null;
+  const a = id ? await assessmentFor(user.id, id) : null;
   if (!a || !(await canSee(user.id, a.repo))) return Response.json({ error: "not found" }, { status: 404 });
-  const [ur, demo, fixes, w, tokens] = await Promise.all([store.getUserRepo(user.id, a.repo), isSystemRepo(a.repo), store.listFixes(a.id), store.getRepo(a.repo), listAgentTokens(user.id)]);
+  const [ur, demo, fixes, w, tokens] = await Promise.all([store.getUserRepo(user.id, a.repo), isSystemRepo(a.repo), fixesFor(user.id, a.id), store.getRepo(a.repo), listAgentTokens(user.id)]);
   const inst = w?.installation_id ?? ur?.installation_id ?? null;
   const writePermission = env.FIX_ENABLED && inst && hasGitHubApp() ? await installationPermissions(inst).then((p) => p.contents === "write" && p.pull_requests === "write").catch(() => false) : null;
   const mode = modeOf(user.settings);

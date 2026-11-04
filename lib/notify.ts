@@ -12,7 +12,12 @@ import { SYSTEM_USER, store } from "./store";
 
 export async function recipientsFor(repoKey: string): Promise<string[]> {
   const users = await store.activeRepoUsers(repoKey); // users who paused monitoring of this repository are not notified
-  if (users.includes(SYSTEM_USER) && env.DEMO_SHARED_REPOS) return [...new Set([...users.filter((u) => u !== SYSTEM_USER), ...(await store.listUserIds())])];
+  // Shared demo repositories notify only users who opted in (Settings) and have not hidden them; never everyone (V5).
+  if (users.includes(SYSTEM_USER) && env.DEMO_SHARED_REPOS) {
+    const optedIn = [];
+    for (const uid of await store.listUserIds()) { const u = await store.getUser(uid); if (u?.settings?.demo_alerts && !u.settings.hide_demo) optedIn.push(uid); }
+    return [...new Set([...users.filter((u) => u !== SYSTEM_USER), ...optedIn])];
+  }
   return users.filter((u) => u !== SYSTEM_USER);
 }
 

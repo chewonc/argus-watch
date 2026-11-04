@@ -1,5 +1,6 @@
 "use server";
 // Repository onboarding actions. Every write here is to Argus Watch's own store; nothing is written to GitHub.
+import { listUserInstallationRepos } from "@/lib/github-app";
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -9,7 +10,7 @@ import { explainGitHubError, listInstallationReposApp } from "@/lib/github-app";
 import { forgetInstallations, refreshRepo } from "@/lib/repo";
 import { backfillRepo } from "@/lib/pipeline";
 import { WatchedRepo } from "@/lib/schema";
-import { requireUser } from "@/lib/session";
+import { githubUserToken, requireUser } from "@/lib/session";
 import { SYSTEM_USER, store } from "@/lib/store";
 
 /** Start the GitHub App installation flow with a state nonce that /api/github/setup checks. */
@@ -31,12 +32,17 @@ export async function addRepos(formData: FormData) {
   // Listed with the App's installation token: works after the user's sign-in token has expired.
   let list: Awaited<ReturnType<typeof listInstallationReposApp>>;
   try { list = await listInstallationReposApp(instId); } catch (e) { redirect(`/repos?error=${encodeURIComponent(explainGitHubError(e, inst.account))}`); }
-  const available = new Map(list.map((r) => [r.full_name, r]));
+  // Only repositories this user can access on GitHub themselves, not everything the App can read in a shared org (V6).
+  const token = await githubUserToken();
+  if (!token) redirect("/repos?error=no_token");
+  let mineOnGitHub: Set<string>;
+  try { mineOnGitHub = new Set((await listUserInstallationRepos(token, instId)).map((r) => r.full_name)); } catch (e) { redirect(`/repos?error=${encodeURIComponent(explainGitHubError(e, inst.account))}`); }
+  const available = new Map(list.filter((r) => mineOnGitHub.has(r.full_name)).map((r) => [r.full_name, r]));
   const errors: string[] = [];
   let backfilled = 0;
   for (const full of picked) {
     const meta = available.get(full);
-    if (!meta) { errors.push(`${full}: not in this installation`); continue; }
+    if (!meta) { errors.push(`${full}: not in this installation, or your GitHub account cannot access it`); continue; }
     const existing = await store.getRepo(full);
     const w = existing ?? WatchedRepo.parse({ repo: full, default_branch: meta.default_branch, installation_id: instId, private: meta.private });
     try {
@@ -103,7 +109,8 @@ export async function setLocalRoot(formData: FormData) {
 export async function rescan(formData: FormData) {
   const user = await requireUser("/repos");
   const key = String(formData.get("repo_key"));
-  if (!(await store.getUserRepo(user.id, key)) && !(env.DEMO_SHARED_REPOS && (await store.repoUsers(key)).includes(SYSTEM_USER))) redirect("/repos?error=not_watched");
+  // Only a user's own repositories; shared demo repositories are rescanned by the operator, not by every user (V5).
+  if (!(await store.getUserRepo(user.id, key))) redirect("/repos?error=not_watched");
   const w = await store.getRepo(key);
   if (!w) redirect("/repos?error=not_watched");
   try { const r = await refreshRepo({ ...w, refreshed_at: null }); await store.putRepo(r); }

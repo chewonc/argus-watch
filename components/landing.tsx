@@ -40,7 +40,7 @@ export function Landing({ signin, next, authReady, signedIn = false, d }: { sign
         </ol>
       </section>
 
-      <section className="py-14 border-t hair grid md:grid-cols-3 gap-8 text-[14px]">
+      <section className="py-14 border-t hair grid gap-8 max-w-[560px] text-[14px]">
         {[[d.pillar1_t, d.pillar1_d], [d.pillar2_t, d.pillar2_d], [d.pillar3_t, d.pillar3_d]].map(([t, x]) => (
           <div key={t} className="grid gap-1.5 content-start"><span className="font-semibold">{t}</span><span className="text-ink2 leading-relaxed">{x}</span></div>
         ))}

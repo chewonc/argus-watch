@@ -1,5 +1,7 @@
 // Finding page: status, plain title, location, what is wrong, how to fix it, and one GitHub link. The full
 // analysis (sources, dates, conditions, evidence, code) is preserved behind one collapsed "Technical details".
+import { assessmentFor } from "@/lib/authz";
+import { fixesFor } from "@/lib/authz";
 import { notFound } from "next/navigation";
 import { codeToHtml } from "shiki";
 import { StatusPill, firstSentence, lineAnchor, suggestedFix } from "@/components/alerts";
@@ -18,7 +20,7 @@ import { Band, Chip, Timeline } from "@/components/ui";
 import { env, hasGitHubApp } from "@/lib/env";
 import { installationPermissions } from "@/lib/github-app";
 import { getDict, getLocale, tr } from "@/lib/i18n";
-import { isVerified, location, matchedTech, plainTitle, statusOf, localized, whereLine } from "@/lib/labels";
+import { isVerified, location, matchedTech, plainTitle, statusOf, localized, tidy, whereLine } from "@/lib/labels";
 import { permalink, provenanceOf } from "@/lib/remediation";
 import { readFile } from "@/lib/repo";
 import { deriveSeverity } from "@/lib/severity";
@@ -34,9 +36,9 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   const { id } = await params;
   const aid = id.map(decodeURIComponent).join("/");
   const user = await requireUser(`/case/${id.join("/")}`);
-  const a = await store.getAssessment(aid);
+  const a = await assessmentFor(user.id, aid);
   if (!a || !(await canSee(user.id, a.repo))) notFound();
-  const [ur, demoRepo, fixes, w, resolvedSet] = await Promise.all([store.getUserRepo(user.id, a.repo), isSystemRepo(a.repo), store.listFixes(a.id), store.getRepo(a.repo), store.resolvedSet(user.id)]);
+  const [ur, demoRepo, fixes, w, resolvedSet] = await Promise.all([store.getUserRepo(user.id, a.repo), isSystemRepo(a.repo), fixesFor(user.id, a.id), store.getRepo(a.repo), store.resolvedSet(user.id)]);
   const locale = await getLocale();
   const d = await getDict(locale);
   const f = await store.getFinding(a.finding_id);
@@ -64,7 +66,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   const srcFix = suggestedFix(a);
   const texts = [title0, srcProblem, srcFix ?? "", f?.claim?.summary ?? "", a.verdict_qualifier, ...a.conditions.flatMap((c) => [c.text, c.reasoning]), ...recs0.map((r) => r.text), ...a.missing_evidence, ...a.locations.map((l) => l.why)];
   const tx = locale === "en" ? texts : await tr(locale, texts, keep);
-  let ti = 0; const next = () => tx[ti++] ?? "";
+  let ti = 0; const next = () => tidy(tx[ti++] ?? "");
   const T = { title: next(), problem: next(), fix: next() || null, summary: next(), qualifier: next() };
   const condT = a.conditions.map(() => ({ text: next(), reasoning: next() }));
   const recs = recs0.map((r) => ({ ...r, text: next() }));
@@ -197,7 +199,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
             <div className="grid sm:grid-cols-3 gap-4 mt-4 text-[13px]">
               <Col title="Supporting evidence" items={a.conditions.map((c, ci) => ({ c, t: condT[ci].text })).filter(({ c }) => c.state === "Observed" || c.state === "Inferred").map(({ c, t }) => `${c.state}: ${t}`)} empty="None." />
               <Col title="Missing evidence" items={missingT} empty="None identified in inspected files." />
-              <Col title="Unverified" items={a.unverified} empty="—" />
+              <Col title="Unverified" items={a.unverified} empty="None" />
             </div>
           </Stage>
 
@@ -235,11 +237,11 @@ function Provenance({ a, extracted }: { a: Assessment; extracted: number | null 
   const downgraded = judged.filter((c) => /downgraded|could not be verified|returned no state/.test(c.reasoning)).length;
   const dropped = Number(a.unverified.map((u) => /^(\d+) citation\(s\) failed/.exec(u)?.[1]).find(Boolean) ?? 0);
   const steps: [string, string][] = [
-    ["Read the report", extracted == null ? "—" : `${name} turned the report into ${extracted} checkable code condition${extracted === 1 ? "" : "s"}.`],
+    ["Read the report", extracted == null ? "Not available" : `${name} turned the report into ${extracted} checkable code condition${extracted === 1 ? "" : "s"}.`],
     ["Version check", computed ? `${computed} package version condition${computed === 1 ? "" : "s"} computed in code from your lockfile.` : "No package version to compute."],
     ...(a.investigation ? [["Investigate", a.investigation.steps ? `${modelName(a.investigation.model)} explored the repository with read-only tools in ${a.investigation.steps} step${a.investigation.steps === 1 ? "" : "s"} (${a.investigation.tools.slice(0, 6).join(" → ")})${a.investigation.added.length ? ` and added ${a.investigation.added.map((p) => p.split("/").pop()).join(", ")} to the evidence` : ""}.` : a.investigation.rationale] as [string, string]] : []),
     ["Read your code", a.model === "none" ? (a.hosted === "capped" ? "Skipped: monthly analysis budget reached." : "Not needed: version check only.") : `${name} judged ${judged.length} condition${judged.length === 1 ? "" : "s"} against the cited files and pointed to ${a.locations.length + dropped} line${a.locations.length + dropped === 1 ? "" : "s"}.`],
-    ["Proof check", a.model === "none" ? "—" : `Code checked every cited line against the real file: ${a.locations.length} kept, ${dropped} rejected${downgraded ? `, ${downgraded} condition${downgraded === 1 ? "" : "s"} downgraded to Unknown` : ""}.`],
+    ["Proof check", a.model === "none" ? "Not run" : `Code checked every cited line against the real file: ${a.locations.length} kept, ${dropped} rejected${downgraded ? `, ${downgraded} condition${downgraded === 1 ? "" : "s"} downgraded to Unknown` : ""}.`],
     ["Verdict", `${a.verdict}, decided by a fixed rule in code, never by the model.`],
   ];
   return (

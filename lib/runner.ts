@@ -17,13 +17,14 @@ import { env, hasQStash, hasRunner } from "./env";
 import { applyFix } from "./fix-apply";
 import { assessFix } from "./fixassess";
 import { fixableFiles, gitBlobSha, syntaxCheck, unifiedDiff } from "./fix";
-import { installationOctokit, installationToken } from "./github-app";
-import { createAgentToken } from "./agent-token";
+import { scopedRepoOctokit, scopedRepoToken } from "./github-app";
+import { createAgentToken, revokeRunnerTokens } from "./agent-token";
 import { notifyFix } from "./notify";
 import { readFile, tree } from "./repo";
 import type { Assessment, Finding, Fix } from "./schema";
 import { store } from "./store";
 import { cancellable, cancelRun, checkApprovable, patchVersion } from "./remediation-control";
+import { assertWrite, recordApproval, revoke, WriteAuthError } from "./write-auth";
 export { cancellable, cancelRun, checkApprovable, patchVersion };
 
 /** Files the runner may change: the cited source files plus the manifests the preview touched. Never lockfiles, env, keys or workflows. */
@@ -60,7 +61,8 @@ export async function startRun(fix: Fix, a: Assessment, mode: "pr" | "push" | "b
 /** Step 2: the brief the runner needs: a short-lived installation token (clone only) and a per-fix MCP agent token (read-only tools). */
 export async function briefFor(fix: Fix, a: Assessment, f: Finding | null, installationId: number, runUrl: string | null): Promise<Record<string, unknown>> {
   if (fix.status !== "queued") throw new RunnerError(`fix is ${fix.status}, not queued`, 409);
-  const cloneToken = await installationToken(installationId);
+  // Read-only and limited to this one repository: the runner clones, it never writes.
+  const cloneToken = await scopedRepoToken(installationId, fix.repo.split("/")[1], { contents: "read", metadata: "read" });
   const mcpToken = await createAgentToken(fix.user_id, `muse-code runner ${fix.id.slice(0, 8)}`);
   const w = await store.getRepo(fix.repo_key);
   const subdir = a.repo.split("/").slice(2).join("/");
@@ -92,6 +94,7 @@ export type RunnerResult = {
 /** Step 3: validate the runner's output, gate on tests, then write through the GitHub App. */
 export async function acceptResult(fix: Fix, a: Assessment, f: Finding | null, installationId: number, res: RunnerResult): Promise<Fix> {
   if (fix.status !== "running" && fix.status !== "queued") throw new RunnerError(`fix is ${fix.status}`, 409);
+  await revokeRunnerTokens(fix.user_id, fix.id).catch(() => {}); // the run is over: its MCP token is no longer needed
   const tests = res.tests ? { ...res.tests, log: (res.tests.log ?? "").slice(-6000), summary: res.tests.summary ?? null } : null;
   const install = res.install ? { ...res.install, log: (res.install.log ?? "").slice(-4000) } : null;
   const validation_label = validationSummary({ install, tests }).label;
@@ -141,9 +144,11 @@ export async function acceptResult(fix: Fix, a: Assessment, f: Finding | null, i
 
 /** The user's approval of the exact validated patch: only now does Argus write (branch, commit, PR). */
 export async function approveValidated(fix: Fix, a: Assessment, f: Finding | null, installationId: number, opts: { userLogin: string; patchVersion: string; mode: "pr" | "push" | "branch" }): Promise<Fix> {
-  checkApprovable(fix, opts.patchVersion);
-  // Claim the approval first so a double click cannot open two pull requests.
-  let next: Fix = event({ ...fix, status: "approved", mode: opts.mode, approved_at: now() }, opts.userLogin, "approved", `approved patch ${fix.patch_version} (${opts.mode === "push" ? "draft-free PR, merge after CI passes" : opts.mode === "branch" ? "push to a new branch, no pull request" : "draft pull request"})`);
+  // Atomic approval with a grant bound to this exact patch and destination (lib/write-auth.ts); the write boundary checks it.
+  const w = await store.getRepo(fix.repo_key);
+  let next: Fix = await recordApproval(fix.id, { userId: fix.user_id, userLogin: opts.userLogin, reviewedVersion: opts.patchVersion, action: opts.mode === "push" ? "pr_then_merge" : opts.mode, defaultBranch: w?.default_branch ?? "main",
+    check: checkApprovable, event, detail: `approved patch ${opts.patchVersion} (${opts.mode === "push" ? "PR, merge after CI passes" : opts.mode === "branch" ? "push to a new branch, no pull request" : "draft pull request"})` });
+  next = { ...next, mode: opts.mode };
   await store.putFix(next);
   const tests = fix.runner?.tests ?? null;
   try {
@@ -161,10 +166,13 @@ export async function approveValidated(fix: Fix, a: Assessment, f: Finding | nul
     if (next.mode === "push") next = await scheduleMerge(next, 0);
     return next;
   } catch (e) {
-    const reason = `GitHub write failed: ${String((e as { message?: string }).message ?? e).slice(0, 300)}`;
-    next = event({ ...next, status: "validated", error: reason }, "argus", "write_failed", reason); // the validated patch stays approvable
+    const refused = e instanceof WriteAuthError;
+    const reason = refused ? `write refused: ${e.message}` : `GitHub write failed: ${String((e as { message?: string }).message ?? e).slice(0, 300)}`;
+    // The grant is spent either way; a retry needs a new approval. A cancellation that landed meanwhile is kept.
+    const fresh = (await store.getFix(fix.id)) ?? next;
+    next = fresh.status === "cancelled" ? fresh : event({ ...fresh, status: "validated", error: reason, grant: revoke(fresh.grant) }, "argus", refused ? "write_refused" : "write_failed", reason);
     await store.putFix(next);
-    throw new RunnerError(reason, 502);
+    throw new RunnerError(reason, refused ? e.status : 502);
   }
 }
 
@@ -185,7 +193,7 @@ async function scheduleMerge(fix: Fix, attempt: number): Promise<Fix> {
 export async function tryMerge(fix: Fix, installationId: number, attempt: number): Promise<Fix> {
   if (fix.status !== "merging" || !fix.pr_number || !fix.branch) return fix;
   const [owner, repo] = fix.repo.split("/");
-  const ok = await installationOctokit(installationId);
+  const ok = await scopedRepoOctokit(installationId, repo, { contents: "write", pull_requests: "write", checks: "read", metadata: "read" });
   const { data } = await ok.rest.checks.listForRef({ owner, repo, ref: fix.branch, per_page: 50, filter: "latest" });
   const runs = data.check_runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion ?? null, url: r.html_url ?? null }));
   let next: Fix = { ...fix, check_runs: runs, checks_at: now() };
@@ -197,6 +205,8 @@ export async function tryMerge(fix: Fix, installationId: number, attempt: number
   if (d === "refuse_unvalidated") return leave("merge_refused", "the repository has no passing CI check for this change: refusing to merge unvalidated changes");
   if (d === "wait") return scheduleMerge(next, attempt);
   try {
+    // A PR approval never authorizes a merge: only a grant that explicitly includes merging, still inside its window.
+    await assertWrite(fix.id, { kind: "merge", repo: fix.repo, branch: fix.branch });
     const m = await ok.rest.pulls.merge({ owner, repo, pull_number: fix.pr_number, merge_method: "squash", commit_title: `Argus Watch automated fix ${fix.id.slice(0, 8)} (Meta Muse Code)` });
     const url = `https://github.com/${fix.repo}/commit/${m.data.sha}`;
     next = event({ ...next, status: "merged", merge_sha: m.data.sha, commit_url: url }, "argus", "merged", `squash-merged into the default branch after ${runs.filter((r) => r.conclusion === "success").length} passing check-run(s)${testsPassed ? " and passing runner tests" : ""}`, url);
@@ -204,6 +214,7 @@ export async function tryMerge(fix: Fix, installationId: number, attempt: number
     await store.log({ kind: "fix", source: "runner", detail: `merged ${fix.repo} ${m.data.sha.slice(0, 7)}`, ref: fix.assessment_id });
     return next;
   } catch (e) {
+    if (e instanceof WriteAuthError) return leave("merge_refused", `not authorized to merge: ${e.message}`);
     const status = (e as { status?: number }).status;
     return leave("merge_refused", `GitHub refused the merge (${status ?? "?"}: ${String((e as { message?: string }).message ?? e).slice(0, 160)}), e.g. branch protection requires reviews`);
   }

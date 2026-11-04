@@ -5,6 +5,7 @@ import { env } from "./env";
 import { RunnerError, event } from "./runner-gates";
 import type { Fix } from "./schema";
 import { store } from "./store";
+import { revoke } from "./write-auth";
 
 const now = () => new Date().toISOString();
 
@@ -32,8 +33,12 @@ export function cancellable(fix: Pick<Fix, "status">): { ok: boolean; why: strin
 export async function cancelRun(fix: Fix, userLogin: string): Promise<Fix> {
   const c = cancellable(fix);
   if (!c.ok) throw new RunnerError(c.why, 409);
+  // Record the cancellation first: any approval issued before this moment is void at the write boundary, even if a
+  // concurrent request rewrites the fix record afterwards. A write GitHub already completed is not undone by this.
+  await store.setCancelledAt(fix.id, now());
+  await import("./agent-token").then((m) => m.revokeRunnerTokens(fix.user_id, fix.id)).catch(() => {});
   if (fix.status === "merging") {
-    const next = event({ ...fix, status: "pr_created" }, userLogin, "merge_cancelled", "automatic merge cancelled by the user; the pull request stays open");
+    const next = event({ ...fix, status: "pr_created", grant: revoke(fix.grant) }, userLogin, "merge_cancelled", "automatic merge cancelled by the user; the pull request stays open");
     await store.putFix(next);
     return next;
   }
@@ -43,7 +48,7 @@ export async function cancelRun(fix: Fix, userLogin: string): Promise<Fix> {
     const r = await fetch(`https://api.github.com/repos/${env.RUNNER_REPO}/actions/runs/${runId}/cancel`, { method: "POST", headers: { authorization: `Bearer ${env.RUNNER_DISPATCH_TOKEN}`, accept: "application/vnd.github+json", "user-agent": "ArgusWatch/0.1" } }).catch(() => null);
     actions = r?.status === 202 ? `GitHub Actions run ${runId} cancelled` : r?.status === 409 ? `GitHub Actions run ${runId} had already finished` : `could not cancel GitHub Actions run ${runId} (${r?.status ?? "network error"}); its credential is revoked, so it cannot write`;
   }
-  const next = event({ ...fix, status: "cancelled", nonce_hash: null, error: "cancelled by the user", runner: fix.runner ? { ...fix.runner, finished_at: now(), error: "cancelled by the user" } : fix.runner }, userLogin, "cancelled", `${c.why} ${actions}.`);
+  const next = event({ ...fix, status: "cancelled", nonce_hash: null, grant: revoke(fix.grant), error: "cancelled by the user", runner: fix.runner ? { ...fix.runner, finished_at: now(), error: "cancelled by the user" } : fix.runner }, userLogin, "cancelled", `${c.why} ${actions}.`);
   await store.putFix(next);
   await store.log({ kind: "fix", source: "runner", detail: `cancelled by ${userLogin}: ${actions}`, ref: fix.assessment_id });
   return next;

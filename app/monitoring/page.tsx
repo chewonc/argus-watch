@@ -6,13 +6,16 @@ import { hasGitHubApp } from "@/lib/env";
 import { caseHref, discoveredAt, location, plainTitle, repoStatus } from "@/lib/labels";
 import { hostedUsedBy, usageSummary } from "@/lib/usage";
 import { requireUser, visibleRepoKeys } from "@/lib/session";
+import { knownRepoNames, logVisibleTo } from "@/lib/authz";
 import { store } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 export default async function Monitoring() {
   const user = await requireUser("/monitoring");
-  const [keys, mine, log] = await Promise.all([visibleRepoKeys(user.id), store.listUserRepos(user.id), store.recentLog(80)]);
+  const [keys, mine, rawLog, known] = await Promise.all([visibleRepoKeys(user.id), store.listUserRepos(user.id), store.recentLog(200), knownRepoNames()]);
+  // Only entries about this user's repositories, or about no repository (pipeline heartbeats); never other users' (V1).
+  const log = rawLog.filter((l) => logVisibleTo(l, keys, known)).slice(0, 80);
   const repos = (await store.listRepos()).filter((r) => keys.has(store.repoKey(r)));
   const [usage, mineUsed, recent] = await Promise.all([usageSummary(), hostedUsedBy(user.id), store.listAssessments(400)]);
   // History: threats Argus checked against your code that do not affect you (kept out of the Alerts list).

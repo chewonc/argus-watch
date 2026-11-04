@@ -22,6 +22,13 @@ export async function saveRemediationMode(formData: FormData) {
   revalidatePath("/settings");
 }
 
+/** Shared demo repositories: show/hide and opt-in alerts (per user). */
+export async function saveDemoPrefs(formData: FormData) {
+  const user = await requireUser("/settings");
+  await store.putUser({ ...user, settings: { ...user.settings, hide_demo: formData.get("show_demo") !== "on", demo_alerts: formData.get("demo_alerts") === "on" } });
+  revalidatePath("/settings"); revalidatePath("/alerts"); revalidatePath("/repos");
+}
+
 /** Create a personal agent token (returned once; only its hash is stored). */
 export async function createAgentTokenAction(label: string): Promise<string> {
   const user = await requireUser("/settings");

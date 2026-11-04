@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { automationBlocker } from "../lib/actions";
-import { modeOf, needsWrite, writeModeFor } from "../lib/remediation-mode";
+import { destinationOf, modeOf, needsWrite, writeModeFor } from "../lib/remediation-mode";
 import type { Assessment } from "../lib/schema";
 
 test("preference defaults to draft PR and ignores unknown values", () => {
@@ -11,17 +11,19 @@ test("preference defaults to draft PR and ignores unknown values", () => {
   assert.equal(modeOf({ remediation_mode: "branch" }), "branch");
 });
 
-test("no repository writes: every write is refused", () => {
-  for (const r of ["pr", "push", "branch", undefined]) assert.equal(writeModeFor("preview", r).ok, false);
+test("per-attempt destination: the saved preference is only the default; unknown values fall back to it", () => {
+  assert.equal(destinationOf("branch", "pr"), "branch");
+  assert.equal(destinationOf("preview", "pr"), "preview");
+  assert.equal(destinationOf("merge", "pr"), "pr");
+  assert.equal(destinationOf(undefined, "branch"), "branch");
 });
 
-test("never escalates: the requested destination must match the saved preference", () => {
-  assert.deepEqual(writeModeFor("pr", "pr"), { ok: true, mode: "pr" });
-  assert.deepEqual(writeModeFor("pr", "push"), { ok: true, mode: "push" }, "merge-after-CI stays a per-fix opt-in on PR mode");
-  assert.equal(writeModeFor("pr", "branch").ok, false);
-  assert.deepEqual(writeModeFor("branch", "branch"), { ok: true, mode: "branch" });
-  assert.equal(writeModeFor("branch", "push").ok, false, "branch preference never becomes a merge");
-  assert.equal(writeModeFor("branch", "pr").ok, false);
+test("approval writes only for an explicit PR or branch destination; never for 'no repository changes'; never a merge", () => {
+  assert.deepEqual(writeModeFor("pr"), { ok: true, mode: "pr" });
+  assert.deepEqual(writeModeFor("branch"), { ok: true, mode: "branch" });
+  for (const r of ["preview", undefined, "", "main"]) assert.equal(writeModeFor(r).ok, false);
+  const m = writeModeFor("push");
+  assert.equal(m.ok, false, "a PR approval is never combined with automatic merging");
 });
 
 const A = { verdict: "Affected", locations: [{ file: "src/auth.ts", line: 3, quote: "x", why: "" }], conditions: [] } as unknown as Assessment;

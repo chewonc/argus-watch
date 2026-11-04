@@ -1,14 +1,16 @@
 // Activity log: what Argus Watch did in the background, in everyday words. Not notifications (those are alerts
 // that need you); raw entries stay on Monitoring status → Advanced diagnostics.
 import { describe } from "@/lib/activity";
-import { requireUser } from "@/lib/session";
+import { knownRepoNames, logVisibleTo } from "@/lib/authz";
+import { requireUser, visibleRepoKeys } from "@/lib/session";
 import { store } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 export default async function Activity() {
-  await requireUser("/activity");
-  const log = await store.recentLog(300);
+  const user = await requireUser("/activity");
+  const [raw, keys, known] = await Promise.all([store.recentLog(300), visibleRepoKeys(user.id), knownRepoNames()]);
+  const log = raw.filter((l) => logVisibleTo(l, keys, known)); // only this user's repositories (V7)
   // Collapse consecutive repeats ("Checked security news sources" ×12) into one line.
   const rows: { at: string; text: string; n: number }[] = [];
   for (const l of log) { const t = describe(l); if (!t) continue; const last = rows[rows.length - 1]; if (last?.text === t) last.n++; else rows.push({ at: l.at, text: t, n: 1 }); }

@@ -1,5 +1,7 @@
 // Alerts dashboard (/alerts). Answers only: do I need to do anything, which issues, which repository is watched.
 // Technical monitoring detail lives on /monitoring; the product landing page is /.
+import { withAgentFor } from "@/lib/authz";
+import { fixesFor } from "@/lib/authz";
 import Link from "next/link";
 import { AlertCard, type CardData } from "@/components/alerts";
 import { RememberThreatsView, RepoFilter } from "@/components/repo-filter";
@@ -39,9 +41,11 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
   // latest assessment per (finding, repo): re-assessments supersede older ones
   const latest = new Map<string, (typeof assessmentsAll)[number]>();
   for (const a of assessmentsAll) { if (!keys.has(a.repo)) continue; const k = `${a.finding_id}|${a.repo}`; if (!latest.has(k) || latest.get(k)!.timestamps.processed_at < a.timestamps.processed_at) latest.set(k, a); }
+  // Each user sees only their own AI-agent report on a shared assessment (V4).
+  for (const p of await withAgentFor(user.id, [...latest.values()])) latest.set(`${p.finding_id}|${p.repo}`, p);
   const resolved = new Set(resolvedSet);
   const fixesBy = new Map<string, Fix[]>();
-  await Promise.all([...latest.values()].filter((a) => a.verdict !== "Not Affected").map(async (a) => { fixesBy.set(a.id, await store.listFixes(a.id)); }));
+  await Promise.all([...latest.values()].filter((a) => a.verdict !== "Not Affected").map(async (a) => { fixesBy.set(a.id, await fixesFor(user.id, a.id)); }));
   // Write permission is only looked up when web Fix is switched on (one cached-per-request call per installation).
   const perms = new Map<number, boolean>();
   if (env.FIX_ENABLED && hasGitHubApp()) for (const id of new Set(mine.map((m) => m.installation_id).filter((x): x is number => !!x))) {
@@ -94,11 +98,13 @@ export default async function Watch({ searchParams }: { searchParams: Promise<Re
           <p className="text-[15px] text-ink2" aria-live="polite">{repos.length === 0 ? d.no_repos_short : openCount === 0 ? d.nothing_needs_you : openCount === 1 ? d.one_needs_you : d.n_need_you.replace("{n}", String(openCount))}</p>
         </div>
         {repoLines.length > 0 && (
-          <ul className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px]" aria-label={d.repositories}>
-            {repoLines.slice(0, 3).map(({ k, s }) => <li key={k} className="flex items-center gap-2"><span className="font-medium">{k}</span><span className={`tone-${s.tone}`}><span aria-hidden className="text-[9px] align-[1px]">{s.glyph}</span> {s.label}</span></li>)}
-            {repoLines.length > 3 && <li className="text-ink2">+{repoLines.length - 3} more</li>}
-            <li><Link href="/repos" className="text-ink2 hover:text-ink underline">{d.manage}</Link></li>
-          </ul>
+          <div className="grid gap-1 text-[13px]">
+            <div className="label">Monitored repositories</div>
+            <ul className="grid gap-0.5 max-h-[180px] overflow-auto" aria-label={d.repositories}>
+              {repoLines.map(({ k, s }) => <li key={k} className="flex items-center gap-2 min-w-0"><span aria-hidden className={`tone-${s.tone} text-[9px]`}>●</span><span className="font-medium truncate" title={k}>{k}</span>{s.label !== d.monitoring_active && <span className={`tone-${s.tone} shrink-0`}>{s.label}</span>}</li>)}
+            </ul>
+            <Link href="/repos" className="text-ink2 hover:text-ink underline w-fit">Manage repositories</Link>
+          </div>
         )}
       </header>
 

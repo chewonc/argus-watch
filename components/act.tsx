@@ -27,7 +27,7 @@ export function ActControls({ briefPath, verdict, codexCmd }: { briefPath: strin
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <button onClick={copy} disabled={state === "copying"} className="px-3 py-1.5 rounded-[4px] text-[13px] font-medium text-white" style={{ background: "var(--accent)" }}>
-          {state === "copied" ? "Copied" : state === "copying" ? "Preparing…" : state === "failed" ? "Copy failed — use Download" : `${primary} for ${agent === "claude" ? "Claude Code" : "Codex"}`}
+          {state === "copied" ? "Copied" : state === "copying" ? "Preparing…" : state === "failed" ? "Copy failed. Use Download" : `${primary} for ${agent === "claude" ? "Claude Code" : "Codex"}`}
         </button>
         <select value={agent} onChange={(e) => setAgent(e.target.value as "claude" | "codex")} className="px-2 py-1.5 rounded-[4px] border hair bg-raised text-[13px]" aria-label="Target agent">
           <option value="claude">Claude Code</option>

@@ -5,10 +5,10 @@
 export type RemediationMode = "preview" | "pr" | "branch";
 export type WriteMode = "pr" | "push" | "branch";
 
-export const REMEDIATION_MODES: { id: RemediationMode; title: string; desc: string }[] = [
-  { id: "preview", title: "No repository writes", desc: "Muse Code generates and validates the patch in an isolated runner. You get the validated patch to apply yourself; Argus never writes to your repository." },
-  { id: "pr", title: "Create draft pull request", desc: "After you approve the validated patch, Argus pushes a new branch and opens a draft pull request. Nothing is merged." },
-  { id: "branch", title: "Push changes to a branch", desc: "After you approve the validated patch, Argus pushes it to a new branch (argus/fix-…) without opening a pull request. Your default branch is never written, and branch protection is respected." },
+export const REMEDIATION_MODES: { id: RemediationMode; title: string; short: string; desc: string }[] = [
+  { id: "preview", title: "No repository writes", short: "Generate a patch without changing your repository.", desc: "Muse Code generates and validates the patch in an isolated runner. You get the validated patch to apply yourself; Argus never writes to your repository." },
+  { id: "pr", title: "Create draft PR", short: "Create a draft PR after approval.", desc: "After you approve the validated patch, Argus pushes a new branch and opens a draft pull request. Nothing is merged." },
+  { id: "branch", title: "Push to branch", short: "Push changes to a new branch after approval.", desc: "After you approve the validated patch, Argus pushes it to a new branch (argus/fix-…) without opening a pull request. Your default branch is never written, and branch protection is respected." },
 ];
 
 /** Short label for the modal's "After fixing:" line. */
@@ -20,13 +20,17 @@ export const modeOf = (s: { remediation_mode?: string } | null | undefined): Rem
 /** Whether repository write access (and the per-repository "allow changes" switch) is needed for this preference. */
 export const needsWrite = (m: RemediationMode) => m !== "preview";
 
+/** Parse the destination chosen for one attempt (the modal's "After fixing" dropdown); the saved preference is only its default. */
+export const destinationOf = (requested: unknown, fallback: RemediationMode): RemediationMode =>
+  requested === "preview" || requested === "pr" || requested === "branch" ? requested : fallback;
+
 /**
- * The write the server performs for an approval, given the saved preference and what the client asked for.
- * "push" (merge after CI) is a separate per-fix opt-in that only exists on top of the pull-request preference.
+ * The write the server performs when the user clicks the approval button for one attempt. The click is the authorization
+ * for exactly that destination (the grant binds it to the patch, repository and commit). "No repository changes" never
+ * writes. Merging is not part of any approval here: a PR approval is never a merge approval.
  */
-export function writeModeFor(pref: RemediationMode, requested: unknown): { ok: true; mode: WriteMode } | { ok: false; error: string } {
-  if (pref === "preview") return { ok: false, error: "Your remediation preference is \"No repository writes\", so nothing is written. Change it in Settings → Automatic remediation behavior to create a pull request or push a branch." };
-  if (pref === "branch") return requested === "branch" ? { ok: true, mode: "branch" } : { ok: false, error: "Your saved preference is \"Push changes to a branch\"; reload and review the destination before approving." };
-  if (requested === "pr" || requested === "push") return { ok: true, mode: requested };
-  return { ok: false, error: "Your saved preference is \"Create draft pull request\"; reload and review the destination before approving." };
+export function writeModeFor(requested: unknown): { ok: true; mode: WriteMode } | { ok: false; error: string } {
+  if (requested === "pr" || requested === "branch") return { ok: true, mode: requested };
+  if (requested === "push") return { ok: false, error: "Automatic merging needs its own separate authorization; approve the pull request first." };
+  return { ok: false, error: "\"No repository changes\" was selected, so nothing is written to your repository." };
 }

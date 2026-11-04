@@ -49,7 +49,7 @@ async function devUser(login: string): Promise<User> {
   const uid = `dev:${login}`;
   let u = await store.getUser(uid);
   if (!u) {
-    u = { id: uid, login, name: `${login} (local dev stub)`, email: null, avatar: null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" , remediation_mode: "pr" as const } };
+    u = { id: uid, login, name: `${login} (local dev stub)`, email: null, avatar: null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" , remediation_mode: "pr" as const, hide_demo: false, demo_alerts: false } };
     await store.putUser(u);
     await store.log({ kind: "auth", source: "dev", detail: `dev stub user ${login} (AW_DEV_USER; not available in production)` });
   }
@@ -75,7 +75,7 @@ export async function currentUser(): Promise<User | null> {
       uid = `gh:${gh.id}`;
       await kv.set(`uidmap:${baId}`, uid);
       if (!(await store.getUser(uid))) {
-        await store.putUser({ id: uid, login: gh.login, name: gh.name ?? s.user.name ?? null, email: gh.email ?? s.user.email ?? null, avatar: gh.avatar_url ?? s.user.image ?? null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" , remediation_mode: "pr" as const } });
+        await store.putUser({ id: uid, login: gh.login, name: gh.name ?? s.user.name ?? null, email: gh.email ?? s.user.email ?? null, avatar: gh.avatar_url ?? s.user.image ?? null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" , remediation_mode: "pr" as const, hide_demo: false, demo_alerts: false } });
         await store.log({ kind: "auth", source: "github", detail: `new user ${gh.login}` });
       }
     } else {
@@ -86,7 +86,7 @@ export async function currentUser(): Promise<User | null> {
       await store.log({ kind: "auth", source: "github", detail: `session ok but no GitHub token: ${ghErr ?? "unknown"}; using session identity` });
       if (!(await store.getUser(uid))) {
         const login = (s.user.name || s.user.email || baId).replace(/\s+/g, "-").slice(0, 40);
-        await store.putUser({ id: uid, login, name: s.user.name ?? null, email: s.user.email ?? null, avatar: s.user.image ?? null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" , remediation_mode: "pr" as const } });
+        await store.putUser({ id: uid, login, name: s.user.name ?? null, email: s.user.email ?? null, avatar: s.user.image ?? null, created_at: new Date().toISOString(), settings: { inapp: true, push: false, webhook_url: null, locale: "en" , remediation_mode: "pr" as const, hide_demo: false, demo_alerts: false } });
       }
     }
   }
@@ -103,8 +103,15 @@ export async function requireUser(nextPath = "/"): Promise<User> {
 
 /** Repo keys this user may see: their own plus the system (demo) repos when sharing is enabled. */
 export async function visibleRepoKeys(uid: string): Promise<Set<string>> {
-  const own = await store.listUserRepoKeys(uid);
-  const sys = env.DEMO_SHARED_REPOS ? await store.listUserRepoKeys(SYSTEM_USER) : [];
+  // Re-check GitHub access at most every 15 minutes when a browser session is present (V6); MCP calls use the last result.
+  if (uid !== SYSTEM_USER) {
+    const token = await githubUserToken().catch(() => null);
+    await import("./access").then((m) => m.revalidateAccess(uid, token)).catch((e) => store.log({ kind: "error", source: "access", detail: `revalidation failed: ${String(e).slice(0, 120)}` }));
+  }
+  const own = (await store.listUserRepos(uid)).filter((r) => !r.access_lost).map((r) => r.repo_key);
+  // Shared demo repositories: public fixtures, read-only for everyone; each user may hide them (V5).
+  const showDemo = env.DEMO_SHARED_REPOS && !(await store.getUser(uid))?.settings?.hide_demo;
+  const sys = showDemo ? await store.listUserRepoKeys(SYSTEM_USER) : [];
   return new Set([...own, ...sys]);
 }
 

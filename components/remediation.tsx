@@ -1,198 +1,191 @@
 "use client";
-// One remediation workflow per finding: Review → (Prepare patch) → Approve → Draft PR → Result. It replaces the separate
-// preview / Muse Code / PR panels. Nothing is written to the user's repository before "Approve & create draft PR",
-// and with the Muse Code runner the user approves the exact validated patch (patch_version), not just the preview.
-// Progress shows the real stage and elapsed time; Cancel calls the backend (lib/runner.ts cancelRun).
-import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+// Auto Fix tab of the Fix modal: one state-driven view per fix status (no numbered wizard). Outcome first, technical
+// details collapsed. Writes happen only when the user clicks the approval button for the exact patch and the destination
+// shown next to it; the server binds that click to user, repository, commit, patch hash and destination
+// (lib/write-auth.ts). The destination dropdown defaults to the saved Settings preference, applies to this attempt only,
+// and never writes by itself. Automatic merging is never offered as part of an approval.
+import { useCallback, useEffect, useState } from "react";
 import type { Fix } from "@/lib/schema";
 import { isStaleRun } from "@/lib/run-stale";
+import { DESTINATIONS, fixChecks, friendlyError, type Check } from "@/lib/fix-summary";
+import type { RemediationMode } from "@/lib/remediation-mode";
 import { Assessment, Diff, RejectedHunks, StatusLadder } from "./fix-preview";
 import { RunLadder } from "./muse-fix";
-import type { RemediationMode } from "@/lib/remediation-mode";
 
-type RunInfo = { allowed_files: string[]; test_command: string | null; default_branch: string; blockers: string[] };
-const POLL = ["drafting", "queued", "running", "approved", "merging"];
-const RESULT = ["pr_created", "merging", "blocked_by_protection", "merged", "branch_pushed"];
-const FAILED = ["failed", "validation_failed", "cancelled"];
+const WORKING = ["drafting", "queued", "running"];
+const since = (from: number | null, now: number) => { if (!from) return null; const s = Math.max(0, Math.round((now - from) / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
 
-const lineCounts = (patch: string) => patch.split("\n").reduce((n, l) => (l.startsWith("+") && !l.startsWith("+++") ? { ...n, add: n.add + 1 } : l.startsWith("-") && !l.startsWith("---") ? { ...n, del: n.del + 1 } : n), { add: 0, del: 0 });
-const since = (iso: string | null | undefined, now: number) => { if (!iso) return null; const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
+function Checks({ items }: { items: Check[] }) {
+  return <ul className="grid gap-0.5 text-[13px]">{items.map((c) => <li key={c.text} className={c.tone === "ok" ? "" : c.tone === "bad" ? "tone-bad" : "tone-warn"}><span aria-hidden>{c.tone === "ok" ? "✓" : c.tone === "bad" ? "✗" : "⚠"}</span> {c.text}</li>)}</ul>;
+}
 
-// embedded: rendered inside the Fix modal (always open; nothing is started until the user clicks). mode: the saved
-// remediation preference; it only picks the destination, and the server re-checks it on every write.
-export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defaultBranch, repo, embedded = false, mode = "pr", onChange }: { assessmentId: string; initial: Fix | null; canAct: boolean; runnerEnabled: boolean; defaultBranch: string; repo: string; embedded?: boolean; mode?: RemediationMode; onChange?: (f: Fix | null) => void }) {
-  const sp = useSearchParams();
-  const [open, setOpen] = useState(embedded);
-  const [copiedPatch, setCopiedPatch] = useState(false);
+function TechnicalDetails({ fix }: { fix: Fix }) {
+  return (
+    <details className="disclose"><summary>Technical details</summary>
+      <div className="grid gap-4 mt-3 text-[12px]">
+        {fix.summary && <div><div className="label">{fix.agent === "muse-code" ? "Muse Code's note (written before the checks)" : "Proposal note"}</div><p>{fix.summary}</p></div>}
+        {fix.error && <div><div className="label">Error</div><p className="mono [overflow-wrap:anywhere]">{fix.error}</p></div>}
+        <StatusLadder fix={fix} />
+        {fix.assessment && <Assessment fix={fix} />}
+        {fix.caveats.length > 0 && <div><div className="label">Caveats</div><ul className="list-disc pl-5">{fix.caveats.map((c, i) => <li key={i}>{c}</li>)}</ul></div>}
+        {fix.agent === "muse-code" && <RunLadder fix={fix} />}
+        {fix.runner?.run_url && <a href={fix.runner.run_url} target="_blank" rel="noreferrer">Job log ↗</a>}
+      </div>
+    </details>
+  );
+}
+
+export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defaultBranch, repo, mode = "pr", onChange }: { assessmentId: string; initial: Fix | null; canAct: boolean; runnerEnabled: boolean; defaultBranch: string; repo: string; embedded?: boolean; mode?: RemediationMode; onChange?: (f: Fix | null) => void }) {
   const [fix, setFix] = useState<Fix | null>(initial);
-  const [info, setInfo] = useState<RunInfo | null>(null);
+  const [dest, setDest] = useState<RemediationMode>(mode); // this attempt only; Settings is not changed
   const [busy, setBusy] = useState<string | null>(null);
+  const [busySince, setBusySince] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [reviewed, setReviewed] = useState(false);
-  const [autoMerge, setAutoMerge] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const started = useRef(false);
 
-  const call = useCallback(async (url: string, body?: unknown, method = "POST") => {
-    const r = await fetch(url, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const call = useCallback(async (url: string, body?: unknown) => {
+    const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
     const j = await r.json().catch(() => ({}));
     if (j.fix) setFix(j.fix);
     if (!r.ok) throw new Error(j.error ?? r.statusText);
-    return j;
+    return j as { fix?: Fix };
   }, []);
-  const act = async (name: string, fn: () => Promise<unknown>) => { setBusy(name); setErr(null); try { await fn(); setReviewed(false); } catch (e) { setErr(String((e as Error).message)); } finally { setBusy(null); } };
-  const draft = (force = false) => act("draft", () => call("/api/fix", { assessment_id: assessmentId, force }));
-
-  // "Review & Fix" links carry ?act=1 (or #fix): open the workflow; prepare a read-only preview if none exists yet.
-  useEffect(() => {
-    if (embedded) return;
-    const want = sp.get("act") === "1" || (typeof window !== "undefined" && window.location.hash === "#fix");
-    if (!want) return;
-    const r = requestAnimationFrame(() => {
-      setOpen(true);
-      document.getElementById("fix")?.scrollIntoView({ block: "start" });
-      if (!fix && canAct && !started.current) { started.current = true; void draft(); }
-    });
-    return () => cancelAnimationFrame(r);
-  }, [sp]); // eslint-disable-line react-hooks/exhaustive-deps
+  const act = async (name: string, fn: () => Promise<unknown>) => { setBusy(name); setBusySince(Date.now()); setErr(null); try { await fn(); } catch (e) { setErr(String((e as Error).message)); } finally { setBusy(null); } };
+  const run = (f: Fix) => call(`/api/fix/${f.id}/run`, { mode: dest, reviewed: true });
+  // "Prepare fix" / "Start over": a NEW attempt (new fix record), then, with the runner, generate and check the patch.
+  // Nothing in this step writes to the repository. A new attempt starts from the saved preference.
+  const prepare = (fresh: boolean) => act("prepare", async () => {
+    if (fresh) { setDest(mode); setReviewed(false); }
+    const j = await call("/api/fix", { assessment_id: assessmentId, force: fresh });
+    if (runnerEnabled && j.fix && j.fix.status === "drafted" && j.fix.files.length) await run(j.fix);
+  });
 
   useEffect(() => { onChange?.(fix); }, [fix]); // eslint-disable-line react-hooks/exhaustive-deps
   const status = fix?.status ?? null;
   const stale = !!fix && isStaleRun(fix, now);
-  // Poll while something is running; tick a clock for elapsed time.
   useEffect(() => {
-    if (!fix || !POLL.includes(fix.status) || stale) return;
-    const t = setInterval(async () => { const r = await fetch(`/api/fix/${fix.id}`); if (r.ok) { const j = await r.json(); setFix(j.fix); } }, 4000);
+    if (!fix || !(WORKING.includes(fix.status) || fix.status === "approved" || fix.status === "merging") || stale) return;
+    const t = setInterval(async () => { const r = await fetch(`/api/fix/${fix.id}`); if (r.ok) setFix((await r.json()).fix); }, 4000);
     return () => clearInterval(t);
   }, [fix, stale]);
-  useEffect(() => { if (!busy && !(status && POLL.includes(status))) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [busy, status]);
-  useEffect(() => {
-    if (!open || !fix || !runnerEnabled || info || !["drafted", "validated", "failed", "validation_failed", "cancelled"].includes(fix.status)) return;
-    fetch(`/api/fix/${fix.id}/run`).then((r) => (r.ok ? r.json() : null)).then((j) => j && setInfo(j)).catch(() => {});
-  }, [open, fix, runnerEnabled, info]);
+  useEffect(() => { if (!busy && !(status && WORKING.includes(status))) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [busy, status]);
 
   if (!canAct && !fix) return null;
   const files = fix?.files ?? [];
-  const validated = status === "validated";
-  const byRunner = fix?.agent === "muse-code";
-  const blockers = info?.blockers ?? [];
   const branch = fix ? `argus/fix-${fix.id.slice(0, 8)}` : "argus/fix-…";
-  const preview = mode === "preview";
-  const dest = mode === "branch" ? "Push branch" : preview ? "Validated patch" : "Draft PR";
-  const stages = preview ? ["Review", "Prepare patch", dest] : runnerEnabled ? ["Review", "Prepare patch", "Approve", dest] : ["Review", "Approve", dest];
-  const stageIx = !fix || status === "drafting" || status === "drafted" ? 0
-    : status === "queued" || status === "running" ? 1
-    : validated ? (preview ? stages.length : runnerEnabled ? 2 : 1)
-    : status === "approved" ? stages.length - 1
-    : RESULT.includes(status ?? "") ? stages.length : 0;
-
-  return (
-    <section id={embedded ? undefined : "fix"} className="grid gap-3 scroll-mt-20" aria-label="Fix workflow">
-      {!open ? (
-        <button type="button" className="btn w-fit" onClick={() => { setOpen(true); if (!fix && canAct && !started.current) { started.current = true; void draft(); } }}>
-          {RESULT.includes(status ?? "") ? "View fix status" : status && POLL.includes(status) ? "View progress" : validated ? "Review & approve the patch" : "Review & Fix"} <span aria-hidden>→</span>
-        </button>
-      ) : (
-        <div className={embedded ? "grid gap-4" : "border hair rounded-[10px] bg-raised p-4 sm:p-5 grid gap-4"}>
-          <ol className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]" aria-label="Fix progress">
-            {stages.map((s, i) => <li key={s} aria-current={i === stageIx ? "step" : undefined} className={i < stageIx ? "tone-ok" : i === stageIx ? "font-semibold" : "text-ink2"}>{i < stageIx ? "✓" : `${i + 1}`} {s}{i < stages.length - 1 && <span aria-hidden className="text-ink2 ml-3">›</span>}</li>)}
-          </ol>
-          {err && <p role="alert" className="text-[13px] tone-bad">{err}</p>}
-
-          {/* Preparing the read-only preview */}
-          {(!fix || status === "drafting") && <p className="text-[14px]" aria-live="polite">{busy === "draft" || status === "drafting" ? <>Preparing a proposed change from the cited files… <span className="text-ink2">(read-only, usually under a minute{busy === "draft" ? "" : ""})</span></> : <button className="btn" onClick={() => draft()}>Prepare a proposed change</button>}</p>}
-
-          {/* REVIEW (preview or validated patch) */}
-          {fix && (status === "drafted" || validated) && files.length > 0 && (
-            <div className="grid gap-3">
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="chip" style={{ color: validated ? "var(--observed)" : "var(--inferred)" }}>{validated ? "Validated patch · made by Muse Code in an isolated runner" : "Preliminary proposal · not yet validated"}</span>
-                {validated && fix.runner?.validation_label && <span className="text-[12px] text-ink2">{fix.runner.validation_label}</span>}
-              </div>
-              {byRunner && validated ? <div className="grid gap-0.5"><div className="label">Muse Code&apos;s note (written before the runner&apos;s checks)</div><p className="text-[14px]">{fix.summary}</p>{fix.runner?.validation_label && <p className="text-[12px] text-ink2">Runner result: {fix.runner.validation_label}{fix.files.some((x) => /package-lock\.json$/.test(x.path)) ? "; the runner regenerated package-lock.json" : ""}.</p>}</div> : <p className="text-[14px]">{fix.summary}</p>}
-              <ul className="grid gap-1 text-[13px]" aria-label="Files that will change">
-                {files.map((x) => { const c = lineCounts(x.patch); return <li key={x.path} className="flex flex-wrap gap-x-2"><span className="mono [overflow-wrap:anywhere]">{x.path}</span><span className="tone-ok">+{c.add}</span><span className="tone-bad">−{c.del}</span></li>; })}
-              </ul>
-              <p className="text-[12px] text-ink2">{preview ? <>Destination: none. Your preference is <b>No repository writes</b>, so Argus never writes to {repo}; copy the validated patch and apply it yourself.</> : mode === "branch" ? <>Destination: new branch <span className="mono">{branch}</span> in {repo}, pushed without a pull request. Your default branch <span className="mono">{defaultBranch}</span> is never written and nothing is merged.</> : <>Destination: a {autoMerge && validated ? "pull request that Argus merges only after your repository's CI passes" : "draft pull request"} on new branch <span className="mono">{branch}</span> in {repo}. Your default branch <span className="mono">{defaultBranch}</span> is not changed{autoMerge && validated ? " until CI passes" : " and nothing is merged"}.</>} Security remediation is not verified by passing checks.</p>
-              <details className="disclose"><summary>Code changes ({files.length} file{files.length === 1 ? "" : "s"})</summary>
-                <div className="grid gap-3 mt-3">{files.map((x) => <div key={x.path} className="border hair rounded-[6px] overflow-hidden"><div className="mono text-[12px] px-3 py-2 border-b hair [overflow-wrap:anywhere]">{x.path}</div><Diff patch={x.patch} /></div>)}{fix.rejected_hunks.length > 0 && <RejectedHunks fix={fix} />}</div>
-              </details>
-              <details className="disclose"><summary>Validation &amp; remaining risks</summary>
-                <div className="grid gap-4 mt-3"><StatusLadder fix={fix} />{fix.assessment && <Assessment fix={fix} />}{fix.caveats.length > 0 && <div className="text-[12px]"><div className="label">Caveats</div><ul className="list-disc pl-5">{fix.caveats.map((c, i) => <li key={i}>{c}</li>)}</ul></div>}{byRunner && <RunLadder fix={fix} />}</div>
-              </details>
-              {blockers.length > 0 && <ul role="alert" className="grid gap-1 text-[13px] tone-bad">{blockers.map((b) => <li key={b}>{b}</li>)}</ul>}
-
-              {/* APPROVE */}
-              {validated && preview ? (
-                <div className="grid gap-2 border-t hair pt-3">
-                  <p className="text-[13px]">Validated patch ready. Nothing was written to your repository, and nothing will be: your preference is <b>No repository writes</b>.</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(files.map((x) => x.patch).join("\n")); setCopiedPatch(true); setTimeout(() => setCopiedPatch(false), 2000); } catch { /* clipboard unavailable */ } }}>{copiedPatch ? "Copied" : "Copy patch"}</button>
-                    <button className="btn-ghost" disabled={!!busy} onClick={() => act("discard", () => call(`/api/fix/${fix.id}/cancel`))}>Discard patch</button>
-                  </div>
-                </div>
-              ) : preview && !runnerEnabled ? (
-                <p className="text-[13px] border-t hair pt-3">This is a read-only proposal. Your preference is <b>No repository writes</b>, so nothing will be written; apply the changes above yourself.</p>
-              ) : (validated || !runnerEnabled) ? (
-                <div className="grid gap-2 border-t hair pt-3">
-                  <label className="flex items-start gap-2 text-[13px]"><input type="checkbox" className="mt-1" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} /> <span>I reviewed {validated ? "this patch" : "these changes"} and approve {mode === "branch" ? <>pushing it to the new branch <span className="mono">{branch}</span></> : "opening a draft pull request"}.</span></label>
-                  {validated && mode === "pr" && <label className="flex items-start gap-2 text-[12px] text-ink2"><input type="checkbox" className="mt-0.5" checked={autoMerge} onChange={(e) => setAutoMerge(e.target.checked)} /> <span>Also merge it automatically, but only after the repository&apos;s CI checks pass (never with missing or failing CI, never past branch protection).</span></label>}
-                  <div className="flex flex-wrap gap-2">
-                    <button className="btn" disabled={!reviewed || !!busy || blockers.length > 0} onClick={() => act("approve", () => validated ? call(`/api/fix/${fix.id}/approve`, { patch_version: fix.patch_version, mode: mode === "branch" ? "branch" : autoMerge ? "push" : "pr", reviewed: true }) : call(`/api/fix/${fix.id}/apply`, { reviewed: true, mode: mode === "branch" ? "branch" : "pr" }))}>{busy === "approve" ? (mode === "branch" ? "Pushing branch…" : "Creating pull request…") : mode === "branch" ? "Approve & push branch" : autoMerge && validated ? "Approve & create PR (merge after CI)" : "Approve & create draft PR"}</button>
-                    {validated ? <button className="btn-ghost" disabled={!!busy} onClick={() => act("discard", () => call(`/api/fix/${fix.id}/cancel`))}>Discard patch</button> : <button className="btn-ghost" disabled={!!busy} onClick={() => draft(true)}>Re-draft</button>}
-                  </div>
-                </div>
-              ) : (
-                <div className="grid gap-2 border-t hair pt-3">
-                  <p className="text-[13px]">Next, Meta Muse Code prepares and validates the real patch in an isolated GitHub Actions runner (about 2 minutes). <b>Nothing is written to your repository</b>{preview ? " (your preference: no repository writes)" : <>: you review and approve that patch before {mode === "branch" ? "a branch is pushed" : "a pull request is opened"}</>}.{info?.test_command ? <> Tests: <span className="mono">{info.test_command}</span>.</> : info ? " No test command detected; checks will be static." : ""}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button className="btn" disabled={!!busy || blockers.length > 0} onClick={() => act("prepare", () => call(`/api/fix/${fix.id}/run`, { mode: "pr", reviewed: true }))}>{busy === "prepare" ? "Starting…" : "Prepare validated patch"}</button>
-                    <button className="btn-ghost" disabled={!!busy} onClick={() => draft(true)}>Re-draft preview</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* EXECUTE: preparing in the runner, or creating the PR */}
-          {fix && (status === "queued" || status === "running" || status === "approved") && !stale && (
-            <div className="grid gap-2" aria-live="polite">
-              <ol className="grid gap-1 text-[13px]">
-                {[["Preparing the isolated runner", status === "queued"], ["Muse Code generating and validating the patch", status === "running"], [mode === "branch" ? "Pushing the branch" : "Creating the pull request", status === "approved"]].map(([label, cur]) => <li key={String(label)} className={cur ? "font-semibold" : "text-ink2"}>{cur ? "●" : "○"} {label}</li>)}
-              </ol>
-              <p className="text-[12px] text-ink2">Elapsed {since(status === "approved" ? fix.approved_at : fix.runner?.dispatched_at, now) ?? "—"}{status === "queued" ? " · GitHub usually starts the runner within seconds" : status === "running" ? " · the last measured run took about 1.5 minutes here" : ""}{fix.runner?.run_url && <> · <a href={fix.runner.run_url} target="_blank" rel="noreferrer">Runner log ↗</a></>}</p>
-              {status === "approved"
-                ? <p className="text-[12px] text-ink2">The pull request is being created and can no longer be cancelled; close it on GitHub if you change your mind.</p>
-                : <button className="btn-ghost w-fit" disabled={!!busy} onClick={() => act("cancel", () => call(`/api/fix/${fix.id}/cancel`))}>{busy === "cancel" ? "Cancelling…" : "Cancel"}</button>}
-            </div>
-          )}
-
-          {/* RESULT */}
-          {fix && RESULT.includes(status ?? "") && (
-            <div className="grid gap-2 text-[13px]">
-              <p className="text-[14px]">{status === "branch_pushed" ? <>Pushed to branch <span className="mono">{fix.branch}</span> (no pull request). Your default branch was not changed; open a pull request on GitHub when you are ready.</> : status === "merged" ? "Merged after your repository's checks passed." : status === "merging" ? "Pull request opened; waiting for your repository's CI before merging." : status === "blocked_by_protection" ? `Pull request open; not merged: ${fix.error ?? "merge refused"}.` : `${fix.pr_draft === false ? "Pull request" : "Draft pull request"} opened. Review and merge it on GitHub; the alert stays open until then.`}</p>
-              <div className="flex flex-wrap gap-2">{fix.pr_url && <a className="btn" href={fix.pr_url} target="_blank" rel="noreferrer">Open pull request{fix.pr_number ? ` #${fix.pr_number}` : ""} ↗</a>}{status === "branch_pushed" && fix.commit_url && <a className="btn" href={fix.commit_url} target="_blank" rel="noreferrer">View commit ↗</a>}{status === "merged" && fix.commit_url && <a className="btn-ghost" href={fix.commit_url} target="_blank" rel="noreferrer">View commit ↗</a>}{status === "merging" && <button className="btn-ghost" disabled={!!busy} onClick={() => act("cancel", () => call(`/api/fix/${fix.id}/cancel`))}>Cancel automatic merge</button>}</div>
-              <p className="text-ink2">Changed: <span className="mono [overflow-wrap:anywhere]">{files.map((x) => x.path).join(", ")}</span> · {fix.runner?.validation_label ?? (byRunner ? "validated in the isolated runner" : "syntax-checked only; no tests were run")} · security remediation not verified</p>
-              {files.some((x) => /(^|\/)package\.json$/.test(x.path)) && !files.some((x) => /package-lock\.json$|npm-shrinkwrap\.json$/.test(x.path)) && <p className="tone-warn">The dependency manifest changed but no lockfile was regenerated: run your package manager&apos;s install in the PR branch before merging.</p>}
-              <details className="disclose"><summary>Validation, CI &amp; audit trail</summary><div className="grid gap-3 mt-3"><StatusLadder fix={fix} />{byRunner && <RunLadder fix={fix} />}</div></details>
-            </div>
-          )}
-
-          {/* FAILURE / CANCELLED / STALLED */}
-          {fix && (FAILED.includes(status ?? "") || stale) && (
-            <div className="grid gap-2 text-[13px]">
-              <p className={status === "cancelled" ? "text-ink2" : "tone-bad"}>{stale ? "The runner never reported back. Nothing was written to your repository." : status === "cancelled" ? "Cancelled. Nothing was written to your repository." : `Stopped: ${fix.error ?? "the fix could not be completed"}. Nothing was written.`}{fix.runner?.run_url && <> <a href={fix.runner.run_url} target="_blank" rel="noreferrer">Runner log ↗</a></>}</p>
-              <div className="flex flex-wrap gap-2">
-                {runnerEnabled && files.length > 0 ? <button className="btn" disabled={!!busy || blockers.length > 0} onClick={() => act("prepare", () => call(`/api/fix/${fix.id}/run`, { mode: "pr", reviewed: true }))}>{busy === "prepare" ? "Starting…" : "Prepare the patch again"}</button> : null}
-                <button className="btn-ghost" disabled={!!busy} onClick={() => draft(true)}>Start over with a new preview</button>
-              </div>
-            </div>
-          )}
-
-          {!embedded && <button type="button" className="text-[12px] text-ink2 w-fit underline" onClick={() => setOpen(false)}>Hide</button>}
-        </div>
-      )}
-    </section>
+  const working = busy === "prepare" || (!!status && WORKING.includes(status) && !stale);
+  const ready = !!fix && !working && files.length > 0 && (status === "validated" || (status === "drafted" && (!runnerEnabled || dest === "preview" || !canAct)) || (status === "drafted" && runnerEnabled));
+  const needsCheck = !!fix && status === "drafted" && runnerEnabled;
+  const destLabel = DESTINATIONS.find((d) => d.id === dest)!.label;
+  const destLine = dest === "preview" ? `Nothing will be written to ${repo}.` : dest === "branch" ? `New branch ${branch} in ${repo}. Your default branch ${defaultBranch} is not changed.` : `Draft pull request from ${branch} into ${defaultBranch} in ${repo}. Nothing is merged.`;
+  const destSelect = (
+    <label className="flex flex-wrap items-center gap-2 text-[13px]"><span className="text-ink2">After fixing</span>
+      <select value={dest} disabled={!!busy} onChange={(e) => { setDest(e.target.value as RemediationMode); setErr(null); }} className="border hair rounded-[6px] h-8 px-2 bg-transparent text-[13px]">
+        {DESTINATIONS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+      </select>
+    </label>
   );
+  const errLine = (err ? <p role="alert" className="text-[13px] tone-bad">{friendlyError(err) === "We couldn't prepare the fix." ? err : friendlyError(err)}</p> : null);
+
+  // 1. Nothing prepared yet
+  if (!fix || (status === "drafting" && !working)) return (
+    <div className="grid gap-3">
+      <h3 className="text-[15px] font-semibold">Prepare a fix</h3>
+      <p className="text-[13px] text-ink2">{runnerEnabled ? "Muse Code prepares a change and checks it in an isolated environment. Nothing is written to your repository." : "Argus drafts a proposed change from the cited files. Nothing is written to your repository."}</p>
+      {destSelect}
+      {errLine}
+      <button className="btn w-fit" disabled={!!busy || !canAct} onClick={() => prepare(false)}>Prepare fix</button>
+    </div>
+  );
+
+  // 2. Working (drafting, queued, running)
+  if (working) return (
+    <div className="grid gap-3" aria-live="polite">
+      <h3 className="text-[15px] font-semibold">Preparing your fix…</h3>
+      <p className="text-[13px] text-ink2">Generating and checking the patch. Nothing is written to your repository.</p>
+      <p className="text-[12px] text-ink2">Elapsed {since(fix.runner?.dispatched_at && status !== "drafting" ? Date.parse(fix.runner.dispatched_at) : busySince, now) ?? "0s"}</p>
+      {(status === "queued" || status === "running") && <button className="btn-ghost w-fit" disabled={busy === "cancel"} onClick={() => act("cancel", () => call(`/api/fix/${fix.id}/cancel`))}>{busy === "cancel" ? "Cancelling…" : "Cancel"}</button>}
+    </div>
+  );
+
+  // 3. Writing (approved): authorized operation in progress, cannot be cancelled
+  if (status === "approved") return (
+    <div className="grid gap-2" aria-live="polite">
+      <h3 className="text-[15px] font-semibold">{fix.mode === "branch" ? "Pushing branch…" : "Creating pull request…"}</h3>
+      <p className="text-[13px] text-ink2">You approved this change. It can no longer be stopped; you can delete the branch or close the pull request on GitHub afterwards.</p>
+    </div>
+  );
+
+  // 4. Completed
+  if (status === "pr_created" || status === "merging" || status === "blocked_by_protection" || status === "merged" || status === "branch_pushed") {
+    const h = status === "branch_pushed" ? "Branch pushed" : status === "merged" ? "Merged" : status === "merging" ? "Waiting for checks before merging" : status === "blocked_by_protection" ? "Pull request open, not merged" : "Pull request created";
+    const text = status === "branch_pushed" ? `Your fix is on branch ${fix.branch} in ${repo}. Open a pull request on GitHub when you're ready.` : status === "merged" ? "Your repository's checks passed and the change was merged." : status === "merging" ? "The change will merge only if your repository's checks pass." : status === "blocked_by_protection" ? "The pull request stays open for your review." : "Your proposed fix is ready to review on GitHub.";
+    return (
+      <div className="grid gap-3">
+        <h3 className="text-[15px] font-semibold">{h}</h3>
+        <p className="text-[13px] text-ink2">{text}</p>
+        <Checks items={fixChecks(fix)} />
+        <div className="flex flex-wrap gap-2">
+          {fix.pr_url && <a className="btn no-underline" href={fix.pr_url} target="_blank" rel="noreferrer">View pull request ↗</a>}
+          {!fix.pr_url && fix.commit_url && <a className="btn no-underline" href={fix.commit_url} target="_blank" rel="noreferrer">View on GitHub ↗</a>}
+          {status === "merging" && <button className="btn-ghost" disabled={!!busy} onClick={() => act("cancel", () => call(`/api/fix/${fix.id}/cancel`))}>Cancel automatic merge</button>}
+        </div>
+        {errLine}
+        <details className="disclose"><summary>Code changes</summary><div className="grid gap-3 mt-3">{files.map((x) => <div key={x.path} className="border hair rounded-[6px] overflow-hidden"><div className="mono text-[12px] px-3 py-2 border-b hair [overflow-wrap:anywhere]">{x.path}</div><Diff patch={x.patch} /></div>)}</div></details>
+        <TechnicalDetails fix={fix} />
+      </div>
+    );
+  }
+
+  // 5. Failed / cancelled / stalled
+  if (status === "failed" || status === "validation_failed" || status === "cancelled" || stale) return (
+    <div className="grid gap-3">
+      <h3 className="text-[15px] font-semibold">{status === "cancelled" ? "Cancelled" : "Fix failed"}</h3>
+      <p className="text-[13px] text-ink2">{status === "cancelled" ? "The operation was stopped. Nothing was written to your repository." : stale ? friendlyError("stale") : friendlyError(fix.error)}</p>
+      {errLine}
+      <button className="btn w-fit" disabled={!!busy || !canAct} onClick={() => prepare(true)}>{busy === "prepare" ? "Starting…" : "Start over"}</button>
+      <TechnicalDetails fix={fix} />
+    </div>
+  );
+
+  // 6. Patch ready (validated by the runner, or a read-only proposal)
+  if (ready) {
+    const writeFailed = /GitHub write failed|write refused/.test(fix.error ?? "");
+    return (
+      <div className="grid gap-3">
+        <h3 className="text-[15px] font-semibold">Patch ready for review</h3>
+        <p className="text-[13px] text-ink2">{status === "validated" ? "Muse Code prepared a fix for your repository." : "Argus drafted a proposed fix."}</p>
+        <Checks items={needsCheck ? fixChecks(fix).map((c) => (c.text === "Not tested yet" ? { ...c, text: "Not checked in an isolated environment yet" } : c)) : fixChecks(fix)} />
+        {writeFailed && <p role="alert" className="text-[13px] tone-bad">The last attempt to write didn&apos;t finish. If a branch named {branch} exists on GitHub, it was created by that attempt; nothing else was changed.</p>}
+        <details className="disclose" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open) setReviewed(true); }}>
+          <summary>Review changes ({files.length} file{files.length === 1 ? "" : "s"})</summary>
+          <div className="grid gap-3 mt-3">{files.map((x) => <div key={x.path} className="border hair rounded-[6px] overflow-hidden"><div className="mono text-[12px] px-3 py-2 border-b hair [overflow-wrap:anywhere]">{x.path}</div><Diff patch={x.patch} /></div>)}{fix.rejected_hunks.length > 0 && <RejectedHunks fix={fix} />}</div>
+        </details>
+        {destSelect}
+        <p className="text-[12px] text-ink2">{destLine}</p>
+        {errLine}
+        <div className="flex flex-wrap items-center gap-2">
+          {dest === "preview" ? (
+            <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(files.map((x) => x.patch).join("\n")); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard unavailable */ } }}>{copied ? "Copied" : "Copy patch"}</button>
+          ) : needsCheck ? (
+            <button className="btn" disabled={!!busy || !canAct} onClick={() => act("prepare", () => run(fix))}>Check this fix</button>
+          ) : (
+            <button className="btn" disabled={!reviewed || !!busy || !canAct} title={reviewed ? undefined : "Open Review changes first"}
+              onClick={() => act("approve", () => (status === "validated"
+                ? call(`/api/fix/${fix.id}/approve`, { patch_version: fix.patch_version, mode: dest, reviewed: true })
+                : call(`/api/fix/${fix.id}/apply`, { reviewed: true, mode: dest, patch_version: fix.patch_version })))}>
+              {busy === "approve" ? "Working…" : dest === "branch" ? "Approve & push branch" : "Approve & create PR"}
+            </button>
+          )}
+          {status === "validated" && <button className="btn-ghost" disabled={!!busy} onClick={() => act("discard", () => call(`/api/fix/${fix.id}/cancel`))}>Discard</button>}
+          {!reviewed && dest !== "preview" && !needsCheck && <span className="text-[12px] text-ink2">Open Review changes to enable approval.</span>}
+        </div>
+        <TechnicalDetails fix={fix} />
+      </div>
+    );
+  }
+
+  return <p className="text-[13px] text-ink2">{destLabel}</p>;
 }
