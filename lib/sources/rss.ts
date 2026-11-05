@@ -3,6 +3,7 @@
 import { XMLParser } from "fast-xml-parser";
 import { canonicalUrl, extractIds, sha } from "../dedup";
 import type { Item } from "../schema";
+import { USER_AGENT } from "../ua";
 
 // cadence: "fast" feeds are fetched on every 5-minute tick (near-real-time); "slow" feeds hourly (periodic), matching how often they actually publish.
 // demo: the feed's terms permit personal/non-commercial use only; items are labelled low-trust and the feed is listed as demo-only.
@@ -85,7 +86,7 @@ async function fetchHNAlgolia(f: Feed, since: number | null): Promise<{ entries:
   for (const q of f.queries ?? ["vulnerability"]) {
     const p = new URLSearchParams({ query: q, tags: "story", hitsPerPage: "30" });
     if (since) p.set("numericFilters", `created_at_i>${since}`);
-    const r = await fetch(`${f.url}?${p}`, { headers: { "User-Agent": "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)", Accept: "application/json" }, signal: AbortSignal.timeout(15000) });
+    const r = await fetch(`${f.url}?${p}`, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(15000) });
     if (!r.ok) throw new Error(`${f.id} ${r.status}`);
     for (const h of ((await r.json()) as { hits: HNHit[] }).hits ?? []) if (h.objectID && h.title) byId.set(h.objectID, h);
   }
@@ -101,7 +102,7 @@ export async function fetchFeed(f: Feed, cond: Conditional = {}): Promise<{ entr
     if (!r.entries.length) return { entries: [], not_modified: true, etag: null, last_modified: cond.last_modified ?? null };
     return { entries: r.entries, not_modified: false, etag: null, last_modified: r.newest ? String(r.newest) : cond.last_modified ?? null };
   }
-  const headers: Record<string, string> = { "User-Agent": "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)", Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" };
+  const headers: Record<string, string> = { "User-Agent": USER_AGENT, Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" };
   if (cond.etag) headers["If-None-Match"] = cond.etag;
   if (cond.last_modified) headers["If-Modified-Since"] = cond.last_modified;
   const r = await fetch(f.url, { headers, signal: AbortSignal.timeout(15000) });

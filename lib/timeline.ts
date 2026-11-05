@@ -1,7 +1,7 @@
 // Threat Timeline: a chronological, evidence-grounded history of one threat (disclosure → updates → exploitation →
-// patches → Argus detection in your repository). Built from the same items the pipeline already ingested (no new
+// patches → SaveBell detection in your repository). Built from the same items the pipeline already ingested (no new
 // intelligence pipeline). Three layers, each checked by code:
-//  1. Deterministic events from source timestamps (GHSA / OSV / NVD / KEV / feeds) and Argus's own records.
+//  1. Deterministic events from source timestamps (GHSA / OSV / NVD / KEV / feeds) and SaveBell's own records.
 //  2. Registry dates for the cited ids (GitHub Advisory Database, NVD incl. CISA KEV date, OSV): facts, not model output.
 //  3. Meta Muse Spark reads the report texts and proposes dated developments. Each proposal must quote the date and the
 //     claim verbatim from that source; anything not found in the text, undated or in the future is rejected.
@@ -13,6 +13,7 @@ import type { Assessment, Finding, Fix, Item } from "./schema";
 import { fetchPageText } from "./fetchpage";
 import { READ_ONLY, UNTRUSTED, sparkJSON } from "./spark";
 import { kv } from "./store";
+import { USER_AGENT } from "./ua";
 
 export type TLKind = "disclosure" | "advisory_published" | "advisory_updated" | "withdrawn" | "patch" | "exploitation" | "research" | "report"
   | "argus_discovered" | "argus_assessed" | "argus_notified" | "fix_drafted" | "fix_pr" | "fix_merged" | "agent_report";
@@ -75,18 +76,18 @@ export function itemEvents(items: Item[], f: Pick<Finding, "discovered_at" | "id
       const host = hostOf(it.url) ?? it.author ?? it.source;
       const research = /arxiv\.org/.test(it.url ?? "");
       if (pub) out.push(ev({ at: pub, precision: precisionOf(pub), kind: research ? "research" : "report", title: research ? `Research paper: ${it.title}` : `Reported by ${host}: ${it.title}`, detail: null, sources: src(host), confidence: "reported", basis: "source_timestamp" }));
-      else out.push(ev({ at: iso(it.discovered_at)!, precision: "day", kind: research ? "research" : "report", title: `Reported by ${host}: ${it.title}`, detail: "The source states no publication date; the date shown is when Argus Watch first saw it.", sources: src(host), confidence: "inferred", basis: "argus_record" }));
+      else out.push(ev({ at: iso(it.discovered_at)!, precision: "day", kind: research ? "research" : "report", title: `Reported by ${host}: ${it.title}`, detail: "The source states no publication date; the date shown is when SaveBell first saw it.", sources: src(host), confidence: "inferred", basis: "argus_record" }));
     }
   }
   const disc = iso(f.discovered_at);
-  if (disc) out.push(ev({ at: disc, precision: "time", kind: "argus_discovered", title: "Argus Watch picked up this threat", detail: null, sources: [{ url: null, publisher: "Argus Watch" }], confidence: "confirmed", basis: "argus_record" }));
+  if (disc) out.push(ev({ at: disc, precision: "time", kind: "argus_discovered", title: "SaveBell picked up this threat", detail: null, sources: [{ url: null, publisher: "SaveBell" }], confidence: "confirmed", basis: "argus_record" }));
   return out;
 }
 
 // ---- 2. Registry dates ------------------------------------------------------------------------------------
 export async function registryEvents(ids: string[], fetcher: Fetcher = fetch): Promise<{ events: TLEvent[]; registry: ThreatTimeline["registry"] }> {
   const events: TLEvent[] = []; const registry: ThreatTimeline["registry"] = [];
-  const get = async (url: string, headers: Record<string, string> = {}) => fetcher(url, { headers: { "user-agent": "ArgusWatch/0.1 (+https://argus-watch-three.vercel.app)", ...headers }, signal: AbortSignal.timeout(12_000) });
+  const get = async (url: string, headers: Record<string, string> = {}) => fetcher(url, { headers: { "user-agent": USER_AGENT, ...headers }, signal: AbortSignal.timeout(12_000) });
   const ghsa = ids.filter((x) => /^GHSA-/i.test(x)).slice(0, 2);
   const cve = ids.filter((x) => /^CVE-/i.test(x)).slice(0, 2);
   for (const id0 of ghsa) {
@@ -366,7 +367,7 @@ ${p.text}` } : i;
 // ---- Repository lane (render time; always current, never cached) -----------------------------------------
 export function repoEvents(a: Assessment, fixes: Fix[]): TLEvent[] {
   const repo = a.repo.split("/").slice(0, 2).join("/");
-  const me = [{ url: null, publisher: "Argus Watch" }];
+  const me = [{ url: null, publisher: "SaveBell" }];
   const out: TLEvent[] = [];
   const proc = iso(a.timestamps.processed_at);
   if (proc) out.push(ev({ lane: "repo", at: proc, precision: "time", kind: "argus_assessed", title: `Checked ${a.repo}@${a.sha.slice(0, 7)}: ${a.verdict === "Affected" ? "affected (confirmed from code evidence)" : a.verdict === "Unclear" ? "possible issue (not confirmed)" : "not affected"}`, sources: me, confidence: "confirmed", basis: "argus_record" }));
@@ -381,6 +382,6 @@ export function repoEvents(a: Assessment, fixes: Fix[]): TLEvent[] {
     const mg = fevents.find((e) => /merged/i.test(e.action));
     if (fx.status === "merged" && mg) out.push(ev({ lane: "repo", at: iso(mg.at)!, precision: "time", kind: "fix_merged", title: "Fix merged after your repository's checks passed", sources: [{ url: fx.commit_url, publisher: repo }], confidence: "confirmed", basis: "argus_record" }));
   }
-  if (a.agent) out.push(ev({ lane: "repo", at: iso(a.agent.at)!, precision: "time", kind: "agent_report", title: `Your AI agent reported: ${a.agent.status.replace("_", " ")}`, detail: "Argus re-read every line the agent cited.", sources: [{ url: a.agent.pr_url, publisher: a.agent.client ?? "your agent" }], confidence: "confirmed", basis: "argus_record" }));
+  if (a.agent) out.push(ev({ lane: "repo", at: iso(a.agent.at)!, precision: "time", kind: "agent_report", title: `Your AI agent reported: ${a.agent.status.replace("_", " ")}`, detail: "SaveBell re-read every line the agent cited.", sources: [{ url: a.agent.pr_url, publisher: a.agent.client ?? "your agent" }], confidence: "confirmed", basis: "argus_record" }));
   return out;
 }

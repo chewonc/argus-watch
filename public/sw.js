@@ -1,9 +1,9 @@
-// Argus Watch service worker: show push notifications and acknowledge receipt for latency measurement.
+// SaveBell service worker: show push notifications and acknowledge receipt for latency measurement.
 self.addEventListener("push", (event) => {
   let data = {};
-  try { data = event.data ? event.data.json() : {}; } catch { data = { title: "Argus Watch", body: event.data ? event.data.text() : "" }; }
+  try { data = event.data ? event.data.json() : {}; } catch { data = { title: "SaveBell", body: event.data ? event.data.text() : "" }; }
   const ack = data.nid ? fetch("/api/push/ack", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ nid: data.nid }) }).catch(() => {}) : Promise.resolve();
-  const show = self.registration.showNotification(data.title || "Argus Watch", {
+  const show = self.registration.showNotification(data.title || "SaveBell", {
     body: data.body || "", tag: data.tag, icon: data.icon || "/icon-192.png", badge: data.badge || "/icon-192.png",
     actions: Array.isArray(data.actions) ? data.actions.slice(0, 2) : [], data: { url: data.url || "/" },
   });

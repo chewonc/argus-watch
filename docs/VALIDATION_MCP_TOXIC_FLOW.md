@@ -1,3 +1,5 @@
+Product renamed to SaveBell on 2026-11-05; names and URLs below are historical.
+
 # End-to-end validation: a CVE-free AI security finding → evidence-backed repository alert
 
 Date: Nov 2 2026 (local runs) and Nov 3 2026 (production run, §6b). Runs by Claude Code with the owner's Meta Model API key.

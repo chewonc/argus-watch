@@ -1,6 +1,6 @@
 // Worker: one finding per invocation. Called by QStash (signature-verified) or admin token.
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
-import { env, hasQStash } from "@/lib/env";
+import { isAdminAuth, hasQStash } from "@/lib/env";
 import { processFinding } from "@/lib/pipeline";
 
 export const maxDuration = 300;
@@ -16,7 +16,7 @@ async function handler(req: Request, ctx?: { params?: Promise<{ id: string }> })
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const auth = req.headers.get("authorization");
-  if (env.ADMIN_TOKEN && auth === `Bearer ${env.ADMIN_TOKEN}`) return handler(req, ctx);
+  if (isAdminAuth(auth)) return handler(req, ctx);
   if (hasQStash()) return verifySignatureAppRouter(handler)(req, ctx);
   if (process.env.NODE_ENV !== "production") return handler(req, ctx);
   return new Response("unauthorized", { status: 401 });

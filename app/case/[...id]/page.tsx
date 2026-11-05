@@ -88,7 +88,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
   const ghUrl = verified && loc ? permalink(repoOnly, a.sha, loc.file, loc.from, loc.to) : null;
   const severeUnverified = !verified && a.verdict !== "Not Affected" && (sev.level === "critical" || sev.level === "high");
   // Next step: derived from the assessment only (no model call). Unconfirmed findings point at the first required
-  // condition Argus could not establish; nothing here claims more than the evidence does.
+  // condition SaveBell could not establish; nothing here claims more than the evidence does.
   const openCond = a.conditions.map((c, ci) => ({ c, t: condT[ci].text })).filter(({ c }) => c.role === "required" && !c.computed && c.state === "Unknown")[0]
     ?? a.conditions.map((c, ci) => ({ c, t: condT[ci].text })).filter(({ c }) => c.role === "required" && !c.computed && c.state === "Inferred")[0];
   const openRef = openCond?.c.evidence.find((e) => e.line) ?? null;
@@ -112,7 +112,7 @@ export default async function Case({ params }: { params: Promise<{ id: string[] 
         {a.verdict === "Not Affected"
           ? <p className="text-[calc(14px*var(--ui))] text-ink2">This threat doesn&apos;t affect your project: the code it needs isn&apos;t there. We&apos;ll check again when your code changes.</p>
           : !verified && <p className="text-[calc(14px*var(--ui))] text-ink2">{severeUnverified ? d.could_be_serious : loc ? d.not_confirmed_code_found.replace("{where}", `${loc.file.split("/").pop()}:${loc.from}`) : d.not_confirmed_long.replace("{tech}", tech)}</p>}
-        {a.agent && <p className="text-[calc(13px*var(--ui))] text-ink2">{a.agent.status === "confirmed" ? "Confirmed" : a.agent.status === "not_affected" ? "Marked not affected" : "Fix proposed"} by your AI agent on {new Date(a.agent.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Argus checked the lines it cited{a.verdict !== "Affected" && a.agent.status === "confirmed" ? "; Argus's own analysis had not confirmed this" : ""}.</p>}
+        {a.agent && <p className="text-[calc(13px*var(--ui))] text-ink2">{a.agent.status === "confirmed" ? "Confirmed" : a.agent.status === "not_affected" ? "Marked not affected" : "Fix proposed"} by your AI agent on {new Date(a.agent.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. SaveBell checked the lines it cited{a.verdict !== "Affected" && a.agent.status === "confirmed" ? "; SaveBell's own analysis had not confirmed this" : ""}.</p>}
         <div className="grid gap-0.5 mt-1"><div className="label">{d.next_step}</div><p className="text-[calc(14px*var(--ui))] leading-relaxed">{nextStep}</p></div>
       </div>
 

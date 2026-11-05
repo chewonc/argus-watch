@@ -1,3 +1,5 @@
+Product renamed to SaveBell on 2026-11-05; names and URLs below are historical.
+
 # Validation: Meta Muse Code remediation (Nov 4 2026)
 
 Status levels used below:

@@ -20,15 +20,15 @@ export function pushPayload(n: Pick<Notification, "id" | "kind" | "verdict" | "r
   const repo = n.repo.split("/").slice(0, 2).join("/");
   const url = `${appUrl}/case/${n.assessment_id.split("/").map(encodeURIComponent).join("/")}`;
   const base = { nid: n.id, tag: n.id, icon: "/icon-192.png", badge: "/icon-192.png", actions: [{ action: "view", title: "View alert" }] };
-  if (opts.test) return { ...base, nid: null, title: "Argus Watch: test notification", body: "Notifications work on this device. Real alerts look like this.", url: `${appUrl}/settings` };
-  if (n.kind === "window_report") return { ...base, actions: [{ action: "view", title: "View report" }], title: "Argus Watch: remediation window report", body: n.title, url: `${appUrl}/runs/${encodeURIComponent(n.assessment_id.replace(/^run:/, ""))}` };
-  if (n.kind === "fix_pr_created") return { ...base, title: "Argus Watch: fix ready to review", body: `A pull request with a proposed fix was opened in ${repo}.`, url };
-  if (n.kind === "fix_failed") return { ...base, title: "Argus Watch: fix stopped", body: `The automated fix for ${repo} did not finish. Nothing was merged.`, url };
-  if (n.withdrawn) return { ...base, title: "Argus Watch: advisory withdrawn", body: `An advisory that affected ${repo} was withdrawn by its publisher.`, url };
+  if (opts.test) return { ...base, nid: null, title: "SaveBell: test notification", body: "Notifications work on this device. Real alerts look like this.", url: `${appUrl}/settings` };
+  if (n.kind === "window_report") return { ...base, actions: [{ action: "view", title: "View report" }], title: "SaveBell: remediation window report", body: n.title, url: `${appUrl}/runs/${encodeURIComponent(n.assessment_id.replace(/^run:/, ""))}` };
+  if (n.kind === "fix_pr_created") return { ...base, title: "SaveBell: fix ready to review", body: `A pull request with a proposed fix was opened in ${repo}.`, url };
+  if (n.kind === "fix_failed") return { ...base, title: "SaveBell: fix stopped", body: `The automated fix for ${repo} did not finish. Nothing was merged.`, url };
+  if (n.withdrawn) return { ...base, title: "SaveBell: advisory withdrawn", body: `An advisory that affected ${repo} was withdrawn by its publisher.`, url };
   const body = n.verdict === "Affected"
     ? `Vulnerability confirmed in ${repo}. A newly discovered security threat affects your code.`
     : `Possible vulnerability detected in ${repo}. A newly discovered AI security threat may affect your code.`;
-  return { ...base, title: "Argus Watch: new security alert", body, url };
+  return { ...base, title: "SaveBell: new security alert", body, url };
 }
 
 async function deliver(uid: string, payload: string, urgent: boolean): Promise<number> {

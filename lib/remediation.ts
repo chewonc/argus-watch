@@ -56,10 +56,10 @@ export function buildBrief(a: Assessment, f: Finding | null, items: Item[], opts
   };
   const agentNote = opts.agent === "claude" ? "You are running as Claude Code in the user's checkout." : opts.agent === "codex" ? "You are running as Codex in the user's checkout." : "You are a coding agent running in the user's checkout.";
 
-  return `# Argus Watch remediation brief: ${ids}
+  return `# SaveBell remediation brief: ${ids}
 Generated ${new Date().toISOString()} from assessment \`${a.id}\`${a.replayed ? " (replayed analysis)" : ""}. Case file: ${opts.appUrl}/case/${a.id.split("/").map(encodeURIComponent).join("/")}
 
-## Task (trusted instructions, written by Argus Watch)
+## Task (trusted instructions, written by SaveBell)
 ${agentNote} Repository: **${repoFull}** at commit **${a.sha}**${subdir ? `, scope: \`${subdir}/\`` : ""}.
 Verdict: **${a.verdict}** (${a.tier}). ${a.verdict_qualifier}
 Goal: ${goal}.
@@ -79,7 +79,7 @@ ${recs.map((r, i) => `${i + 1}. [${r.prov}] ${r.text}${r.condition_ids.length ? 
 Files in scope:
 ${files.map((x) => `- \`${x}\`: ${permalink(repoFull, a.sha, x)}`).join("\n") || "- (none cited)"}
 
-## Evidence (trusted summary; states assigned by Argus Watch from inspected files)
+## Evidence (trusted summary; states assigned by SaveBell from inspected files)
 ${a.conditions.map((c) => `- **${c.state}** · ${c.role === "required" ? "required condition" : `missing protection (${c.mitigation_kind})`}${c.computed ? " · computed in code" : ""}: ${c.text}\n  ${c.reasoning}${c.evidence.map((e) => `\n  evidence: \`${e.file}${e.line ? `:${e.line}` : ""}\` ${permalink(repoFull, a.sha, e.file, e.line)}${ctx(e.file, e.line)}`).join("")}`).join("\n")}
 
 Locations:

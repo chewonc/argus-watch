@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Basis, Screen, Simulation, Step } from "@/lib/simulate";
 
 const BASIS: Record<Basis, { label: string; color: string; help: string }> = {
-  demonstrated: { label: "Shown in your code", color: "var(--observed)", help: "Argus observed the code that makes this step possible." },
+  demonstrated: { label: "Shown in your code", color: "var(--observed)", help: "SaveBell observed the code that makes this step possible." },
   inferred: { label: "Inferred from your code", color: "var(--inferred)", help: "Supported by cited code, but not directly observed." },
   hypothetical: { label: "Hypothetical", color: "var(--ink-2)", help: "Plausible, but not supported by evidence in your repository." },
 };
@@ -40,7 +40,7 @@ export function SimulateImpact({ assessmentId, repo, sha, title = "What happens 
         {!sim && <button className="btn" onClick={() => run()} disabled={busy}>{busy ? "… (~20–40 s)" : button}</button>}
       </div>
       {lead}
-      {!sim && !busy && !lead && <p className="text-[calc(13px*var(--ui))] text-ink2">{intro ?? "See how someone using your app could experience this threat, step by step, built only from what Argus found in your code. Synthetic data; nothing is executed."}</p>}
+      {!sim && !busy && !lead && <p className="text-[calc(13px*var(--ui))] text-ink2">{intro ?? "See how someone using your app could experience this threat, step by step, built only from what SaveBell found in your code. Synthetic data; nothing is executed."}</p>}
       {err && <p role="alert" className="text-[calc(13px*var(--ui))]" style={{ color: "var(--contradicted)" }}>{err}</p>}
       {sim && !sim.applicable && <div className="border hair rounded-[8px] p-4 text-[calc(14px*var(--ui))]"><b>Not enough evidence for a user-facing scenario.</b> <span className="text-ink2">{sim.not_applicable_reason}</span></div>}
       {sim && sim.applicable && (
@@ -69,7 +69,7 @@ export function SimulateImpact({ assessmentId, repo, sha, title = "What happens 
             <span className="text-[calc(12px*var(--ui))] text-ink2">{Math.min(i + 1, total)} / {total} · arrow keys work</span>
             <button className="btn-ghost ml-auto" onClick={() => run(true)} disabled={busy}>{busy ? "Rebuilding…" : "Rebuild"}</button>
           </div>
-          <p className="text-[calc(11px*var(--ui))] text-ink2">Built by Meta {sim.model} from Argus&apos;s assessment in {(sim.ms / 1000).toFixed(0)} s.{sim.downgraded ? ` ${sim.downgraded} claim(s) the model made without evidence were downgraded to hypothetical.` : ""}</p>
+          <p className="text-[calc(11px*var(--ui))] text-ink2">Built by Meta {sim.model} from SaveBell&apos;s assessment in {(sim.ms / 1000).toFixed(0)} s.{sim.downgraded ? ` ${sim.downgraded} claim(s) the model made without evidence were downgraded to hypothetical.` : ""}</p>
         </div>
       )}
     </section>

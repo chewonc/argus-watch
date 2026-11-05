@@ -32,7 +32,7 @@ async function runBlockers(repoKey: string, ur: { allow_pr?: boolean } | null, i
   if (!env.FIX_ENABLED) b.push("Deployment configuration: automated fixes are turned off on this deployment (FIX_ENABLED).");
   else if (!hasRunner()) b.push("Deployment configuration: the Muse Code runner is not configured (RUNNER_DISPATCH_TOKEN, ARGUS_RUNNER_SECRET).");
   if (await isSystemRepo(repoKey)) b.push("Shared demo repositories never receive changes.");
-  if (!hasGitHubApp() || !inst) b.push("Repository permission: this repository is not connected through the Argus Watch GitHub App, so the runner cannot read it.");
+  if (!hasGitHubApp() || !inst) b.push("Repository permission: this repository is not connected through the SaveBell GitHub App, so the runner cannot read it.");
   else if (needsWrite(mode)) {
     if (!ur?.allow_pr) b.push("Repository permission: changes are off for this repository (Repositories → Allow changes), or choose \"No repository writes\" in Settings.");
     const p = await installationPermissions(inst).catch(() => ({} as Record<string, string>));

@@ -1,4 +1,4 @@
-// Guard: no em dashes in Argus Watch's own user-facing copy (UI strings, dictionaries, labels). Model or third-party text
+// Guard: no em dashes in SaveBell's own user-facing copy (UI strings, dictionaries, labels). Model or third-party text
 // shown in the UI is normalized at display time by tidy(); stored evidence is never rewritten.
 import assert from "node:assert/strict";
 import { test } from "node:test";

@@ -6,6 +6,7 @@ import { auth } from "./auth";
 import { env, hasAuth } from "./env";
 import type { User } from "./schema";
 import { SYSTEM_USER, kv, store } from "./store";
+import { USER_AGENT } from "./ua";
 
 const memo = new Map<string, { uid: string; at: number }>();
 
@@ -34,7 +35,7 @@ export async function whoami(): Promise<Record<string, unknown>> {
   const t = await githubUserTokenDiag();
   out.github_token = !!t.token; if (t.error) out.github_token_error = t.error;
   if (t.token) {
-    const r = await fetch("https://api.github.com/user", { headers: { Authorization: `Bearer ${t.token}`, "User-Agent": "ArgusWatch/0.1", Accept: "application/vnd.github+json" } }).catch((e) => ({ ok: false, status: 0, statusText: String(e) } as Response));
+    const r = await fetch("https://api.github.com/user", { headers: { Authorization: `Bearer ${t.token}`, "User-Agent": USER_AGENT, Accept: "application/vnd.github+json" } }).catch((e) => ({ ok: false, status: 0, statusText: String(e) } as Response));
     out.github_user = r.ok ? (await r.json() as { id: number; login: string }).login : `GitHub /user ${r.status} ${r.statusText}`;
   }
   const u = await currentUser().catch((e) => ({ error: String(e).slice(0, 160) } as unknown as User));
@@ -70,7 +71,7 @@ export async function currentUser(): Promise<User | null> {
     // First sight of this session: ask GitHub for the numeric id once, then remember the mapping.
     const t = await githubUserTokenDiag();
     let ghErr: string | null = t.error;
-    const gh = t.token ? await fetch("https://api.github.com/user", { headers: { Authorization: `Bearer ${t.token}`, "User-Agent": "ArgusWatch/0.1", Accept: "application/vnd.github+json" } }).then(async (r) => (r.ok ? r.json() : (ghErr = `GitHub /user ${r.status}`, null))).catch((e) => (ghErr = `GitHub /user failed: ${String(e).slice(0, 80)}`, null)) as { id: number; login: string; name: string | null; email: string | null; avatar_url: string | null } | null : null;
+    const gh = t.token ? await fetch("https://api.github.com/user", { headers: { Authorization: `Bearer ${t.token}`, "User-Agent": USER_AGENT, Accept: "application/vnd.github+json" } }).then(async (r) => (r.ok ? r.json() : (ghErr = `GitHub /user ${r.status}`, null))).catch((e) => (ghErr = `GitHub /user failed: ${String(e).slice(0, 80)}`, null)) as { id: number; login: string; name: string | null; email: string | null; avatar_url: string | null } | null : null;
     if (gh) {
       uid = `gh:${gh.id}`;
       await kv.set(`uidmap:${baId}`, uid);

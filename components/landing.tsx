@@ -1,4 +1,4 @@
-// Signed-out landing page. The page itself shows the product's loop: a threat appears, Argus checks it against your
+// Signed-out landing page. The page itself shows the product's loop: a threat appears, SaveBell checks it against your
 // repository, you get a plain alert with the exact line, and you fix it with your approval. Every claim here is a
 // shipped capability; the examples are labelled as examples. Text comes from the UI dictionary so it is translated.
 import Link from "next/link";
@@ -103,7 +103,7 @@ const DOT = { active: "var(--observed)", delayed: "var(--inferred)", unavailable
 
 const Dot = ({ status }: { status: keyof typeof DOT }) => <span aria-hidden className="inline-block w-[calc(7px*var(--ui))] h-[calc(7px*var(--ui))] rounded-full shrink-0" style={{ background: DOT[status] }} />;
 
-/** Sources Argus Watch actually collects from, with status from real collector state (lib/monitor-sources.ts). */
+/** Sources SaveBell actually collects from, with status from real collector state (lib/monitor-sources.ts). */
 function WhatWeMonitor({ groups }: { groups: SourceGroup[] }) {
   if (!groups.length) return null;
   const last = groups.flatMap((g) => g.sources.map((s) => s.last_ok)).filter((x): x is string => !!x).sort().pop() ?? null;

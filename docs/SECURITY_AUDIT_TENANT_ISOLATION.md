@@ -1,3 +1,5 @@
+Product renamed to SaveBell on 2026-11-05; names and URLs below are historical.
+
 # Tenant isolation and persistence audit (Nov 4, 2026)
 
 Scope: authentication, ownership model, cross-user isolation, shared demo repositories, database options.

@@ -1,7 +1,7 @@
-// POST {description, steps?, page_url, screenshot?}: a signed-in user's report about a problem with Argus Watch itself.
+// POST {description, steps?, page_url, screenshot?}: a signed-in user's report about a problem with SaveBell itself.
 // Stored privately; GET with the admin token lists them (screenshots included as data URLs). Rate-limited.
 import { randomBytes } from "node:crypto";
-import { env } from "@/lib/env";
+import { env, isAdminAuth } from "@/lib/env";
 import { currentUser } from "@/lib/session";
 import { kv, store } from "@/lib/store";
 
@@ -28,6 +28,6 @@ export async function POST(req: Request) {
 
 /** Admin review queue (admin token only). */
 export async function GET(req: Request) {
-  if (!env.ADMIN_TOKEN || req.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("unauthorized", { status: 401 });
+  if (!isAdminAuth(req.headers.get("authorization"))) return new Response("unauthorized", { status: 401 });
   return Response.json({ issues: await kv.lrange("issue_reports", 0, 199) });
 }

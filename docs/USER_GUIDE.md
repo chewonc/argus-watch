@@ -1,17 +1,17 @@
-# Argus Watch user guide
+# SaveBell user guide
 
 Features marked **available** work in the current version. **Needs setup** means it works once the deployment owner configures it (see `SETUP.md`). *Planned* is not implemented.
 
 ## 1. Sign in — available (GitHub)
 
-Open the site and click **Sign in with GitHub**. GitHub asks you to authorise the Argus Watch App to read your public profile and email. Google sign-in is *planned*.
+Open the site and click **Sign in with GitHub**. GitHub asks you to authorise the SaveBell App to read your public profile and email. Google sign-in is *planned*.
 
 ## 2. Connect a repository — available
 
 1. Open **Repositories** from the account menu and click **Connect GitHub**.
 2. On GitHub, choose the account and either all or selected repositories (private repositories work).
-3. Back in Argus Watch, tick the repositories to monitor and click **Start monitoring**.
-4. Argus reads the lockfiles at the current commit and immediately checks the last 30 days of threats that match your dependencies. The confirmation says how many it is checking; results appear in **Alerts** within minutes.
+3. Back in SaveBell, tick the repositories to monitor and click **Start monitoring**.
+4. SaveBell reads the lockfiles at the current commit and immediately checks the last 30 days of threats that match your dependencies. The confirmation says how many it is checking; results appear in **Alerts** within minutes.
 
 Settings → Repositories explains what is read, stored and written, and how to revoke access (new users see the same steps at first sign-in). **Stop monitoring** removes a repository; uninstalling the App on GitHub revokes everything.
 
@@ -40,13 +40,13 @@ Click **Simulate user impact**. You get a short walkthrough, drawn as screens of
 1. Click **Fix** on an alert. A preview diff, a syntax check and a static remediation assessment appear.
 2. Enable changes for the repository in Settings → Repositories (one time).
 3. Choose **Fix & create PR** (recommended) or **Fix & push**. The dialog states exactly which files may change, which tests will run, and what happens on failure. Tick the review box and authorize.
-4. Meta Muse Code edits a fresh copy of the repository in an isolated runner, your tests run there, and the progress ladder shows each step with timestamps and links. On success you get the pull request link; in push mode Argus merges it only after your repository's checks pass and branch protection allows it, otherwise the PR stays open for review.
+4. Meta Muse Code edits a fresh copy of the repository in an isolated runner, your tests run there, and the progress ladder shows each step with timestamps and links. On success you get the pull request link; in push mode SaveBell merges it only after your repository's checks pass and branch protection allows it, otherwise the PR stays open for review.
 
 Passing tests do not prove the vulnerability is gone; the page always says so.
 
 ## 8. Use your own coding agent (MCP) — available
 
-**Settings → Connect AI agent** creates a personal token and shows the configuration for **Meta Muse Code**, Claude Code, Codex or any MCP client. The agent can list alerts, read the evidence and cited code, and report its own result with exact quotes; it never changes Argus's verdict. Each alert page has a copyable request for your agent.
+**Settings → Connect AI agent** creates a personal token and shows the configuration for **Meta Muse Code**, Claude Code, Codex or any MCP client. The agent can list alerts, read the evidence and cited code, and report its own result with exact quotes; it never changes SaveBell's verdict. Each alert page has a copyable request for your agent.
 
 ## 9. Language — available
 

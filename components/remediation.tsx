@@ -4,6 +4,7 @@
 // shown next to it; the server binds that click to user, repository, commit, patch hash and destination
 // (lib/write-auth.ts). The destination dropdown defaults to the saved Settings preference, applies to this attempt only,
 // and never writes by itself. Automatic merging is never offered as part of an approval.
+import { fixBranch } from "@/lib/fix-branch";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Fix } from "@/lib/schema";
 import { isStaleRun } from "@/lib/run-stale";
@@ -85,7 +86,7 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
 
   useEffect(() => { onChange?.(fix); }, [fix]); // eslint-disable-line react-hooks/exhaustive-deps
   // "Approve & Fix" on a not-yet-checked patch: the user approved the patch they reviewed (approvedVersion). The
-  // runner checks it; if the checked patch is byte-for-byte that version, Argus continues to the write with the same
+  // runner checks it; if the checked patch is byte-for-byte that version, SaveBell continues to the write with the same
   // server-side approval rules. If the checks changed the patch, the user must review and approve the final version.
   const approvedVersion = useRef<string | null>(null);
   const [patchChanged, setPatchChanged] = useState(false);
@@ -119,7 +120,7 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
 
   if (!canAct && !fix) return null;
   const files = fix?.files ?? [];
-  const branch = fix ? `argus/fix-${fix.id.slice(0, 8)}` : "argus/fix-…";
+  const branch = fix ? fixBranch(fix.id) : "savebell/fix-…";
   const working = busy === "prepare" || (!!status && WORKING.includes(status) && !stale);
   const ready = !!fix && !working && files.length > 0 && (status === "validated" || (status === "drafted" && (!runnerEnabled || dest === "preview" || !canAct)) || (status === "drafted" && runnerEnabled));
   const needsCheck = !!fix && status === "drafted" && runnerEnabled;
@@ -138,7 +139,7 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
   if (!fix || (status === "drafting" && !working)) return (
     <div className="grid gap-3">
       <h3 className="text-[calc(15px*var(--ui))] font-semibold">Prepare a fix</h3>
-      <p className="text-[calc(13px*var(--ui))] text-ink2">{runnerEnabled ? "Muse Code prepares a change and checks it in an isolated environment. Nothing is written to your repository." : "Argus drafts a proposed change from the cited files. Nothing is written to your repository."}</p>
+      <p className="text-[calc(13px*var(--ui))] text-ink2">{runnerEnabled ? "Muse Code prepares a change and checks it in an isolated environment. Nothing is written to your repository." : "SaveBell drafts a proposed change from the cited files. Nothing is written to your repository."}</p>
       {destSelect}
       {errLine}
       <button className="btn w-fit" disabled={!!busy || !canAct} onClick={() => prepare(false)}>Prepare fix</button>
@@ -202,7 +203,7 @@ export function Remediation({ assessmentId, initial, canAct, runnerEnabled, defa
       <div className="grid gap-3">
         <h3 className="text-[calc(15px*var(--ui))] font-semibold">Patch ready for review</h3>
         {patchChanged && <p role="alert" className="text-[calc(13px*var(--ui))] tone-warn">The checks changed the patch. Nothing was written. Review the final changes below, then approve them.</p>}
-        <p className="text-[calc(13px*var(--ui))] text-ink2">{status === "validated" ? "Muse Code prepared a fix for your repository." : "Argus drafted a proposed fix."}</p>
+        <p className="text-[calc(13px*var(--ui))] text-ink2">{status === "validated" ? "Muse Code prepared a fix for your repository." : "SaveBell drafted a proposed fix."}</p>
         <Checks items={needsCheck ? fixChecks(fix).map((c) => (c.text === "Not tested yet" ? { ...c, text: "Not checked in an isolated environment yet" } : c)) : fixChecks(fix)} />
         {writeFailed && <p role="alert" className="text-[calc(13px*var(--ui))] tone-bad">The last attempt to write didn&apos;t finish. If a branch named {branch} exists on GitHub, it was created by that attempt; nothing else was changed.</p>}
         <details className="disclose" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open) setReviewed(true); }}>

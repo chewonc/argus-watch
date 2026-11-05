@@ -6,9 +6,9 @@ export type RemediationMode = "preview" | "pr" | "branch";
 export type WriteMode = "pr" | "push" | "branch";
 
 export const REMEDIATION_MODES: { id: RemediationMode; title: string; short: string; desc: string }[] = [
-  { id: "preview", title: "No repository writes", short: "Generate a patch without changing your repository.", desc: "Muse Code generates and validates the patch in an isolated runner. You get the validated patch to apply yourself; Argus never writes to your repository." },
-  { id: "pr", title: "Create draft PR", short: "Create a draft PR after approval.", desc: "After you approve the validated patch, Argus pushes a new branch and opens a draft pull request. Nothing is merged." },
-  { id: "branch", title: "Push to branch", short: "Push changes to a new branch after approval.", desc: "After you approve the validated patch, Argus pushes it to a new branch (argus/fix-…) without opening a pull request. Your default branch is never written, and branch protection is respected." },
+  { id: "preview", title: "No repository writes", short: "Generate a patch without changing your repository.", desc: "Muse Code generates and validates the patch in an isolated runner. You get the validated patch to apply yourself; SaveBell never writes to your repository." },
+  { id: "pr", title: "Create draft PR", short: "Create a draft PR after approval.", desc: "After you approve the validated patch, SaveBell pushes a new branch and opens a draft pull request. Nothing is merged." },
+  { id: "branch", title: "Push to branch", short: "Push changes to a new branch after approval.", desc: "After you approve the validated patch, SaveBell pushes it to a new branch without opening a pull request. Your default branch is never written, and branch protection is respected." },
 ];
 
 /** Short label for the modal's "After fixing:" line. */

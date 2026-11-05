@@ -1,6 +1,7 @@
 // S2: CISA Known Exploited Vulnerabilities (polled JSON; official; no key).
 import { sha } from "../dedup";
 import type { Item } from "../schema";
+import { USER_AGENT } from "../ua";
 
 export const KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
 
@@ -11,7 +12,7 @@ type KEV = { catalogVersion: string; dateReleased: string; count: number; vulner
 
 /** Conditional GET on the 1.8 MB catalog: unchanged → 304, nothing parsed. */
 export async function fetchKEV(etag?: string | null): Promise<{ kev: KEV | null; etag: string | null; not_modified: boolean }> {
-  const headers: Record<string, string> = { "User-Agent": "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)" };
+  const headers: Record<string, string> = { "User-Agent": USER_AGENT };
   if (etag) headers["If-None-Match"] = etag;
   const r = await fetch(KEV_URL, { headers, signal: AbortSignal.timeout(30000) });
   if (r.status === 304) return { kev: null, etag: etag ?? null, not_modified: true };

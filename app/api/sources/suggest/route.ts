@@ -1,7 +1,7 @@
 // POST {name, url, description?}: "Suggest a source". Signed-in users only, rate-limited. The suggestion is checked
 // automatically (lib/source-suggest.ts) and either added to monitoring, queued for review, or refused, with the reason.
 // GET: the signed-in user's own suggestions; with the admin token, every suggestion (review queue).
-import { env } from "@/lib/env";
+import { isAdminAuth } from "@/lib/env";
 import { evaluateSuggestion, listSuggestions, saveSuggestion } from "@/lib/source-suggest";
 import { currentUser } from "@/lib/session";
 import { store } from "@/lib/store";
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  if (env.ADMIN_TOKEN && req.headers.get("authorization") === `Bearer ${env.ADMIN_TOKEN}`) return Response.json({ suggestions: await listSuggestions(undefined, 200) });
+  if (isAdminAuth(req.headers.get("authorization"))) return Response.json({ suggestions: await listSuggestions(undefined, 200) });
   const user = await currentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
   return Response.json({ suggestions: await listSuggestions(user.id, 20) });

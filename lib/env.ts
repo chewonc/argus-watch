@@ -1,4 +1,5 @@
 // Central env access. Secrets are read here only and never logged.
+import { createHash, timingSafeEqual } from "node:crypto";
 export const env = {
   META_API_KEY: process.env.META_API_KEY ?? "",
   META_MODEL: process.env.META_MODEL ?? "muse-spark-1.3",
@@ -26,7 +27,7 @@ export const env = {
   // Actions: write on RUNNER_REPO only; the runner authenticates its callbacks with ARGUS_RUNNER_SECRET + a per-fix nonce.
   RUNNER_DISPATCH_TOKEN: process.env.RUNNER_DISPATCH_TOKEN ?? "",
   ARGUS_RUNNER_SECRET: process.env.ARGUS_RUNNER_SECRET ?? "",
-  RUNNER_REPO: process.env.RUNNER_REPO ?? "chewonc/argus-watch",
+  RUNNER_REPO: process.env.RUNNER_REPO ?? "chewonc/save-bell",
   RUNNER_WORKFLOW: process.env.RUNNER_WORKFLOW ?? "remediate.yml",
   WONDER_ESCALATION: process.env.WONDER_ESCALATION === "1",
   NVD_API_KEY: process.env.NVD_API_KEY ?? "",
@@ -37,7 +38,7 @@ export const env = {
   GOOGLE_TRANSLATE_API_KEY: process.env.GOOGLE_TRANSLATE_API_KEY ?? "",
   VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? process.env.VAPID_PUBLIC_KEY ?? "",
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY ?? "",
-  VAPID_SUBJECT: process.env.VAPID_SUBJECT ?? "mailto:argus-watch@example.com",
+  VAPID_SUBJECT: process.env.VAPID_SUBJECT ?? "mailto:savebell@example.com",
   APP_URL: (process.env.APP_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000")).replace(/\/$/, ""),
 };
 
@@ -48,3 +49,10 @@ export const hasGitHubApp = () => !!(env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE
 export const hasTranslate = () => !!env.GOOGLE_TRANSLATE_API_KEY;
 export const hasPush = () => !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
 export const hasRunner = () => !!(env.FIX_ENABLED && env.RUNNER_DISPATCH_TOKEN && env.ARGUS_RUNNER_SECRET);
+
+// Constant-time check of an Authorization header against `Bearer ${ADMIN_TOKEN}`. False when ADMIN_TOKEN is unset.
+export function isAdminAuth(header: string | null | undefined): boolean {
+  if (!env.ADMIN_TOKEN || !header) return false;
+  const h = (s: string) => createHash("sha256").update(s).digest();
+  return timingSafeEqual(h(header), h(`Bearer ${env.ADMIN_TOKEN}`));
+}

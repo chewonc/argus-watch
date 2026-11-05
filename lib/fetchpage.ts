@@ -1,10 +1,11 @@
 // S4: permitted fetch of the single page a feed item links to. Respects robots.txt, one request per host
 // per second (per process), no login-walled or non-HTML content, 1.5 MB cap. Nothing is executed.
+import { USER_AGENT } from "./ua";
 const lastHit = new Map<string, number>();
 const robotsCache = new Map<string, string[]>(); // host -> disallowed prefixes for *
-const UA = "ArgusWatch/0.1 (+https://github.com/chewonc/argus-watch)";
+const UA = USER_AGENT;
 
-/** True when robots.txt disallows this path for all crawlers (or for Argus). Unreachable robots.txt counts as allowed. */
+/** True when robots.txt disallows this path for all crawlers (or for SaveBell). Unreachable robots.txt counts as allowed. */
 export async function disallowed(url: URL): Promise<boolean> {
   let rules = robotsCache.get(url.host);
   if (!rules) {
@@ -17,7 +18,7 @@ export async function disallowed(url: URL): Promise<boolean> {
           const line = raw.split("#")[0].trim();
           const m = line.match(/^(user-agent|disallow)\s*:\s*(.*)$/i);
           if (!m) continue;
-          if (m[1].toLowerCase() === "user-agent") applies = m[2].trim() === "*" || /argus/i.test(m[2]);
+          if (m[1].toLowerCase() === "user-agent") applies = m[2].trim() === "*" || /savebell|argus/i.test(m[2]);
           else if (applies && m[2].trim()) rules.push(m[2].trim());
         }
       }

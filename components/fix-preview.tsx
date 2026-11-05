@@ -1,6 +1,7 @@
 "use client";
 // Fix preview: draft → diff (additions as ghost text) → status ladder + static assessment → explicit approval dialog
 // → draft PR link + the repository's own CI readout (shown separately, never as proof the vulnerability is fixed).
+import { fixBranch } from "@/lib/fix-branch";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Fix } from "@/lib/schema";
@@ -87,9 +88,9 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
           {fix.status === "pr_created" && !fix.mode && (
             <div className="border hair rounded-[6px] p-4 grid gap-3">
               <div className="text-[calc(14px*var(--ui))]">Draft pull request opened: <a href={fix.pr_url ?? "#"} target="_blank" rel="noreferrer">{fix.repo}#{fix.pr_number} ↗</a> on branch <span className="mono">{fix.branch}</span>{fix.pr_draft === false && <span className="label ml-2" style={{ color: "var(--inferred)" }}>non-draft fallback (plan limit); do not merge</span>}</div>
-              <div className="text-[calc(12px*var(--ui))] text-ink2">The default branch <span className="mono">{defaultBranch}</span> of {repo} was not modified. Nothing is merged by Argus Watch.</div>
+              <div className="text-[calc(12px*var(--ui))] text-ink2">The default branch <span className="mono">{defaultBranch}</span> of {repo} was not modified. Nothing is merged by SaveBell.</div>
               <div>
-                <div className="label mb-1">Repository CI (GitHub) · separate from the Argus Watch assessment</div>
+                <div className="label mb-1">Repository CI (GitHub) · separate from the SaveBell assessment</div>
                 <p className="text-[calc(12px*var(--ui))] text-ink2 mb-2">CI results come from this repository&apos;s own workflows and do not verify that the vulnerability is fixed.</p>
                 {fix.check_runs.length ? <ul className="mono text-[calc(12px*var(--ui))] grid gap-1">{fix.check_runs.map((r) => <li key={r.name}>{r.conclusion === "success" ? "✓" : r.conclusion ? "✗" : "…"} {r.name} · {r.status}{r.conclusion ? ` · ${r.conclusion}` : ""}{r.url ? <> · <a href={r.url} target="_blank" rel="noreferrer">log ↗</a></> : null}</li>)}</ul> : <p className="text-[calc(12px*var(--ui))] text-ink2">{fix.checks_at ? "No check runs reported for this branch (the repository may have no CI)." : "Not read yet."}</p>}
                 <button className="btn-ghost mt-2" onClick={checks} disabled={busy === "checks"}>{busy === "checks" ? "Reading…" : "Refresh CI status"}</button>
@@ -105,7 +106,7 @@ export function FixPreview({ assessmentId, initial, allowPr, isDemoRepo, verdict
             <div className="serif text-[calc(22px*var(--ui))]">What happens if you approve</div>
             <ul className="grid gap-1 list-disc pl-5">
               <li>Repository <span className="mono">{fix.repo}</span>, base branch <span className="mono">{defaultBranch}</span> at <span className="mono">{fix.base_sha.slice(0, 7)}</span>.</li>
-              <li>A new branch <span className="mono">argus/fix-{fix.id.slice(0, 8)}</span> with one commit changing {fix.files.length} file(s): {fix.files.map((f) => f.path).join(", ")}.</li>
+              <li>A new branch <span className="mono">{fixBranch(fix.id)}</span> with one commit changing {fix.files.length} file(s): {fix.files.map((f) => f.path).join(", ")}.</li>
               <li>A <b>draft</b> pull request is opened for review. The default branch is not modified and nothing is merged.</li>
               <li>The change was syntax-checked only. It was not executed, not type-checked here, and no tests were run. <b>Security remediation: not verified.</b></li>
               <li>Static assessment: <b>{fix.assessment?.label.replace("_", " ") ?? "not assessed"}</b>{fix.assessment?.risk_flags.length ? ` · risk flags: ${fix.assessment.risk_flags.length}` : ""}.</li>
@@ -138,7 +139,7 @@ export function StatusLadder({ fix }: { fix: Fix }) {
     ["Patch generated", `${fix.agent === "muse-code" ? "by Meta Muse Code (isolated runner)" : `preview by ${fix.model}`}; ${fix.files.length} file(s)`, fix.files.length ? "ok" : "bad"],
     ["Tests executed", fix.runner?.tests?.executed ? `${fix.runner.tests.command} → exit ${fix.runner.tests.exit_code} (isolated runner)` : fix.runner?.finished_at ? "no test command detected; none executed" : "not run (preview only)", fix.runner?.tests?.executed ? (fix.runner.tests.exit_code === 0 ? "ok" : "bad") : "na"],
     ["Syntactically valid", fix.syntax_check.map((s) => `${s.path.split("/").pop()}: ${s.ok ? "parsed" : "FAILED"}`).join(", ") || "n/a", synOk ? "ok" : "bad"],
-    ["Type-checked", ciTypeRun ? `by repository CI (${ciTypeRun.name}: ${ciTypeRun.conclusion ?? ciTypeRun.status})` : "not performed by Argus Watch (needs the repository's dependencies); see repository CI", ciTypeRun?.conclusion === "success" ? "ok" : "na"],
+    ["Type-checked", ciTypeRun ? `by repository CI (${ciTypeRun.name}: ${ciTypeRun.conclusion ?? ciTypeRun.status})` : "not performed by SaveBell (needs the repository's dependencies); see repository CI", ciTypeRun?.conclusion === "success" ? "ok" : "na"],
     ["Existing CI passed", ci, ci === "passed" ? "ok" : ci === "failed" ? "bad" : "na"],
     ["Static remediation assessment", as ? as.replace("_", " ") : "not assessed", as === "supported" ? "ok" : as === "partially_supported" ? "warn" : as ? "bad" : "na"],
     ["Security remediation verified", "NOT verified: nothing was executed or reproduced. Verification requires review and testing in your environment.", "warn"],

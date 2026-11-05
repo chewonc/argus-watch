@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Argus Watch",
-    short_name: "Argus Watch",
+    name: "SaveBell",
+    short_name: "SaveBell",
     description: "Continuous AI security threat intelligence, connected to your actual code.",
     start_url: "/",
     display: "browser",

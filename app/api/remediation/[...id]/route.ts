@@ -1,5 +1,5 @@
 // Remediation brief as Markdown (download or copy). Read-only; includes only cited lines with ±2 context.
-import { env } from "@/lib/env";
+import { env, isAdminAuth } from "@/lib/env";
 import { buildBrief } from "@/lib/remediation";
 import { readFile } from "@/lib/repo";
 import { canSee, currentUser } from "@/lib/session";
@@ -8,7 +8,7 @@ import { store } from "@/lib/store";
 export async function GET(req: Request, ctx: { params: Promise<{ id: string[] }> }) {
   const { id } = await ctx.params;
   // The brief quotes repository lines: only a signed-in user who can see the repository (or the admin token) may read it.
-  const admin = !!env.ADMIN_TOKEN && req.headers.get("authorization") === `Bearer ${env.ADMIN_TOKEN}`;
+  const admin = isAdminAuth(req.headers.get("authorization"));
   const user = admin ? null : await currentUser();
   if (!admin && !user) return new Response("unauthorized: sign in to download a remediation brief", { status: 401 });
   const a = await store.getAssessment(id.map(decodeURIComponent).join("/"));

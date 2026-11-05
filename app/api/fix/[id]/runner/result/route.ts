@@ -1,5 +1,5 @@
 // POST ?nonce=… with header x-argus-runner-secret — the runner's result (changed file contents, Muse Code summary,
-// test execution). Argus validates (allowlist, syntax, static assessment, tests gate) and only then writes to GitHub.
+// test execution). SaveBell validates (allowlist, syntax, static assessment, tests gate) and only then writes to GitHub.
 import { runnerSecretOk, acceptResult, checkRunnerAuth, RunnerError, type RunnerResult } from "@/lib/runner";
 import { env } from "@/lib/env";
 import { store } from "@/lib/store";

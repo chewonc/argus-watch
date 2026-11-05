@@ -29,7 +29,7 @@ test("confirmed but automation cannot act: Review fix with the real reason", () 
   for (const [ctx, reason] of [
     [{ ...ok, fixEnabled: false }, /turned off/],
     [{ ...ok, isDemo: true }, /demo/],
-    [{ ...ok, hasInstallation: false }, /install the Argus Watch GitHub App/],
+    [{ ...ok, hasInstallation: false }, /install the SaveBell GitHub App/],
     [{ ...ok, writePermission: false }, /write access/],
     [{ ...ok, writePermission: null }, /could not be confirmed/],
     [{ ...ok, allowPr: false }, /enable them on Repositories/],

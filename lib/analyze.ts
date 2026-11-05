@@ -125,7 +125,7 @@ export async function assess(finding: Finding, claim: Claim, repo: WatchedRepo, 
   if (hosted !== "model") {
     const bad = claim.packages.filter((p) => computed.some((c) => c.id === `version_${p.name}` && c.state !== "Contradicted"));
     modelOut = { locations: [], conditions: [], recommendations: bad.map((p) => ({ text: `Upgrade ${p.name} to a version outside the affected range${p.affected_ranges.length ? ` (${p.affected_ranges.join(" | ")})` : ""}.`, condition_ids: [`version_${p.name}`] })),
-      unverified: hosted === "capped" && condsIn.length ? ["Code conditions were not analysed by Argus this month (hosted analysis budget reached). Verify with your AI agent, or wait for the next month."] : [] };
+      unverified: hosted === "capped" && condsIn.length ? ["Code conditions were not analysed by SaveBell this month (hosted analysis budget reached). Verify with your AI agent, or wait for the next month."] : [] };
   } else if (condsIn.length || files.length) {
     const r = await sparkJSON<typeof modelOut>({
       system: SYSTEM, name: "assessment",

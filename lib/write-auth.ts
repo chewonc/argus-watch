@@ -25,7 +25,8 @@ export type WriteOp = "create_branch" | "create_pr" | "merge";
 export class WriteAuthError extends Error { constructor(message: string, readonly status = 403) { super(message); } }
 
 /** Destination branch for a fix. Fixed by the fix id, never chosen by the client. */
-export const fixBranch = (fixId: string) => `argus/fix-${fixId.slice(0, 8)}`;
+import { fixBranch } from "./fix-branch";
+export { fixBranch };
 
 /** Issue a grant for the exact patch the user reviewed. Callers have already authenticated the user and checked repository permission. */
 export function issueGrant(fix: Fix, input: { userId: string; userLogin: string; action: GrantAction; defaultBranch: string; now?: number }): Grant {

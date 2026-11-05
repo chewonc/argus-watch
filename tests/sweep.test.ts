@@ -96,7 +96,7 @@ test("push: plain wording, threshold and fix notices", async () => {
   const { meetsThreshold, pushPayload } = await import("../lib/push");
   const n = { id: "n1", kind: "alert" as const, verdict: "Unclear" as const, repo: "acme/app", title: "t", assessment_id: "f:acme/app:abc", withdrawn: false };
   const p = pushPayload(n, "https://x.test");
-  assert.equal(p.title, "Argus Watch: new security alert");
+  assert.equal(p.title, "SaveBell: new security alert");
   assert.match(p.body, /^Possible vulnerability detected in acme\/app\./);
   assert.match(pushPayload({ ...n, verdict: "Affected" }, "https://x.test").body, /^Vulnerability confirmed in acme\/app\./);
   assert.equal(p.url, "https://x.test/case/f%3Aacme/app%3Aabc");
@@ -133,7 +133,7 @@ test("write needs the installation's permissions for the chosen destination", as
 
 test("fix completion dialog: success only for statuses the server reports, honest next steps", async () => {
   const { fixSummary } = await import("../lib/fix-summary");
-  const base = { id: "f1", files: [{ path: "a.ts", patch: "", after: "", before_sha: "" }], runner: null, agent: "muse-code", syntax_check: [], pr_url: "https://github.com/o/r/pull/3", pr_number: 3, pr_draft: true, commit_url: null, branch: "argus/fix-f1", error: null } as never;
+  const base = { id: "f1", files: [{ path: "a.ts", patch: "", after: "", before_sha: "" }], runner: null, agent: "muse-code", syntax_check: [], pr_url: "https://github.com/o/r/pull/3", pr_number: 3, pr_draft: true, commit_url: null, branch: "savebell/fix-f1", error: null } as never;
   const s = (status: string, over: object = {}) => fixSummary({ ...(base as object), status, ...over } as never, "o/r");
   assert.equal(s("validated"), null, "a checked patch is not a completed fix");
   assert.equal(s("approved"), null, "a write in progress is not completed");
@@ -154,7 +154,7 @@ test("UI requests: scale factor, solid bell, bold titles, centered checkbox, Ver
   assert.match(css, /--spacing: calc\(0\.25rem \* var\(--ui\)\)/);
   assert.doesNotMatch(css, /\bzoom\s*:/); assert.doesNotMatch(css, /transform:\s*scale/);
   const bell = readFileSync("components/notification-bell.tsx", "utf8");
-  assert.match(bell, /fill="currentColor"/);
+  assert.match(bell, /fill="none"/); // outlined bell (Nov 5 request supersedes the solid one)
   assert.match(bell, /font-semibold \$\{n\.read_at/);
   assert.match(readFileSync("app/notifications/page.tsx", "utf8"), /leading-snug font-semibold`\}>\{n\.display_title\}/);
   assert.match(readFileSync("components/bulk-fix.tsx", "utf8"), /w-4 h-4 self-center/);
@@ -203,7 +203,10 @@ test("Settings, Sources, Threats and header: requested UI changes are in place",
   assert.match(picker, /window\.confirm\(`Stop monitoring/, "stopping needs explicit confirmation");
   assert.match(readFileSync("app/repos/actions.ts", "utf8"), /getAll\("stop"\)[\s\S]*paused: true/, "unticking pauses monitoring, it does not remove GitHub access");
   assert.match(readFileSync("app/sources/page.tsx", "utf8"), /<SuggestSource/);
-  assert.match(readFileSync("components/header-nav.tsx", "utf8"), /Report an issue/);
+  const nav = readFileSync("components/header-nav.tsx", "utf8");
+  assert.match(nav, />\{labels\.report\}<\/button>/);
+  assert.ok(nav.indexOf(">{labels.report}</button>") < nav.indexOf("type=\"button\" data-lang-item"), "Report comes before Language");
+  assert.doesNotMatch(nav, /href="\/windows"/, "no separate Remediation tab");
   for (const f of ["app/favicon.ico", "app/icon.svg", "app/apple-icon.png", "public/icon-512.png", "app/manifest.ts"]) assert.ok(existsSync(f), f);
 });
 

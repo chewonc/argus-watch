@@ -50,7 +50,7 @@ test("one active run per user: an overlapping schedule is recorded as skipped, n
   const a = sched(); const b = sched({ user_id: a.user_id }); const { deps } = fake([cand("x")]);
   await open(a, deps);
   const second = await openRun(b, { key: "k-overlap" + seq++, start_ms: T0, end_ms: T0 + 8 * 36e5 }, deps);
-  assert.equal(second?.status, "cancelled"); assert.match(second!.stop_reason!, /already running/);
+  assert.equal(second?.status, "cancelled"); assert.match(second!.stop_reason!, /already active/);
 });
 
 test("investigate only: findings are re-verified, nothing is drafted or run", async () => {

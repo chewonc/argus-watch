@@ -102,7 +102,7 @@ test("10. the legitimate approved draft PR workflow passes every check, once", a
   const fix = F(); await store.putFix(fix, true);
   const ok = await approve(fix, "pr");
   assert.equal(ok.status, "approved"); assert.equal(ok.grant?.branch, fixBranch(fix.id)); assert.equal(ok.grant?.patch_version, PV);
-  assert.match(ok.events.at(-1)!.detail, /draft pull request from argus\/fix-.* into main, valid until/);
+  assert.match(ok.events.at(-1)!.detail, /draft pull request from savebell\/fix-.* into main, valid until/);
   await stillAllowed(fix.id, op(fix));
   await assertWrite(fix.id, op(fix));
   await assertWrite(fix.id, op(fix, { kind: "create_pr" }));

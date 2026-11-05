@@ -6,17 +6,22 @@ import type { Assessment } from "./schema";
 import { isSystemRepo } from "./session";
 import { store } from "./store";
 
-export const DEMO_PREFIX = "chewonc/argus-watch/feasibility/cases/";
+// New demo repositories register under the renamed repository; keys stored before the rename keep the legacy prefix.
+export const DEMO_PREFIX = "chewonc/save-bell/feasibility/cases/";
+export const LEGACY_DEMO_PREFIX = "chewonc/argus-watch/feasibility/cases/";
+export { demoPath } from "./demo-path";
+const demoPrefixOf = (k: string) => [DEMO_PREFIX, LEGACY_DEMO_PREFIX].find((p) => k.startsWith(p));
 
 export async function isPublicDemoRepo(repoKey: string): Promise<boolean> {
-  return repoKey.startsWith(DEMO_PREFIX) && !repoKey.slice(DEMO_PREFIX.length).includes("..") && (await isSystemRepo(repoKey));
+  const p = demoPrefixOf(repoKey);
+  return !!p && !repoKey.slice(p.length).includes("..") && (await isSystemRepo(repoKey));
 }
 
 /** Latest assessment per (finding, demo repository), newest first. */
 export async function demoAssessments(): Promise<Assessment[]> {
   const latest = new Map<string, Assessment>();
   for (const a of await store.listAssessments(1000)) {
-    if (!a.repo.startsWith(DEMO_PREFIX)) continue;
+    if (!demoPrefixOf(a.repo)) continue;
     const k = `${a.finding_id}|${a.repo}`;
     if (!latest.has(k) || latest.get(k)!.timestamps.processed_at < a.timestamps.processed_at) latest.set(k, a);
   }

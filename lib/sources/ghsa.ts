@@ -2,6 +2,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { extractIds, sha } from "../dedup";
 import type { Item } from "../schema";
+import { USER_AGENT } from "../ua";
 
 export function verifyGitHubSignature(rawBody: string, header: string | null, secret: string): boolean {
   if (!header || !secret) return false;
@@ -48,7 +49,7 @@ export type OSVVuln = {
   references?: { type: string; url: string }[];
 };
 export async function osvGet(id: string): Promise<OSVVuln | null> {
-  const r = await fetch(`https://api.osv.dev/v1/vulns/${encodeURIComponent(id)}`, { headers: { "User-Agent": "ArgusWatch/0.1" } });
+  const r = await fetch(`https://api.osv.dev/v1/vulns/${encodeURIComponent(id)}`, { headers: { "User-Agent": USER_AGENT } });
   if (!r.ok) return null;
   return (await r.json()) as OSVVuln;
 }

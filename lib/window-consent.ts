@@ -20,12 +20,12 @@ const K = { one: (id: string) => `wconsent:${id}`, occ: (k: string) => `wconsent
 
 /** Why this consent does not cover a write to `repoKey` in `occurrenceKey` at `now`, or null when it does. Pure. */
 export function consentProblem(c: Consent | null, x: { userId: string; occurrenceKey: string; repoKey: string; now: number }): string | null {
-  if (!c) return "you did not authorize draft pull requests for this window";
+  if (!c) return "you did not authorize draft PRs for this run";
   if (c.user_id !== x.userId) return "the authorization belongs to another user";
   if (c.revoked_at) return `the authorization was revoked (${c.revoked_reason ?? "revoked"})`;
-  if (c.occurrence_key !== x.occurrenceKey) return "the authorization is for a different window";
-  if (Date.parse(c.expires_at) <= x.now) return "the authorization expired when the window ended";
-  if (!c.repos.includes(x.repoKey)) return "this repository was not included when you authorized the window";
+  if (c.occurrence_key !== x.occurrenceKey) return "the authorization is for a different run";
+  if (Date.parse(c.expires_at) <= x.now) return "the authorization expired when the run ended";
+  if (!c.repos.includes(x.repoKey)) return "this repository was not included when you authorized the run";
   return null;
 }
 

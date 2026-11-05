@@ -1,6 +1,6 @@
 // Manual override (read-only tool contract): analyze one advisory id against the watched repos now.
 // Also the agent-callable endpoint: same JSON any function-calling agent can consume.
-import { env } from "@/lib/env";
+import { isAdminAuth } from "@/lib/env";
 import { sha } from "@/lib/dedup";
 import { ingest, processFinding } from "@/lib/pipeline";
 import { osvGet } from "@/lib/sources/ghsa";
@@ -10,7 +10,7 @@ export const maxDuration = 300;
 
 export async function POST(req: Request) {
   // Fail closed: without a configured ADMIN_TOKEN nobody can trigger on-demand analysis.
-  if (!env.ADMIN_TOKEN || req.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("unauthorized", { status: 401 });
+  if (!isAdminAuth(req.headers.get("authorization"))) return new Response("unauthorized", { status: 401 });
   const { advisory_id } = (await req.json()) as { advisory_id: string };
   const v = await osvGet(advisory_id);
   if (!v) return Response.json({ error: "advisory not found in OSV" }, { status: 404 });

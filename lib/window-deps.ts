@@ -19,7 +19,7 @@ import { isSystemRepo } from "./session";
 import { ALERT_HISTORY, store } from "./store";
 import { Precondition, type Candidate, type Deps, type WindowRun } from "./window-run";
 
-const ACTOR = "autonomous window";
+const ACTOR = "automatic fix run";
 /** Fix states that mean the finding is already being handled (or waits for the user): a window never starts a second attempt. */
 const BUSY = new Set(["drafting", "queued", "running", "validated", "approved", "pr_created", "merging", "merged", "branch_pushed"]);
 
@@ -139,12 +139,12 @@ export async function notifyRunReport(run: WindowRun) {
   const now = new Date().toISOString();
   if (user.settings.inapp !== false) {
     const id = createHash("sha256").update(`${run.user_id}:window:${run.id}`).digest("hex").slice(0, 20);
-    const n: Notification = { id, user_id: run.user_id, kind: "window_report", assessment_id: `run:${run.id}`, finding_id: "", repo: run.repos[0] ?? "", title: `${run.status === "cancelled" ? "Window cancelled" : "Window finished"}: ${line}`.slice(0, 160), verdict: "Unclear", severity: { level: "unknown", cvss: null, source: "estimated" }, created_at: now, updated_at: now, read_at: null, published_at: null, notified_at: now, pushed_at: null, received_at: null };
+    const n: Notification = { id, user_id: run.user_id, kind: "window_report", assessment_id: `run:${run.id}`, finding_id: "", repo: run.repos[0] ?? "", title: `${run.status === "cancelled" ? "Fix run cancelled" : "Fix run finished"}: ${line}`.slice(0, 160), verdict: "Unclear", severity: { level: "unknown", cvss: null, source: "estimated" }, created_at: now, updated_at: now, read_at: null, published_at: null, notified_at: now, pushed_at: null, received_at: null };
     await store.putNotification(n, true);
     if (user.settings.push && hasPush()) await sendPushTo(run.user_id, n).catch(() => {});
   }
   if (user.settings.webhook_url) {
-    const text = `Argus Watch remediation window ${run.status === "cancelled" ? "cancelled" : "finished"}: ${line}. Estimated cost $${r.spent_usd.toFixed(2)}. ${env.APP_URL}/runs/${encodeURIComponent(run.id)}`;
+    const text = `SaveBell fix run ${run.status === "cancelled" ? "cancelled" : "finished"}: ${line}. Estimated cost $${r.spent_usd.toFixed(2)}. ${env.APP_URL}/runs/${encodeURIComponent(run.id)}`;
     const isDiscord = /discord(app)?\.com\/api\/webhooks/.test(user.settings.webhook_url);
     await fetch(user.settings.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(isDiscord ? { content: text } : { text }), signal: AbortSignal.timeout(8000) }).catch(() => {});
   }

@@ -1,3 +1,5 @@
+Product renamed to SaveBell on 2026-11-05; names and URLs below are historical.
+
 # Argus Watch evaluation set
 
 Evaluation dataset for the Argus Watch read-only impact agent (doc 11, sections H and I.1). It contains 16 labelled cases: 12 ordinary cases (5 Affected, 4 Not Affected, 3 Unclear) over five real public advisories, plus 4 adversarial cases.

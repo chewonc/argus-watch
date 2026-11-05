@@ -1,6 +1,6 @@
-# Contributing to Argus Watch
+# Contributing to SaveBell
 
-Argus Watch is a solo entry to the Meta Global AI Developer Hackathon (Oct 27 – Nov 4 2026). Everything in this repository was written during the event window; the first commit is dated Oct 31 2026.
+SaveBell is a solo entry to the Meta Global AI Developer Hackathon (Oct 27 – Nov 4 2026). Everything in this repository was written during the event window; the first commit is dated Oct 31 2026.
 
 ## Development setup
 

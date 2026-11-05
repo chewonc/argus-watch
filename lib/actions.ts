@@ -39,7 +39,7 @@ export function automationBlocker(a: Assessment, ctx: ActionContext): string | n
   if (ctx.isDemo) return "Shared demo repository: fixes are preview-only here.";
   if (!loc) return "No exact line was cited, so there is nothing safe to change automatically.";
   if (UNFIXABLE.test(loc.file)) return `${loc.file.split("/").pop()} can't be changed automatically (lockfiles, secrets and CI workflows are excluded).`;
-  if (!ctx.hasInstallation) return "Repository permission: install the Argus Watch GitHub App on this repository.";
+  if (!ctx.hasInstallation) return "Repository permission: install the SaveBell GitHub App on this repository.";
   if (!write) return null;
   if (ctx.writePermission === false) return "Repository permission: the GitHub App needs write access to contents and pull requests.";
   if (ctx.writePermission == null) return "Repository permission: write access for this repository could not be confirmed.";
@@ -55,7 +55,7 @@ export function findingAction(a: Assessment, fixes: Fix[], ctx: ActionContext, c
     const stalled = isStaleRun(fx, now);
     const active = stalled ? undefined : ACTIVE[fx.status];
     if (active) return { primary: { kind: "view_progress", href: fixHref, external: false }, state: { key: active, tone: "warn" }, note: null };
-    // The runner finished and Argus validated the patch: nothing is written until the user approves this exact patch.
+    // The runner finished and SaveBell validated the patch: nothing is written until the user approves this exact patch.
     if (fx.status === "validated") return { primary: { kind: "approve", href: `${caseHref}?act=1#fix`, external: false }, state: { key: "patch_ready", tone: "warn" }, note: "A validated patch is ready. Nothing has been written to your repository; review it and approve to open a draft pull request." };
     if (fx.status === "pr_created") return { primary: fx.pr_url ? { kind: "view_pr", href: fx.pr_url, external: true } : { kind: "view_progress", href: fixHref, external: false }, state: { key: "pr", tone: "ok" }, note: "A pull request is a proposed change: review and merge it on GitHub. The alert stays open until then." };
     if (fx.status === "blocked_by_protection") return { primary: fx.pr_url ? { kind: "view_pr", href: fx.pr_url, external: true } : { kind: "view_progress", href: fixHref, external: false }, state: { key: "blocked", tone: "warn" }, note: fx.error };

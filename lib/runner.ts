@@ -25,6 +25,7 @@ import type { Assessment, Finding, Fix } from "./schema";
 import { store } from "./store";
 import { cancellable, cancelRun, checkApprovable, patchVersion } from "./remediation-control";
 import { assertWrite, recordApproval, revoke, WriteAuthError } from "./write-auth";
+import { USER_AGENT } from "./ua";
 export { cancellable, cancelRun, checkApprovable, patchVersion };
 
 /** Files the runner may change: the cited source files plus the manifests the preview touched. Never lockfiles, env, keys or workflows. */
@@ -43,7 +44,7 @@ export async function startRun(fix: Fix, a: Assessment, mode: "pr" | "push" | "b
     runner: { run_url: null, dispatched_at: now(), started_at: null, finished_at: null, muse_version: null, steps: null, summary: "", changed_files: [], rejected_files: [], tests: null, error: null } };
   next = event(next, userLogin, "authorized", `mode=${mode}; Muse Code may edit only: ${allowed.join(", ")}`);
   const r = await fetch(`https://api.github.com/repos/${env.RUNNER_REPO}/actions/workflows/${env.RUNNER_WORKFLOW}/dispatches`, {
-    method: "POST", headers: { authorization: `Bearer ${env.RUNNER_DISPATCH_TOKEN}`, accept: "application/vnd.github+json", "content-type": "application/json", "user-agent": "ArgusWatch/0.1" },
+    method: "POST", headers: { authorization: `Bearer ${env.RUNNER_DISPATCH_TOKEN}`, accept: "application/vnd.github+json", "content-type": "application/json", "user-agent": USER_AGENT },
     body: JSON.stringify({ ref: "main", inputs: { fix_id: fix.id, nonce } }),
   });
   if (r.status !== 204) {
@@ -142,7 +143,7 @@ export async function acceptResult(fix: Fix, a: Assessment, f: Finding | null, i
   return next;
 }
 
-/** The user's approval of the exact validated patch: only now does Argus write (branch, commit, PR). */
+/** The user's approval of the exact validated patch: only now does SaveBell write (branch, commit, PR). */
 export async function approveValidated(fix: Fix, a: Assessment, f: Finding | null, installationId: number, opts: { userLogin: string; patchVersion: string; mode: "pr" | "push" | "branch" }): Promise<Fix> {
   // Atomic approval with a grant bound to this exact patch and destination (lib/write-auth.ts); the write boundary checks it.
   const w = await store.getRepo(fix.repo_key);
@@ -207,7 +208,7 @@ export async function tryMerge(fix: Fix, installationId: number, attempt: number
   try {
     // A PR approval never authorizes a merge: only a grant that explicitly includes merging, still inside its window.
     await assertWrite(fix.id, { kind: "merge", repo: fix.repo, branch: fix.branch });
-    const m = await ok.rest.pulls.merge({ owner, repo, pull_number: fix.pr_number, merge_method: "squash", commit_title: `Argus Watch automated fix ${fix.id.slice(0, 8)} (Meta Muse Code)` });
+    const m = await ok.rest.pulls.merge({ owner, repo, pull_number: fix.pr_number, merge_method: "squash", commit_title: `SaveBell automated fix ${fix.id.slice(0, 8)} (Meta Muse Code)` });
     const url = `https://github.com/${fix.repo}/commit/${m.data.sha}`;
     next = event({ ...next, status: "merged", merge_sha: m.data.sha, commit_url: url }, "argus", "merged", `squash-merged into the default branch after ${runs.filter((r) => r.conclusion === "success").length} passing check-run(s)${testsPassed ? " and passing runner tests" : ""}`, url);
     await store.putFix(next);

@@ -58,7 +58,7 @@ test("validation is done on the server: zones, durations, levels, repositories",
   assert.ok(scheduleErrors(S({ start: "07:00", end: "07:00" }), now).some((e) => /same time/.test(e)));
   assert.ok(scheduleErrors(S({ start: "06:00", end: "23:00" }), now).some((e) => /at most 16 hours/.test(e)));
   assert.deepEqual(scheduleErrors(S({ level: "draft_pr" }), now), [], "draft pull requests are accepted; consent is checked separately (tests/window-write.test.ts)");
-  assert.ok(scheduleErrors(S({ kind: "once", date: "2026-11-01" }), now).some((e) => /already ended/.test(e)));
+  assert.ok(scheduleErrors(S({ kind: "once", date: "2026-11-01" }), now).some((e) => /already passed/.test(e)));
   assert.ok(scheduleErrors(S({ repos: ["o/other"] }), now, new Set(["o/r"])).some((e) => /do not monitor/.test(e)));
   assert.deepEqual(scheduleErrors(S({ repos: ["o/r"] }), now, new Set(["o/r"])), []);
   assert.throws(() => S({ max_jobs: 9 }), "concurrency is capped in the schema");

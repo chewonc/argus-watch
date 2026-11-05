@@ -41,7 +41,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
     <div className="mx-auto max-w-[calc(860px*var(--ui))] px-4 sm:px-6 py-8 sm:py-10 grid gap-8">
       <div className="grid gap-1"><h1 className="text-[calc(28px*var(--ui))] font-semibold tracking-[-0.02em]">{d.settings_title}</h1><p className="text-[calc(15px*var(--ui))] text-ink2">Signed in as {user.login}</p></div>
       <div>
-        <Section id="repositories" title="Repositories" desc="Which repositories Argus Watch monitors.">
+        <Section id="repositories" title="Repositories" desc="Which repositories SaveBell monitors.">
           <RepositoriesPanel sp={sp} embedded />
         </Section>
 
@@ -57,7 +57,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
               ))}
             </ul>
           )}
-          <More><p>Works with Meta Muse Code, Claude Code, Codex or any MCP-capable agent, using your own AI plan. Through MCP your agent can read alerts and the cited code and report what it finds; Argus re-checks every line it cites. It cannot push code: changes stay in your editor until you approve them there. The connection key is shown once and can be revoked here with Disconnect.</p></More>
+          <More><p>Works with Meta Muse Code, Claude Code, Codex or any MCP-capable agent, using your own AI plan. Through MCP your agent can read alerts and the cited code and report what it finds; SaveBell re-checks every line it cites. It cannot push code: changes stay in your editor until you approve them there. The connection key is shown once and can be revoked here with Disconnect.</p></More>
         </Section>
 
         <Section id="remediation" title="Automatic remediation">
@@ -73,20 +73,19 @@ export default async function Settings({ searchParams }: { searchParams: Promise
             <li>This setting only chooses the destination. Every repository change still needs your explicit approval of the exact patch.</li>
             <li>Muse Code prepares and validates the patch in an isolated runner first; nothing is written before you approve.</li>
             <li>Draft PRs are never merged automatically.</li>
-            <li>Push to branch creates a new branch (argus/fix-…), respects branch protection, and never modifies your default branch.</li>
+            <li>Push to branch creates a new branch, respects branch protection, and never modifies your default branch.</li>
             <li>The repository must also allow changes on Repositories, and the GitHub App needs write access; with &quot;No repository writes&quot; neither is needed.</li>
           </ul></More>
         </Section>
 
-        <Section id="windows" title="Remediation windows" desc="Let Argus Watch work on security issues while you are away. Also on the Remediation page.">
+        <span id="windows" aria-hidden />
+        <Section id="runs" title="Automatic fix runs" desc="SaveBell checks issues and prepares fixes on a schedule. Start one now from Threats.">
           <RemediationWindows userId={user.id} />
-          <More label="How it works"><ul className="list-disc pl-5 grid gap-1">
-            <li>During a window, Argus re-checks open findings against your current code and, with Prepare fixes, drafts a fix and runs your tests in an isolated runner.</li>
-            <li>With Investigate only or Prepare fixes, nothing is written to your repositories: validated patches wait for you to approve each one, as today.</li>
-            <li>With Create draft pull requests, you authorize each window while signed in. Before every pull request Argus re-checks that authorization and your current GitHub write access, requires the repository&apos;s tests to have passed, and opens only a draft from a new branch. If anything cannot be confirmed, the patch waits for your review. Nothing is ever merged.</li>
-            <li>Limits are enforced on the server: issue count, parallel jobs, a hard budget (estimated per operation), and the window end. No test run starts with less than 20 minutes left.</li>
-            <li>Only repositories you still monitor and can access are touched; a repository you pause or lose access to is dropped from a running window.</li>
-            <li>Windows are checked on the scheduler tick, about every 5 minutes, so a window may start or end a few minutes late. You get a summary when it finishes.</li>
+          <More label="Safety limits"><ul className="list-disc pl-5 grid gap-1">
+            <li>Check issues and Prepare fixes never write to your repositories. Each fix waits for your approval.</li>
+            <li>Create draft PRs needs your authorization for each run. GitHub write access and passing tests are re-checked before every PR. PRs are never merged.</li>
+            <li>Issue count, fixes at once, spending limit and end time are enforced on the server.</li>
+            <li>Runs start and stop on the scheduler, about every 5 minutes.</li>
           </ul></More>
         </Section>
 
@@ -104,7 +103,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
             <button className="btn w-fit" type="submit">{d.save}</button>
           </form>
           <div className="grid gap-1 text-[calc(14px*var(--ui))]"><div className="font-medium">{d.browser_push}</div><PushToggle vapidPublicKey={env.VAPID_PUBLIC_KEY} enabled={user.settings.push && subs.length > 0} />{subs.length > 0 && <p className="text-[calc(12px*var(--ui))] text-ink2">{subs.length} {d.devices_subscribed}</p>}</div>
-          <More><div id="webhook-help" className="grid gap-1"><p>The webhook is optional, stored server-side and shown masked; only Slack and Discord incoming-webhook URLs are accepted.</p><p>Browser push needs VAPID keys on this deployment{env.VAPID_PUBLIC_KEY ? "" : " (not set here)"}. Once enabled, alerts arrive while the browser is running, even with the tab in the background. If the browser is fully closed, the notification is delivered the next time it starts, as long as that is within one hour; after that it is dropped and the alert stays in Argus.</p></div></More>
+          <More><div id="webhook-help" className="grid gap-1"><p>The webhook is optional, stored server-side and shown masked; only Slack and Discord incoming-webhook URLs are accepted.</p><p>Browser push needs VAPID keys on this deployment{env.VAPID_PUBLIC_KEY ? "" : " (not set here)"}. Once enabled, alerts arrive while the browser is running, even with the tab in the background. If the browser is fully closed, the notification is delivered the next time it starts, as long as that is within one hour; after that it is dropped and the alert stays in SaveBell.</p></div></More>
         </Section>
 
         {env.DEMO_SHARED_REPOS && (

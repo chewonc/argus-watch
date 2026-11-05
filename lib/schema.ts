@@ -23,7 +23,7 @@ export const Item = z.object({
   ids: z.array(z.string()), // CVE-/GHSA-/OSV ids found in the item
   packages: z.array(z.object({ ecosystem: z.string(), name: z.string() })),
   published_at: z.string().nullable(), // source's own timestamp (ISO), null when unknown
-  discovered_at: z.string(), // when Argus Watch first saw it
+  discovered_at: z.string(), // when SaveBell first saw it
   raw: z.unknown().optional(),
 });
 export type Item = z.infer<typeof Item>;

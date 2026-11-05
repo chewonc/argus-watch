@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 const serif = Instrument_Serif({ variable: "--font-instrument-serif", subsets: ["latin"], weight: "400" });
 
 export const metadata: Metadata = {
-  title: "Argus Watch",
+  title: "SaveBell",
   description: "Continuous, read-only security impact analysis for your repositories",
 };
 
@@ -28,8 +28,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-full flex flex-col">
         <header className="border-b hair bg-[var(--bg)] sticky top-0 z-20">
           <div className="mx-auto max-w-[calc(1080px*var(--ui))] px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-8">
-            <Link href="/" className="flex items-center gap-[calc(8px*var(--ui))] no-underline text-[calc(17px*var(--ui))] font-semibold tracking-[-0.015em] text-ink whitespace-nowrap shrink-0"><span aria-hidden className="w-[calc(10px*var(--ui))] h-[calc(10px*var(--ui))] rounded-full bg-[var(--accent)]" />Argus Watch</Link>
-            <HeaderNav locale={locale} languages={langs} user={user ? { id: user.id, login: user.login, avatar: user.avatar } : null} authReady={hasAuth()} windowActive={windowActive} labels={{ threats: d.nav_threats, windows: d.nav_windows, repos: d.nav_repos, monitoring: d.nav_monitoring, activity: d.nav_activity, settings: d.nav_settings, language: d.language, notifications: d.notifications, signIn: d.sign_in, signOut: d.sign_out, notConfigured: d.sign_in_not_configured }} />
+            <Link href="/" className="flex items-center gap-[calc(8px*var(--ui))] no-underline text-ink whitespace-nowrap shrink-0"><span aria-hidden className="w-[calc(10px*var(--ui))] h-[calc(10px*var(--ui))] rounded-full bg-[var(--accent)]" /><span className="font-[family-name:var(--font-instrument-serif)] font-normal text-[calc(25px*var(--ui))] leading-none tracking-[-0.025em]">SaveBell</span></Link>
+            <HeaderNav locale={locale} languages={langs} user={user ? { id: user.id, login: user.login, avatar: user.avatar } : null} authReady={hasAuth()} windowActive={windowActive} labels={{ threats: d.nav_threats, report: d.nav_report, repos: d.nav_repos, monitoring: d.nav_monitoring, activity: d.nav_activity, settings: d.nav_settings, language: d.language, notifications: d.notifications, signIn: d.sign_in, signOut: d.sign_out, notConfigured: d.sign_in_not_configured }} />
           </div>
         </header>
         <main className="flex-1">{children}</main>

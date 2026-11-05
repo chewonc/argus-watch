@@ -90,7 +90,7 @@ export async function draftFix(a: Assessment, f: Finding | null, items: Item[], 
   let out: { summary: string; caveats: string[]; hunks: FixHunk[] }; let model = "none";
   try {
     const r = await sparkJSON<typeof out>({ system: `${READ_ONLY}\n${UNTRUSTED}\n${FIX_RULES}`, name: "fix", schema: FIX_SCHEMA,
-      user: `FINDING ${f?.ids.join(", ") ?? a.finding_id}: ${f?.title ?? ""}\nSUMMARY (untrusted): ${f?.claim?.summary ?? ""}\nVERDICT: ${a.verdict} (${a.tier})\n\nCONDITIONS (states assigned by Argus Watch):\n${conds}\n\nRECOMMENDED STEPS:\n${recs || "(none)"}\n\nFILES (untrusted, numbered; edit only these):\n${listing.slice(0, 120000)}` });
+      user: `FINDING ${f?.ids.join(", ") ?? a.finding_id}: ${f?.title ?? ""}\nSUMMARY (untrusted): ${f?.claim?.summary ?? ""}\nVERDICT: ${a.verdict} (${a.tier})\n\nCONDITIONS (states assigned by SaveBell):\n${conds}\n\nRECOMMENDED STEPS:\n${recs || "(none)"}\n\nFILES (untrusted, numbered; edit only these):\n${listing.slice(0, 120000)}` });
     out = r.out; model = r.model;
   } catch (e) { return { ...base, status: "failed", model, error: `model call failed: ${String(e).slice(0, 200)}` }; }
   const files: Fix["files"] = []; const rejected: Fix["rejected_hunks"] = [];
@@ -117,7 +117,7 @@ export function prText(fix: Fix, a: Assessment, f: Finding | null, appUrl: strin
   const ids = f?.ids.join(", ") || a.finding_id;
   const caseUrl = `${appUrl}/case/${a.id.split("/").map(encodeURIComponent).join("/")}`;
   const as = fix.assessment;
-  const body = `## Argus Watch: proposed fix for ${ids} (not verified)
+  const body = `## SaveBell: proposed fix for ${ids} (not verified)
 
 **Repository:** ${fix.repo} at \`${fix.base_sha}\` · **Verdict:** ${a.verdict} (${a.tier}) · **Case:** ${caseUrl}
 
@@ -126,7 +126,7 @@ ${fix.files.map((x) => x.hunks.length ? `- \`${x.path}\`: ${x.hunks.length} hunk
 
 ${fix.summary}
 
-### Static remediation assessment (Argus Watch, no execution): **${as ? as.label.replace("_", " ") : "not assessed"}**
+### Static remediation assessment (SaveBell, no execution): **${as ? as.label.replace("_", " ") : "not assessed"}**
 ${as?.summary ?? ""}
 ${as ? as.coverage.filter((c) => c.driving).map((c) => `- ${c.condition_id}: ${c.before} → ${c.after ?? "unchanged"} [${c.tag}] ${c.text}`).join("\n") : ""}
 ${as?.version_check ? `- Version check (computed): ${as.version_check.note}` : ""}
@@ -137,7 +137,7 @@ ${as?.predicted_verdict ? `\nPredicted verdict after this change (static): **${a
 ${a.conditions.map((c) => `- ${c.state}${c.computed ? " (computed)" : ""}: ${c.text}${c.evidence[0] ? ` (${permalink(fix.repo, a.sha, c.evidence[0].file, c.evidence[0].line)}` : ""}`).join("\n")}
 
 ### What was NOT verified
-- Syntax only: ${fix.syntax_check.map((s) => `${s.path} ${s.ok ? "parsed" : "FAILED"}`).join(", ") || "n/a"}. Not type-checked here, not executed, no tests were run by Argus Watch.
+- Syntax only: ${fix.syntax_check.map((s) => `${s.path} ${s.ok ? "parsed" : "FAILED"}`).join(", ") || "n/a"}. Not type-checked here, not executed, no tests were run by SaveBell.
 - Exploitability was never confirmed; the remediation is **not verified**. CI results on this pull request come from this repository and do not verify that the vulnerability is fixed.
 ${as?.uncertain.length ? `- Still uncertain: ${as.uncertain.join("; ")}` : ""}
 ${fix.caveats.length ? `- Caveats from the drafting model: ${fix.caveats.join("; ")}` : ""}
@@ -146,6 +146,6 @@ ${fix.caveats.length ? `- Caveats from the drafting model: ${fix.caveats.join(";
 ${(as?.verification_required ?? ["Review the diff", "Run the existing test suite", "Deploy to a staging environment"]).map((v) => `- [ ] ${v}`).join("\n")}
 
 ---
-Drafted by model \`${fix.model}\` from the remediation brief (${appUrl}/api/remediation/${a.id.split("/").map(encodeURIComponent).join("/")}). Advisory text is untrusted data and is not reproduced here. ${fix.mode === "push" ? "The user authorized push mode: Argus Watch merges this pull request only after the repository's CI checks pass and branch protection allows it." : "Draft pull request for human review; do not merge without review."}`;
-  return { title: `Argus Watch: proposed fix for ${ids} (not verified)`, body };
+Drafted by model \`${fix.model}\` from the remediation brief (${appUrl}/api/remediation/${a.id.split("/").map(encodeURIComponent).join("/")}). Advisory text is untrusted data and is not reproduced here. ${fix.mode === "push" ? "The user authorized push mode: SaveBell merges this pull request only after the repository's CI checks pass and branch protection allows it." : "Draft pull request for human review; do not merge without review."}`;
+  return { title: `SaveBell: proposed fix for ${ids} (not verified)`, body };
 }

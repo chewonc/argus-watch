@@ -9,6 +9,7 @@
 // Labels: verified · corroborated · unverified · disputed · likely_false.
 import type { Finding, Item } from "./schema";
 import { normUrl, sparkSearchJSON, UNTRUSTED } from "./spark";
+import { USER_AGENT } from "./ua";
 
 export type Credibility = "verified" | "corroborated" | "unverified" | "disputed" | "likely_false";
 export type Artefact = { id: string; kind: "cve" | "ghsa" | "arxiv"; status: "exists" | "rejected" | "withdrawn" | "not_found" | "error"; registry: string; url: string; title: string | null };
@@ -36,7 +37,7 @@ export function citedIds(text: string): { cve: string[]; ghsa: string[]; arxiv: 
 
 export const hostOf = (u: string | null) => { try { return u ? new URL(u).hostname.toLowerCase().replace(/^www\./, "") : null; } catch { return null; } };
 
-const get = async (url: string, headers: Record<string, string> = {}) => fetch(url, { headers: { "user-agent": "ArgusWatch/0.1 (+https://argus-watch-three.vercel.app)", ...headers }, signal: AbortSignal.timeout(15_000) });
+const get = async (url: string, headers: Record<string, string> = {}) => fetch(url, { headers: { "user-agent": USER_AGENT, ...headers }, signal: AbortSignal.timeout(15_000) });
 
 async function checkCve(id: string): Promise<Artefact> {
   const base: Artefact = { id, kind: "cve", status: "error", registry: "NVD", url: `https://nvd.nist.gov/vuln/detail/${id}`, title: null };
@@ -106,7 +107,7 @@ const SCHEMA = {
     rationale: { type: "string" },
   },
 };
-const SYSTEM = `You are the fact-checking stage of Argus Watch, a security monitor. ${UNTRUSTED}
+const SYSTEM = `You are the fact-checking stage of SaveBell, a security monitor. ${UNTRUSTED}
 Task: decide how credible a security threat REPORT is. Do not judge whether any codebase is affected.
 1. Extract at most 4 specific, checkable factual claims (vulnerability exists, affected product/versions, impact, exploitation in the wild, paper results).
 2. Use web search to find PRIMARY sources (vendor advisory, CVE/GHSA record, maintainers' release notes or commit, the paper itself) and INDEPENDENT reports (different organisations that did their own analysis).

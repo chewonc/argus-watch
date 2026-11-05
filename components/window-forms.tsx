@@ -2,13 +2,15 @@
 // Remediation window forms: the recurring/one-time schedule editor (Settings) and "start a window now" (dashboard).
 // Every value is re-validated on the server (app/settings/window-actions.ts); limits here only mirror the server caps.
 import { useActionState, useMemo, useState, useSyncExternalStore } from "react";
+import { demoPath } from "@/lib/demo-path";
 import type { FormState } from "@/app/settings/window-actions";
 
 type Action = (prev: FormState, fd: FormData) => Promise<FormState>;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const LEVELS = [
-  { id: "investigate", title: "Investigate only", desc: "Re-check findings against your current code. Nothing is changed." },
-  { id: "prepare", title: "Prepare fixes", desc: "Investigate, generate fixes and run your tests in an isolated runner. Patches wait for your review; nothing is written to your repositories." },
+  { id: "investigate", title: "Check issues" },
+  { id: "prepare", title: "Prepare fixes" },
+  { id: "draft_pr", title: "Create draft PRs" },
 ];
 const input = "border hair rounded-[6px] px-2 h-9 bg-transparent text-[calc(14px*var(--ui))]";
 
@@ -26,7 +28,7 @@ function useZones(initial?: string) {
 
 function ZoneSelect({ tz, setTz, zones }: ReturnType<typeof useZones>) {
   return (
-    <label className="grid gap-1">Timezone
+    <label className="grid gap-1">Time zone
       <select name="tz" value={tz} onChange={(e) => setTz(e.target.value)} className={input} required>
         {tz && !zones.includes(tz) && <option value={tz}>{tz}</option>}
         {zones.map((z) => <option key={z} value={z}>{z}</option>)}
@@ -37,28 +39,42 @@ function ZoneSelect({ tz, setTz, zones }: ReturnType<typeof useZones>) {
 
 function Common({ repos, d }: { repos: string[]; d?: Partial<Record<string, unknown>> }) {
   const sel = (d?.repos as string[] | undefined) ?? [];
+  const [pick, setPick] = useState(sel.length > 0);
+  const [level, setLevel] = useState((d?.level as string | undefined) ?? "prepare");
   return (
     <>
-      <fieldset className="grid gap-1"><legend className="font-medium">Repositories</legend>
-        <label className="flex items-center gap-2"><input type="checkbox" name="repos" value="*" defaultChecked={!sel.length} /> All monitored repositories</label>
-        {repos.map((r) => <label key={r} className="flex items-center gap-2 min-w-0"><input type="checkbox" name="repos" value={r} defaultChecked={sel.includes(r)} /><span className="truncate">{r}</span></label>)}
-      </fieldset>
-      <fieldset className="grid gap-2"><legend className="font-medium">What it may do</legend>
-        {LEVELS.map((l) => <label key={l.id} className="flex items-start gap-2"><input type="radio" name="level" value={l.id} defaultChecked={(d?.level ?? "prepare") === l.id} className="mt-1" /><span><b>{l.title}</b><span className="block text-[calc(13px*var(--ui))] text-ink2">{l.desc}</span></span></label>)}
-        <label className="flex items-start gap-2"><input type="radio" name="level" value="draft_pr" defaultChecked={d?.level === "draft_pr"} className="mt-1" /><span><b>Create draft pull requests</b><span className="block text-[calc(13px*var(--ui))] text-ink2">Also open a draft PR for each fix whose tests passed. Saving checks your GitHub write access and authorizes one window; it is re-checked before every PR. Anything uncertain waits for your review. Never merged.</span></span></label>
-      </fieldset>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <label className="grid gap-1">Max issues<input name="max_issues" type="number" min={1} max={50} defaultValue={(d?.max_issues as number) ?? 10} className={input} /></label>
-        <label className="grid gap-1">Parallel jobs<input name="max_jobs" type="number" min={1} max={3} defaultValue={(d?.max_jobs as number) ?? 1} className={input} /></label>
-        <label className="grid gap-1">Budget (USD)<input name="budget_usd" type="number" min={0.1} max={50} step={0.1} defaultValue={(d?.budget_usd as number) ?? 5} className={input} /></label>
-        <label className="grid gap-1">Min severity
-          <select name="min_severity" defaultValue={(d?.min_severity as string) ?? "low"} className={input}><option value="low">All</option><option value="moderate">Moderate+</option><option value="high">High+</option><option value="critical">Critical</option></select>
-        </label>
-      </div>
-      <label className="flex items-center gap-2"><input type="checkbox" name="quiet" defaultChecked={(d?.quiet as boolean | undefined) ?? true} /> Only critical alerts may interrupt me during the window (others wait for the summary)</label>
-      <label className="grid gap-1 w-fit">At the end of the window
-        <select name="deadline" defaultValue={(d?.deadline as string) ?? "finish"} className={input}><option value="finish">Let running tests finish (results held for review)</option><option value="stop">Stop running tests</option></select>
+      <label className="grid gap-1">Repositories
+        <select value={pick ? "pick" : "all"} onChange={(e) => setPick(e.target.value === "pick")} className={input}>
+          <option value="all">All repositories</option>
+          <option value="pick">Choose repositories…</option>
+        </select>
       </label>
+      {pick ? (
+        <fieldset className="grid gap-1 pl-1"><legend className="sr-only">Choose repositories</legend>
+          {repos.map((r) => <label key={r} className="flex items-center gap-2 min-w-0"><input type="checkbox" name="repos" value={r} defaultChecked={sel.includes(r)} /><span className="truncate">{demoPath(r)}</span></label>)}
+        </fieldset>
+      ) : <input type="hidden" name="repos" value="*" />}
+      <label className="grid gap-1">Action
+        <select name="level" value={level} onChange={(e) => setLevel(e.target.value)} aria-describedby={level === "draft_pr" ? "level-note" : undefined} className={input}>
+          {LEVELS.map((l) => <option key={l.id} value={l.id}>{l.title}</option>)}
+        </select>
+        {level === "draft_pr" && <span id="level-note" role="note" className="text-[calc(12px*var(--ui))] text-ink2">Needs GitHub write access. PRs stay drafts and are never merged.</span>}
+      </label>
+      <details className="disclose">
+        <summary className="text-ink2">Advanced settings</summary>
+        <div className="grid gap-3 mt-3">
+          <label className="grid gap-1">Issues to check<input name="max_issues" type="number" min={1} max={50} defaultValue={(d?.max_issues as number) ?? 10} className={input} /></label>
+          <label className="grid gap-1">Fixes at once<input name="max_jobs" type="number" min={1} max={3} defaultValue={(d?.max_jobs as number) ?? 1} className={input} /></label>
+          <label className="grid gap-1">Spending limit ($)<input name="budget_usd" type="number" min={0.1} max={50} step={0.1} defaultValue={(d?.budget_usd as number) ?? 5} className={input} /></label>
+          <label className="grid gap-1">Issue severity
+            <select name="min_severity" defaultValue={(d?.min_severity as string) ?? "low"} className={input}><option value="low">All</option><option value="moderate">Moderate and up</option><option value="high">High and up</option><option value="critical">Critical only</option></select>
+          </label>
+          <label className="grid gap-1">When time runs out
+            <select name="deadline" defaultValue={(d?.deadline as string) ?? "finish"} className={input}><option value="finish">Finish current tests</option><option value="stop">Stop tests</option></select>
+          </label>
+          <label className="flex items-center gap-2"><input type="checkbox" name="quiet" defaultChecked={(d?.quiet as boolean | undefined) ?? true} /> Notify me only for critical issues</label>
+        </div>
+      </details>
     </>
   );
 }
@@ -78,26 +94,24 @@ export function ScheduleForm({ action, repos, d, today }: { action: Action; repo
   // The browser's own date (en-CA formats as YYYY-MM-DD); the server's UTC date is only the first-render fallback.
   const localToday = useSyncExternalStore(noSubscribe, () => new Date().toLocaleDateString("en-CA"), () => today);
   return (
-    <form action={run} className="grid gap-3 text-[calc(14px*var(--ui))] border hair rounded-[8px] p-3">
+    <form action={run} className="grid gap-3 max-w-[calc(420px*var(--ui))] text-[calc(14px*var(--ui))]">
       {d?.id && <input type="hidden" name="id" value={d.id} />}
-      <div className="flex flex-wrap gap-3 items-end">
-        <label className="grid gap-1">Name<input name="label" defaultValue={d?.label ?? ""} placeholder="Night shift" maxLength={60} className={input} /></label>
-        <label className="grid gap-1">Repeats
-          <select name="kind" value={kind} onChange={(e) => setKind(e.target.value as "once" | "recurring")} className={input}><option value="recurring">Recurring</option><option value="once">One time</option></select>
-        </label>
-        {kind === "once" && <label className="grid gap-1">Date<input key={localToday} name="date" type="date" defaultValue={d?.date ?? localToday} className={input} required /></label>}
-        <label className="grid gap-1">Start<input name="start" type="time" defaultValue={d?.start ?? "23:00"} className={input} required /></label>
-        <label className="grid gap-1">End<input name="end" type="time" defaultValue={d?.end ?? "07:00"} className={input} required /></label>
-        <ZoneSelect {...z} />
-      </div>
-      {kind === "recurring" && (
-        <fieldset className="flex flex-wrap gap-3"><legend className="sr-only">Days</legend>
-          {DAYS.map((n, i) => <label key={n} className="flex items-center gap-1"><input type="checkbox" name="days" value={i} defaultChecked={(d?.days ?? [0, 1, 2, 3, 4, 5, 6]).includes(i)} />{n}</label>)}
+      <label className="grid gap-1">Name (optional)<input name="label" defaultValue={d?.label ?? ""} placeholder="Night shift" maxLength={60} className={input} /></label>
+      <label className="grid gap-1">Repeats
+        <select name="kind" value={kind} onChange={(e) => setKind(e.target.value as "once" | "recurring")} className={input}><option value="recurring">Every week</option><option value="once">Once</option></select>
+      </label>
+      {kind === "once" ? <label className="grid gap-1">Date<input key={localToday} name="date" type="date" defaultValue={d?.date ?? localToday} className={input} required /></label> : (
+        <fieldset className="grid gap-1"><legend className="mb-1">Days</legend>
+          <div className="flex flex-wrap gap-x-3 gap-y-1">{DAYS.map((n, i) => <label key={n} className="flex items-center gap-1"><input type="checkbox" name="days" value={i} defaultChecked={(d?.days ?? [0, 1, 2, 3, 4, 5, 6]).includes(i)} />{n}</label>)}</div>
         </fieldset>
       )}
-      <p className="text-[calc(12px*var(--ui))] text-ink2">Times are local to the timezone above and follow its daylight saving changes. An end time earlier than the start ends the next morning. Days are the days the window starts.</p>
+      <div className="flex flex-wrap gap-3 items-end">
+        <label className="grid gap-1">Starts<input name="start" type="time" defaultValue={d?.start ?? "23:00"} className={input} required /></label>
+        <label className="grid gap-1">Ends<input name="end" type="time" defaultValue={d?.end ?? "07:00"} className={input} required /></label>
+      </div>
+      <ZoneSelect {...z} />
       <Common repos={repos} d={d} />
-      <div className="flex items-center gap-3"><button type="submit" className="btn w-fit" disabled={pending}>{pending ? "Saving…" : d?.id ? "Save changes" : "Add window"}</button><Result s={state} /></div>
+      <div className="flex items-center gap-3"><button type="submit" className="btn btn-primary w-fit" disabled={pending}>{pending ? "Saving…" : d?.id ? "Save changes" : "Schedule run"}</button><Result s={state} /></div>
     </form>
   );
 }
@@ -106,26 +120,26 @@ export function StartNowForm({ action, repos }: { action: Action; repos: string[
   const [state, run, pending] = useActionState(action, { ok: false, error: null });
   const z = useZones();
   return (
-    <form action={run} className="grid gap-3 text-[calc(14px*var(--ui))]">
-      <div className="flex flex-wrap gap-3 items-end">
-        <label className="grid gap-1">For
+    <form action={run} className="grid gap-3 max-w-[calc(420px*var(--ui))] text-[calc(14px*var(--ui))]">
+      <div className="grid gap-3">
+        <label className="grid gap-1">Duration
           <select name="hours" defaultValue="8" className={input}>{[1, 2, 4, 6, 8, 10, 12].map((h) => <option key={h} value={h}>{h} hour{h > 1 ? "s" : ""}</option>)}</select>
         </label>
         <ZoneSelect {...z} />
       </div>
       <Common repos={repos} />
-      <div className="flex items-center gap-3"><button type="submit" className="btn btn-primary w-fit" disabled={pending}>{pending ? "Starting…" : "Start window now"}</button><Result s={state} /></div>
+      <div className="flex items-center gap-3"><button type="submit" className="btn btn-primary w-fit" disabled={pending}>{pending ? "Starting…" : "Start"}</button><Result s={state} /></div>
     </form>
   );
 }
 
-/** "Authorize this window" for a recurring draft-PR window; shows why when the server refuses. */
+/** "Authorize next run" for a recurring draft-PR window; shows why when the server refuses. */
 export function AuthorizeButton({ action, id }: { action: Action; id: string }) {
   const [state, run, pending] = useActionState(action, { ok: false, error: null });
   return (
     <form action={run} className="grid gap-1 justify-items-end">
       <input type="hidden" name="id" value={id} />
-      <button type="submit" className="btn-ghost" disabled={pending}>{pending ? "Checking access…" : "Authorize this window"}</button>
+      <button type="submit" className="btn-ghost" disabled={pending}>{pending ? "Checking access…" : "Authorize next run"}</button>
       {state.error && <span role="alert" className="tone-warn text-[calc(12px*var(--ui))] max-w-[calc(320px*var(--ui))] text-right">{state.error}</span>}
     </form>
   );

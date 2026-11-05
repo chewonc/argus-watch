@@ -5,9 +5,16 @@ import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { env } from "./env";
 
+// The dev fallback is refused on a Vercel production deployment so sessions can never be signed with a public key.
+function authSecret(): string {
+  if (env.BETTER_AUTH_SECRET) return env.BETTER_AUTH_SECRET;
+  if (process.env.VERCEL_ENV === "production") throw new Error("BETTER_AUTH_SECRET must be set in production");
+  return "dev-only-secret-change-me-dev-only-secret-change-me";
+}
+
 export const auth = betterAuth({
   baseURL: env.APP_URL,
-  secret: env.BETTER_AUTH_SECRET || "dev-only-secret-change-me-dev-only-secret-change-me",
+  secret: authSecret(),
   // No `database`: sessions and the OAuth account live in encrypted cookies (storeAccountCookie is implied).
   session: { cookieCache: { enabled: true, maxAge: 60 * 60 * 24 * 7 } },
   socialProviders: {

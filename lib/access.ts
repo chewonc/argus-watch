@@ -1,4 +1,4 @@
-// GitHub access revalidation (V6). Repository visibility in Argus is a cache of what GitHub allows; this keeps it honest.
+// GitHub access revalidation (V6). Repository visibility in SaveBell is a cache of what GitHub allows; this keeps it honest.
 //   revalidateAccess   at most every ACCESS_TTL per user, with the user's own GitHub token: installations the user can
 //                      no longer see are unlinked; repositories they can no longer access are marked access_lost (hidden,
 //                      not notified, nothing deleted) and restored automatically when access returns.
@@ -45,7 +45,7 @@ export class AccessError extends Error { constructor(message: string, readonly s
 
 /** The user's own GitHub permission must allow pushing to this repository. Fails closed without a token. */
 export async function assertUserCanWrite(userToken: string | null, repoKey: string, gh?: GH): Promise<void> {
-  if (!userToken) throw new AccessError("sign in with GitHub again so Argus can confirm your write access to this repository");
+  if (!userToken) throw new AccessError("sign in with GitHub again so SaveBell can confirm your write access to this repository");
   gh ??= await github();
   const p = await gh.userRepoPermission(userToken, repoKey.split("/").slice(0, 2).join("/"));
   if (!p?.push) throw new AccessError("your GitHub account does not have write access to this repository");

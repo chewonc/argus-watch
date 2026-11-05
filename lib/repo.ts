@@ -3,6 +3,7 @@ import semver from "semver";
 import { env, hasGitHubApp } from "./env";
 import type { WatchedRepo } from "./schema";
 import { kv, store } from "./store";
+import { USER_AGENT } from "./ua";
 
 // Trees and file contents are immutable per commit sha: cache them (store-backed) so each is fetched once.
 // Values are wrapped as { v } because Upstash Redis auto-parses stored strings that look like JSON
@@ -35,7 +36,7 @@ export const forgetInstallations = () => { repoInstMemo = null; };
 /** Repositories being connected are not stored yet: remember their installation so their first reads use it. */
 const pendingInst = new Map<string, number>();
 async function hdr(repo: string): Promise<Record<string, string>> {
-  const base: Record<string, string> = { Accept: "application/vnd.github+json", "User-Agent": "ArgusWatch/0.1" };
+  const base: Record<string, string> = { Accept: "application/vnd.github+json", "User-Agent": USER_AGENT };
   const inst = hasGitHubApp() ? await installationFor(repo) : null;
   if (inst) { try { const { installationToken } = await import("./github-app"); return { ...base, Authorization: `Bearer ${await installationToken(inst)}` }; } catch { /* fall back to PAT */ } }
   return env.GITHUB_TOKEN ? { ...base, Authorization: `Bearer ${env.GITHUB_TOKEN}` } : base;

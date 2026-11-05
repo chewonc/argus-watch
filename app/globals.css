@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Argus Watch tokens (strategy/12). Light default; dark follows system. */
+/* SaveBell tokens (strategy/12). Light default; dark follows system. */
 :root {
   --bg: #f7f5f0;
   --bg-raised: #ffffff;
@@ -170,10 +170,10 @@ details.disclose .grid > * { min-width: 0; }
 .tl-item, details.disclose .mono { overflow-wrap: anywhere; }
 
 /* Header (components/header-nav.tsx): primary links with a subtle active rule; a restrained unread count on the bell. */
-.nav-link { position: relative; color: var(--ink-2); text-decoration: none; padding: 6px 0; white-space: nowrap; transition: color .12s; }
-.nav-link:hover { color: var(--ink); }
-.nav-link[aria-current="page"] { color: var(--ink); }
-.nav-link[aria-current="page"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 1.5px; background: var(--ink-2); }
+.nav-link { position: relative; color: var(--ink); opacity: .78; font-size: calc(14px * var(--ui)); font-weight: 500; text-decoration: none; padding: 6px 0; white-space: nowrap; transition: opacity .12s; }
+.nav-link:hover { opacity: 1; }
+.nav-link[aria-current="page"] { opacity: 1; }
+.nav-link[aria-current="page"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 2px; background: var(--ink); }
 .badge-quiet { min-width: calc(16px * var(--ui)); height: calc(16px * var(--ui)); padding: 0 4px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: calc(10px * var(--ui)); font-weight: 600; line-height: calc(16px * var(--ui)); text-align: center; font-variant-numeric: tabular-nums; }
 
 /* Unread count on the notification bell: red with white digits (only rendered when unread > 0). */

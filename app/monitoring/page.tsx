@@ -20,7 +20,7 @@ export default async function Monitoring() {
   const log = rawLog.filter((l) => logVisibleTo(l, keys, known)).slice(0, 80);
   const repos = (await store.listRepos()).filter((r) => keys.has(store.repoKey(r)));
   const [usage, mineUsed, recent] = await Promise.all([usageSummary(), hostedUsedBy(user.id), store.listAssessments(400)]);
-  // History: threats Argus checked against your code that do not affect you (kept out of the Alerts list).
+  // History: threats SaveBell checked against your code that do not affect you (kept out of the Alerts list).
   const latest = new Map<string, (typeof recent)[number]>();
   for (const a of recent) { if (!keys.has(a.repo)) continue; const k = `${a.finding_id}|${a.repo}`; if (!latest.has(k) || latest.get(k)!.timestamps.processed_at < a.timestamps.processed_at) latest.set(k, a); }
   const cleared = [...latest.values()].filter((a) => a.verdict === "Not Affected").sort((x, y) => discoveredAt(y).localeCompare(discoveredAt(x)));
@@ -49,7 +49,7 @@ export default async function Monitoring() {
           <div className="px-5 py-4 grid gap-0.5 sm:border-l hair"><dt className="text-[calc(12px*var(--ui))] text-ink2">{d.mon_code_checks}</dt><dd className="font-semibold">{analyses}{tokens ? <span className="text-ink2 font-normal text-[calc(12px*var(--ui))]"> · {Math.round(tokens / 1000)}k tokens</span> : null}</dd></div>
           <div className="px-5 py-4 grid gap-0.5 sm:border-l hair"><dt className="text-[calc(12px*var(--ui))] text-ink2">{d.mon_included}</dt><dd className="font-semibold">{mineUsed.cap < 0 ? d.mon_unlimited : d.mon_used_of.replace("{n}", String(Math.min(mineUsed.used, mineUsed.cap))).replace("{cap}", String(mineUsed.cap))}</dd></div>
         </dl>
-        <p className="px-5 pb-4 text-[calc(12px*var(--ui))] text-ink2">Package version checks never use AI. {mineUsed.cap >= 0 && mineUsed.used >= mineUsed.cap ? "You've used this month's included checks: new alerts still arrive, marked Possible issue, and your connected AI agent can check them." : "When the included checks run out, alerts keep arriving, marked Possible issue, and your connected AI agent can check them."} Monthly totals cover all of Argus.</p>
+        <p className="px-5 pb-4 text-[calc(12px*var(--ui))] text-ink2">Package version checks never use AI. {mineUsed.cap >= 0 && mineUsed.used >= mineUsed.cap ? "You've used this month's included checks: new alerts still arrive, marked Possible issue, and your connected AI agent can check them." : "When the included checks run out, alerts keep arriving, marked Possible issue, and your connected AI agent can check them."} Monthly totals cover all of SaveBell.</p>
       </section>
 
       <details className="disclose">
