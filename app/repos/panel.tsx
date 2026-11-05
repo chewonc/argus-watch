@@ -98,11 +98,11 @@ export async function RepositoriesPanel({ sp, embedded = false }: { sp: Record<s
       <Step n={3} done={watching.length > 0} title="Monitoring">
         {watching.length === 0 ? <p className="text-[calc(14px*var(--ui))] text-ink2">{d.nothing_watched}</p> : (
           <ul className="border hair rounded-[10px] bg-raised">
-            {watching.map(({ key, ur, w, demo: isDemo }) => { const st = ur?.access_lost ? { label: "GitHub access lost", glyph: "!", tone: "bad" as const } : ur?.paused ? { label: "Not monitored (stopped by you)", glyph: "○", tone: "muted" as const } : repoStatus(w, { connected: !ur || !!ur.installation_id || !hasGitHubApp() }); return (
-              <li key={key} className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b hair last:border-0">
+            {watching.map(({ key, ur, w, demo: isDemo }) => { const st = ur?.access_lost ? { label: "Deleted or no longer accessible", glyph: "○", tone: "muted" as const } : ur?.paused ? { label: "Not monitored (stopped by you)", glyph: "○", tone: "muted" as const } : repoStatus(w, { connected: !ur || !!ur.installation_id || !hasGitHubApp() }); return (
+              <li key={key} className={`flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b hair last:border-0${ur?.access_lost ? " text-ink2" : ""}`}>
                 <div className="grid min-w-0">
                   {/* Monorepo folders: lead with the folder name so rows stay distinguishable on narrow screens; the full path wraps below. */}
-                  <span className="text-[calc(14px*var(--ui))] font-medium [overflow-wrap:anywhere]" title={key}>{key.split("/").length > 2 ? key.split("/").pop() : key}</span>
+                  <span className={`text-[calc(14px*var(--ui))] font-medium [overflow-wrap:anywhere]${ur?.access_lost ? " line-through" : ""}`} title={key}>{key.split("/").length > 2 ? key.split("/").pop() : key}</span>
                   {key.split("/").length > 2 && <span className="text-[calc(12px*var(--ui))] text-ink2 mono [overflow-wrap:anywhere]">{key}</span>}
                   {isDemo && <span className="text-ink2 text-[calc(12px*var(--ui))]">Shared demo</span>}
                   <span className={`text-[calc(13px*var(--ui))] tone-${st.tone}`}><span aria-hidden>{st.glyph}</span> {st.label}</span>
